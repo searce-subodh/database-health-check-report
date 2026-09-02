@@ -39,7 +39,9 @@ def run_queries_for_server(engine: sqlalchemy.engine.base.Engine, database_queri
         raw_conn = conn.connection
         cursor = raw_conn.cursor()
 
-        
+        # Run ANALYZE so PostgreSQL collects fresh statistics on all tables
+        # before running health check queries — without this, queries that
+        # read from pg_stats and pg_stat_user_indexes may return empty results
         print("  🔄 Running ANALYZE to collect table statistics...")
         cursor.execute("ANALYZE;")
         raw_conn.commit()
@@ -48,16 +50,18 @@ def run_queries_for_server(engine: sqlalchemy.engine.base.Engine, database_queri
         for category, queries in database_queries.items():
             server_results[category] = {}
 
-            
-            try:
+            for key, sql in queries.items():
+                if key.startswith("_"):
+                    continue
+                try:
                     cursor.execute(sql)
                     columns = [desc[0] for desc in cursor.description]
-                    rows = cursor.fetchall()
+                    records = cursor.fetchall()
                     server_results[category][key] = [
-                        dict(zip(columns, row)) for row in rows
+                        dict(zip(columns, record)) for record in records
                     ]
 
-            except Exception as e:
+                except Exception as e:
                     raw_conn.rollback()
                     print(f"  ⚠️  Query failed [{category} → {key}]: {e}")
                     server_results[category][key] = []
@@ -91,7 +95,7 @@ def main():
     with open("database_health_report.json", "w") as f:
         json.dump(report_results, f, indent=4, default=str)
 
-    print("\n Report saved to database_health_report.json")
+    print("\n📄 Report saved to database_health_report.json")
 
 
 if __name__ == "__main__":
