@@ -1,0 +1,20 @@
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Database Health Check Report</title>
+    <style>
+        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 20px; }
+        h1 { color: #0f172a; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
+        .server-card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+        .category-title { font-size: 1.2em; font-weight: bold; color: #2563eb; margin-top: 15px; border-bottom: 1px solid #e2e8f0; }
+        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
+        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 0.9em; }
+        th { background-color: #334155; color: white; }
+        tr:nth-child(even) { background-color: #f8fafc; }
+        .alert-badge { font-weight: bold; color: #991b1b; background-color: #fee2e2; padding: 4px 8px; border-radius: 4px; }
+    </style>
+</head>
+<body>
+    <h1>🏥 Database Health Check Audit Report</h1>
+<div class="server-card"><h2>🖥️ Server: bhakti-test:us-central1:bhakti-health-report-test</h2><div class="category-title">Category: INDEXES</div><h4>Metric: unused_indexes</h4><p><i>No issue or records flagged.</i></p><h4>Metric: redundant_indexes</h4><p><i>No issue or records flagged.</i></p><h4>Metric: queries_high_full_table_scans</h4><p><i>No issue or records flagged.</i></p><h4>Metric: low_selectivity_indexes</h4><p><i>No issue or records flagged.</i></p><div class="category-title">Category: USERS</div><h4>Metric: account_password_hygiene</h4><table><thead><tr><th>username</th><th>can_login</th><th>is_superuser</th><th>inherits_privileges</th><th>can_create_db</th><th>can_create_roles</th><th>password_expires_at</th><th>password_risk_status</th></tr></thead><tbody><tr><td>cloudsqladmin</td><td>True</td><td>True</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlsuperuser</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlagent</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlimportexport</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlreplica</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlobservability</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlconnpooladmin</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>postgres</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr></tbody></table><h4>Metric: excessive_administrative_privileges</h4><p><i>No issue or records flagged.</i></p></div></body></html>
