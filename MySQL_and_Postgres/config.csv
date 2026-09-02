@@ -1,0 +1,2 @@
+connection_name,password,db_name,db_user
+your-project:your-region:your-instance,yourpassword,ecommerce,postgres 

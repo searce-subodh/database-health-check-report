@@ -1,0 +1,17 @@
+{
+  "indexes": {
+    "unused_indexes": "SELECT s.schemaname AS database_name, s.relname AS table_name, s.indexrelname AS index_name, pg_size_pretty(pg_relation_size(s.indexrelid)) AS index_size FROM pg_stat_user_indexes s JOIN pg_index i ON s.indexrelid = i.indexrelid WHERE s.idx_scan = 0 AND NOT i.indisprimary AND NOT i.indisunique AND s.schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY pg_relation_size(s.indexrelid) DESC LIMIT 10;",
+
+    "redundant_indexes": "SELECT a.schemaname AS database_name, a.tablename AS table_name, a.indexname AS redundant_index_name, a.indexdef AS redundant_index_columns, b.indexname AS dominant_index_name, b.indexdef AS dominant_index_columns FROM pg_indexes a JOIN pg_indexes b ON a.tablename = b.tablename AND a.indexname <> b.indexname AND a.schemaname = b.schemaname WHERE position(replace(a.indexdef, a.indexname, '') IN replace(b.indexdef, b.indexname, '')) > 0 AND a.schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY a.tablename LIMIT 10;",
+
+    "queries_high_full_table_scans": "SELECT relname AS table_name, seq_scan AS full_table_scans, seq_tup_read AS rows_read_via_scan, idx_scan AS index_scans, CASE WHEN (seq_scan + idx_scan) = 0 THEN 0 ELSE ROUND((seq_scan::numeric / (seq_scan + idx_scan)) * 100, 2) END AS scan_ratio_pct FROM pg_stat_user_tables WHERE seq_scan > 0 ORDER BY full_table_scans DESC LIMIT 10;",
+
+    "low_selectivity_indexes": "SELECT schemaname AS database_name, tablename AS table_name, attname AS column_name, n_distinct, correlation, CASE WHEN n_distinct > 0 THEN ROUND(((n_distinct / GREATEST(reltuples, 1)) * 100)::numeric, 2) ELSE NULL END AS estimated_selectivity_pct FROM pg_stats JOIN pg_class ON pg_class.relname = pg_stats.tablename WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND n_distinct BETWEEN 1 AND 100 AND reltuples > 10000 ORDER BY estimated_selectivity_pct ASC NULLS LAST LIMIT 10;"
+  },
+
+  "users": {
+    "account_password_hygiene": "SELECT r.rolname AS username, r.rolcanlogin AS can_login, r.rolsuper AS is_superuser, r.rolinherit AS inherits_privileges, r.rolcreatedb AS can_create_db, r.rolcreaterole AS can_create_roles, r.rolvaliduntil AS password_expires_at, CASE WHEN r.rolvaliduntil IS NULL THEN 'NEVER EXPIRES' WHEN r.rolvaliduntil < NOW() THEN 'EXPIRED' ELSE 'POLICY ENFORCED' END AS password_risk_status FROM pg_roles r WHERE r.rolname NOT LIKE 'pg_%' AND r.rolcanlogin = true ORDER BY password_risk_status DESC LIMIT 10;",
+
+    "excessive_administrative_privileges": "SELECT grantee, table_catalog AS database_name, privilege_type, is_grantable FROM information_schema.role_table_grants WHERE privilege_type IN ('DELETE', 'TRUNCATE', 'REFERENCES', 'TRIGGER') AND grantee NOT IN ('postgres') ORDER BY grantee LIMIT 10;"
+  }
+}
