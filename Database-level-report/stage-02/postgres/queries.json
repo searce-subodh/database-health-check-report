@@ -1,0 +1,24 @@
+{
+  "performance": {
+    "full_table_scans": "SELECT schemaname AS schema_name, relname AS table_name, seq_scan AS total_seq_scans, seq_tup_read AS total_tuples_read, idx_scan AS total_idx_scans, ROUND((seq_scan::numeric / NULLIF(seq_scan + idx_scan, 0)) * 100, 2) AS seq_scan_pct FROM pg_stat_user_tables WHERE seq_scan > 0 ORDER BY seq_scan DESC, seq_tup_read DESC LIMIT 15;",
+    "temporary_table_usage": "SELECT d.datname AS database_name, s.query AS query_pattern, s.calls AS total_executions, s.temp_blks_read AS temp_blocks_read, s.temp_blks_written AS temp_blocks_written, (s.temp_blks_read + s.temp_blks_written) AS total_temp_blocks_io FROM pg_stat_statements s JOIN pg_database d ON d.oid = s.dbid WHERE (s.temp_blks_read > 0 OR s.temp_blks_written > 0) ORDER BY total_temp_blocks_io DESC LIMIT 15;",
+    "lock_wait_statistics": "SELECT datname AS database_name, deadlocks, conflicts, blk_read_time AS total_read_wait_ms, blk_write_time AS total_write_wait_ms FROM pg_stat_database WHERE datname NOT LIKE 'template%' AND (deadlocks > 0 OR conflicts > 0) ORDER BY deadlocks DESC, conflicts DESC LIMIT 15;"
+  },
+  "indexes": {
+    "unused_indexes": "SELECT schemaname AS schema_name, relname AS table_name, indexrelname AS index_name, ROUND(pg_relation_size(indexrelid) / 1024.0 / 1024.0, 2) AS index_size_mb, idx_scan AS total_scans FROM pg_stat_user_indexes WHERE idx_scan = 0 AND schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY pg_relation_size(indexrelid) DESC LIMIT 15;"
+  },
+  "postgresql_engine": {
+    "buffer_pool_hit_ratio": "SELECT datname AS database_name, blks_hit AS total_buffer_hits, blks_read AS disk_reads, ROUND((blks_hit::numeric / NULLIF(blks_hit + blks_read, 0)) * 100, 2) AS buffer_hit_ratio_pct FROM pg_stat_database WHERE datname NOT LIKE 'template%' ORDER BY buffer_hit_ratio_pct ASC;",
+    "dirty_pages_count_and_ratio": "SELECT buffers_clean AS bgwriter_cleaned_pages, maxwritten_clean AS times_maxwritten_reached, buffers_alloc AS total_pages_allocated FROM pg_stat_bgwriter;",
+    "wal_log_stats": "SELECT wal_records AS total_wal_records, wal_fpi AS full_page_images, wal_bytes AS total_wal_bytes, wal_buffers_full AS times_wal_buffer_full FROM pg_stat_wal;"
+  },
+  "connection_and_processes": {
+    "connections_metrics": "SELECT current_setting('max_connections')::integer AS configured_max_connections, (SELECT count(*) FROM pg_stat_activity) AS current_active_connections, ROUND(((SELECT count(*)::numeric FROM pg_stat_activity) / current_setting('max_connections')::numeric) * 100, 2) AS connection_utilization_pct;",
+    "process_state_metrics": "SELECT state AS connection_state, count(*) AS total_processes FROM pg_stat_activity WHERE state IS NOT NULL GROUP BY state;",
+    "aborted_connections_metrics": "SELECT datname AS database_name, xact_commit AS successful_transactions, xact_rollback AS aborted_transactions, ROUND((xact_rollback::numeric / NULLIF(xact_commit + xact_rollback, 0)) * 100, 2) AS rollback_pct, sessions_abandoned AS dropped_connections, sessions_fatal AS fatal_connections FROM pg_stat_database WHERE datname NOT LIKE 'template%';"
+  },
+  "storage_and_system": {
+    "table_fragmentation_status": "SELECT schemaname AS schema_name, relname AS table_name, ROUND(pg_relation_size(relid) / 1024.0 / 1024.0, 2) AS table_size_mb, n_live_tup AS live_rows, n_dead_tup AS dead_rows, ROUND((n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) * 100, 2) AS dead_tuple_pct_bloat FROM pg_stat_user_tables WHERE n_dead_tup > 0 ORDER BY dead_tuple_pct_bloat DESC, n_dead_tup DESC LIMIT 15;",
+    "cloudsql_uptime": "SELECT date_trunc('second', current_timestamp - pg_postmaster_start_time()) AS uptime_duration, pg_postmaster_start_time() AS instance_started_at;"
+  }
+}

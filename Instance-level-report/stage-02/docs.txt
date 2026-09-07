@@ -1,0 +1,19 @@
+1. STATIC PARAMS with updated logic for tier and Library discovery
+    Engine
+    Edition
+    CPU
+    Memory
+    Storage
+    Availability
+    Read Replica count
+    Last Backup time
+
+2. Monitoring with p95 and p99 values for listed below metrics using MQL
+
+    cpu_utilization
+    memory_utilization,
+    disk_utilization  
+    disk_read_ops  
+    disk_write_ops    
+    disk_bytes_used      
+    queries
