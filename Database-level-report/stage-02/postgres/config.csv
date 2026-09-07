@@ -1,0 +1,2 @@
+connection_name,db_user,password
+data-analyst-504209:us-central1:csql-psql-db,postgres,"postgres"

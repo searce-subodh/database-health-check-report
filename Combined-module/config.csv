@@ -1,0 +1,3 @@
+project_id,instance_name,db_user,db_pass
+data-analyst-504209,csql-mysql-db,root,"root"
+data-analyst-504209,csql-psql-db,postgres,"postgres"
