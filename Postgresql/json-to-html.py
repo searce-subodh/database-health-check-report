@@ -17,19 +17,6 @@ for instance, data in report_data.items():
     nav_data[instance] = [db for db in health_checks.keys() if db != "error" and db != "connection_error"]
 
 # ─────────────────────────────────────────────
-# HELPER — COMPUTE ISSUE COUNT PER CATEGORY
-# ─────────────────────────────────────────────
-
-def count_issues(categories):
-    counts = {}
-    for category, queries in categories.items():
-        if not isinstance(queries, dict):
-            continue
-        total = sum(len(rows) for rows in queries.values() if isinstance(rows, list))
-        counts[category] = total
-    return counts
-
-# ─────────────────────────────────────────────
 # HELPER — ROW COLOR BY VALUE
 # ─────────────────────────────────────────────
 
@@ -204,49 +191,6 @@ html_content = f"""<!DOCTYPE html>
 
 <div id="content">
 """
-
-# ─────────────────────────────────────────────
-# SUMMARY DASHBOARD
-# ─────────────────────────────────────────────
-
-html_content += '<div class="summary-grid" id="summary-grid">'
-
-for instance, data in report_data.items():
-    health_checks = data.get("health_checks", {})
-    specs = data.get("provisioned_specs", {})
-    engine = specs.get("Engine", "Unknown")
-
-    if "connection_error" in health_checks or "Error" in specs:
-        html_content += f'''
-        <div class="summary-card has-issues">
-            <div class="summary-card-title">Instance</div>
-            <div class="summary-card-server">{instance}</div>
-            <div class="summary-badges"><span class="cat-badge has-issues">❌ Connection Failed</span></div>
-        </div>'''
-        continue
-
-    for db_name, categories in health_checks.items():
-        if not isinstance(categories, dict):
-            continue
-        issue_counts = count_issues(categories)
-        total_issues = sum(issue_counts.values())
-        card_class = "summary-card has-issues" if total_issues > 0 else "summary-card"
-
-        html_content += f'''
-        <div class="{card_class}">
-            <div class="summary-card-title">{engine}</div>
-            <div class="summary-card-server">{instance}</div>
-            <div class="summary-card-db">🗄️ {db_name}</div>
-            <div class="summary-badges">'''
-
-        for cat, count in issue_counts.items():
-            badge_class = "cat-badge has-issues" if count > 0 else "cat-badge"
-            label = f"⚠️ {cat}: {count}" if count > 0 else f"✅ {cat}"
-            html_content += f'<span class="{badge_class}">{label}</span>'
-
-        html_content += '</div></div>'
-
-html_content += '</div>'
 
 # ─────────────────────────────────────────────
 # MAIN REPORT — PER INSTANCE
