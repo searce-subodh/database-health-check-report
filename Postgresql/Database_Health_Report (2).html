@@ -1,20 +1,429 @@
-
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Database Health Check Report</title>
     <style>
-        body { font-family: 'Segoe UI', Arial, sans-serif; background-color: #f8fafc; color: #1e293b; padding: 20px; }
-        h1 { color: #0f172a; border-bottom: 2px solid #2563eb; padding-bottom: 10px; }
-        .server-card { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-        .category-title { font-size: 1.2em; font-weight: bold; color: #2563eb; margin-top: 15px; border-bottom: 1px solid #e2e8f0; }
-        table { width: 100%; border-collapse: collapse; margin-top: 10px; margin-bottom: 20px; }
-        th, td { border: 1px solid #e2e8f0; padding: 10px; text-align: left; font-size: 0.9em; }
-        th { background-color: #334155; color: white; }
-        tr:nth-child(even) { background-color: #f8fafc; }
-        .alert-badge { font-weight: bold; color: #991b1b; background-color: #fee2e2; padding: 4px 8px; border-radius: 4px; }
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f5f9; color: #1e293b; }
+
+        /* ── FROZEN TOP BAR ── */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #0f172a; color: white;
+            padding: 12px 24px; display: flex; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #topbar h1 { font-size: 1em; font-weight: 700; color: white; white-space: nowrap; }
+        #topbar select {
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em; cursor: pointer;
+        }
+        #search-box {
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em; width: 200px;
+        }
+        #search-box::placeholder { color: #94a3b8; }
+        .topbar-timestamp { margin-left: auto; font-size: 0.75em; color: #94a3b8; white-space: nowrap; }
+
+        /* ── MAIN CONTENT ── */
+        #content { margin-top: 70px; padding: 24px; }
+
+        /* ── SUMMARY CARDS ── */
+        .summary-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+            gap: 12px; margin-bottom: 24px;
+        }
+        .summary-card {
+            background: white; border-radius: 8px; padding: 14px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid #2563eb;
+        }
+        .summary-card.has-issues { border-top-color: #dc2626; }
+        .summary-card-title { font-size: 0.75em; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }
+        .summary-card-server { font-size: 0.85em; font-weight: 700; color: #0f172a; margin-bottom: 6px; word-break: break-all; }
+        .summary-card-db { font-size: 0.8em; color: #334155; margin-bottom: 6px; }
+        .summary-badges { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }
+        .cat-badge { font-size: 0.7em; padding: 2px 6px; border-radius: 10px; background: #dcfce7; color: #166534; }
+        .cat-badge.has-issues { background: #fee2e2; color: #991b1b; }
+
+        /* ── PROVISIONED SPECS ── */
+        .specs-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 8px; margin-bottom: 16px;
+        }
+        .spec-item {
+            background: #f8fafc; border-radius: 6px; padding: 10px;
+            border-left: 3px solid #2563eb;
+        }
+        .spec-label { font-size: 0.7em; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+        .spec-value { font-size: 0.9em; font-weight: 700; color: #0f172a; }
+
+        /* ── MONITORING METRICS ── */
+        .metrics-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.82em; }
+        .metrics-table th { background: #1e40af; color: white; padding: 8px 10px; text-align: left; }
+        .metrics-table td { border: 1px solid #e2e8f0; padding: 8px 10px; }
+        .metrics-table tr:nth-child(even) td { background: #f8fafc; }
+
+        /* ── INSTANCE / DB CARDS ── */
+        .instance-block { margin-bottom: 32px; }
+        .instance-title {
+            font-size: 1.1em; font-weight: 700; color: #0f172a;
+            padding: 10px 16px; background: #e2e8f0;
+            border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+        }
+        .section-card {
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 16px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .db-card {
+            background: white; border-radius: 6px;
+            padding: 16px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+            border-left: 5px solid #3b82f6;
+        }
+        .db-title { font-size: 1em; font-weight: 700; color: #1e40af; margin-bottom: 12px; }
+        .section-title {
+            font-size: 1em; font-weight: 700; color: #0f172a;
+            margin-bottom: 12px; padding-bottom: 6px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* ── CATEGORY ── */
+        .category-title {
+            font-size: 0.9em; font-weight: 700; color: #2563eb;
+            margin-top: 14px; padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }
+        .category-title:hover { color: #1d4ed8; }
+        .metric-title { font-size: 0.85em; font-weight: 600; color: #334155; margin: 10px 0 4px; }
+
+        /* ── TABLES ── */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 0.82em; }
+        th { background: #334155; color: white; padding: 9px 10px; text-align: left; }
+        td { border: 1px solid #e2e8f0; padding: 8px 10px; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        tr.row-critical td { background: #fee2e2 !important; }
+        tr.row-warning td { background: #fef9c3 !important; }
+        tr:hover td { background: #eff6ff !important; }
+
+        .alert-badge { font-weight: 700; color: #991b1b; background: #fee2e2; padding: 2px 6px; border-radius: 4px; }
+        .warn-badge { font-weight: 700; color: #854d0e; background: #fef9c3; padding: 2px 6px; border-radius: 4px; }
+        .no-issues { color: #16a34a; font-style: italic; font-size: 0.85em; padding: 4px 0; }
+        .error-box { color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 8px 0; }
+        .highlight { background: #fde68a; border-radius: 2px; }
+        .hidden { display: none !important; }
     </style>
 </head>
 <body>
-    <h1>🏥 Database Health Check Audit Report</h1>
-<div class="server-card"><h2>🖥️ Server: bhakti-test:us-central1:bhakti-health-report-test</h2><div class="category-title">Category: INDEXES</div><h4>Metric: unused_indexes</h4><table><thead><tr><th>database_name</th><th>table_name</th><th>index_name</th><th>index_size</th></tr></thead><tbody><tr><td>public</td><td>customers</td><td>idx_customers_country</td><td>136 kB</td></tr><tr><td>public</td><td>payments</td><td>idx_payments_status</td><td>16 kB</td></tr><tr><td>public</td><td>products</td><td>idx_products_stock</td><td>16 kB</td></tr><tr><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>16 kB</td></tr><tr><td>public</td><td>orders</td><td>idx_orders_customer_duplicate</td><td>16 kB</td></tr><tr><td>public</td><td>order_items</td><td>idx_items_product</td><td>16 kB</td></tr><tr><td>public</td><td>payments</td><td>idx_payments_order</td><td>16 kB</td></tr><tr><td>public</td><td>order_items</td><td>idx_items_order</td><td>16 kB</td></tr><tr><td>public</td><td>orders</td><td>idx_orders_customer</td><td>16 kB</td></tr><tr><td>public</td><td>orders</td><td>idx_orders_status</td><td>16 kB</td></tr></tbody></table><h4>Metric: redundant_indexes</h4><table><thead><tr><th>database_name</th><th>table_name</th><th>redundant_index_name</th><th>redundant_index_columns</th><th>dominant_index_name</th><th>dominant_index_columns</th></tr></thead><tbody><tr><td>public</td><td>customers</td><td>idx_customers_country_lowsel</td><td>CREATE INDEX idx_customers_country_lowsel ON public.customers USING btree (country)</td><td>idx_customers_country</td><td>CREATE INDEX idx_customers_country ON public.customers USING btree (country)</td></tr><tr><td>public</td><td>customers</td><td>idx_customers_country</td><td>CREATE INDEX idx_customers_country ON public.customers USING btree (country)</td><td>idx_customers_country_lowsel</td><td>CREATE INDEX idx_customers_country_lowsel ON public.customers USING btree (country)</td></tr><tr><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>CREATE INDEX idx_products_stock_unused ON public.products USING btree (stock)</td><td>idx_products_stock</td><td>CREATE INDEX idx_products_stock ON public.products USING btree (stock)</td></tr><tr><td>public</td><td>products</td><td>idx_products_stock</td><td>CREATE INDEX idx_products_stock ON public.products USING btree (stock)</td><td>idx_products_stock_unused</td><td>CREATE INDEX idx_products_stock_unused ON public.products USING btree (stock)</td></tr></tbody></table><h4>Metric: queries_high_full_table_scans</h4><table><thead><tr><th>table_name</th><th>full_table_scans</th><th>rows_read_via_scan</th><th>index_scans</th><th>scan_ratio_pct</th></tr></thead><tbody><tr><td>customers</td><td>8</td><td>60120</td><td>17</td><td>32.00</td></tr><tr><td>orders</td><td>5</td><td>60</td><td>36</td><td>12.20</td></tr><tr><td>products</td><td>4</td><td>45</td><td>21</td><td>16.00</td></tr><tr><td>payments</td><td>4</td><td>45</td><td>0</td><td>100.00</td></tr><tr><td>order_items</td><td>4</td><td>63</td><td>0</td><td>100.00</td></tr></tbody></table><h4>Metric: low_selectivity_indexes</h4><table><thead><tr><th>database_name</th><th>table_name</th><th>column_name</th><th>n_distinct</th><th>correlation</th><th>estimated_selectivity_pct</th></tr></thead><tbody><tr><td>public</td><td>customers</td><td>country</td><td>12.0</td><td>0.33342236</td><td>0.08</td></tr></tbody></table><div class="category-title">Category: USERS</div><h4>Metric: account_password_hygiene</h4><table><thead><tr><th>username</th><th>can_login</th><th>is_superuser</th><th>inherits_privileges</th><th>can_create_db</th><th>can_create_roles</th><th>password_expires_at</th><th>password_risk_status</th></tr></thead><tbody><tr><td>cloudsqladmin</td><td>True</td><td>True</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlsuperuser</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlagent</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlimportexport</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlreplica</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlobservability</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>cloudsqlconnpooladmin</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td>NEVER EXPIRES</td></tr><tr><td>postgres</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td>NEVER EXPIRES</td></tr></tbody></table><h4>Metric: excessive_administrative_privileges</h4><p><i>No issue or records flagged.</i></p></div></body></html>
+
+<!-- FROZEN TOP BAR -->
+<div id="topbar">
+    <h1>🏥 DB Health Report</h1>
+    <select id="filter-server" onchange="filterServer()">
+        <option value="ALL">All Instances</option>
+    </select>
+    <select id="filter-db" onchange="filterDb()">
+        <option value="ALL">All Databases</option>
+    </select>
+    <input id="search-box" type="text" placeholder="🔍 Search..." oninput="searchReport()">
+    <span class="topbar-timestamp">Generated: 08 Sep 2026, 05:59 AM</span>
+</div>
+
+<div id="content">
+<div class="summary-grid" id="summary-grid">
+        <div class="summary-card has-issues">
+            <div class="summary-card-title">POSTGRES 17</div>
+            <div class="summary-card-server">bhakti-health-report-test</div>
+            <div class="summary-card-db">🗄️ postgres</div>
+            <div class="summary-badges"><span class="cat-badge has-issues">⚠️ indexes: 20</span><span class="cat-badge has-issues">⚠️ users: 8</span><span class="cat-badge has-issues">⚠️ performance: 8</span><span class="cat-badge">✅ locks</span><span class="cat-badge has-issues">⚠️ connections: 6</span><span class="cat-badge has-issues">⚠️ storage: 5</span></div></div>
+        <div class="summary-card has-issues">
+            <div class="summary-card-title">MYSQL 8 4</div>
+            <div class="summary-card-server">inventory-db</div>
+            <div class="summary-card-db">🗄️ inventory</div>
+            <div class="summary-badges"><span class="cat-badge">✅ indexes</span><span class="cat-badge has-issues">⚠️ users: 20</span><span class="cat-badge has-issues">⚠️ performance: 9</span><span class="cat-badge">✅ locks</span><span class="cat-badge has-issues">⚠️ connections: 5</span><span class="cat-badge">✅ storage</span></div></div></div><div class="instance-block" data-server="bhakti-health-report-test" id="srv-bhakti-health-report-test"><div class="instance-title">🖥️ bhakti-health-report-test</div><div class="section-card"><div class="section-title">📋 Provisioned Specs</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">POSTGRES 17</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">2</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">8.0 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">10 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Read Replica count</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup time</div>
+                <div class="spec-value">2026-09-02T19:00:00Z</div>
+            </div></div><div class="section-title" style="margin-top:16px;">📊 Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr>
+            <th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th>
+        </tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>6.21</td>
+                <td>6.37</td>
+                <td>6.38</td>
+                <td>6.21</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>47.25</td>
+                <td>49.44</td>
+                <td>49.54</td>
+                <td>47.25</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>2.33</td>
+                <td>2.4</td>
+                <td>2.41</td>
+                <td>2.33</td>
+            </tr><tr>
+                <td><strong>Disk Read Ops</strong></td>
+                <td>1057.0</td>
+                <td>1101.58</td>
+                <td>1103.69</td>
+                <td>1057.0</td>
+            </tr><tr>
+                <td><strong>Disk Write Ops</strong></td>
+                <td>77962.0</td>
+                <td>80663.35</td>
+                <td>80817.36</td>
+                <td>77962.0</td>
+            </tr><tr>
+                <td><strong>Disk Bytes Used</strong></td>
+                <td>243588931.0</td>
+                <td>252877725.1</td>
+                <td>253360546.53</td>
+                <td>243588931.0</td>
+            </tr><tr>
+                <td><strong>Connections</strong></td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td><strong>Queries</strong></td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr></tbody></table></div><div class="db-card" data-server="bhakti-health-report-test" data-db="postgres" id="db-bhakti-health-report-test-postgres"><div class="db-title">🗄️ Database: postgres</div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 INDEXES</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: unused_indexes</div><table><thead><tr><th>database_name</th><th>table_name</th><th>index_name</th><th>index_size</th><th>times_used</th></tr></thead><tbody><tr class=""><td>public</td><td>customers</td><td>idx_customers_country</td><td>136 kB</td><td>0</td></tr><tr class=""><td>public</td><td>payments</td><td>idx_payments_status</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>products</td><td>idx_products_stock</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>orders</td><td>idx_orders_customer_duplicate</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>order_items</td><td>idx_items_product</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>payments</td><td>idx_payments_order</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>order_items</td><td>idx_items_order</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>orders</td><td>idx_orders_customer</td><td>16 kB</td><td>0</td></tr><tr class=""><td>public</td><td>orders</td><td>idx_orders_status</td><td>16 kB</td><td>0</td></tr></tbody></table><div class="metric-title">Metric: redundant_indexes</div><table><thead><tr><th>database_name</th><th>table_name</th><th>redundant_index_name</th><th>redundant_index_columns</th><th>dominant_index_name</th><th>dominant_index_columns</th></tr></thead><tbody><tr class=""><td>public</td><td>customers</td><td>idx_customers_country_lowsel</td><td>CREATE INDEX idx_customers_country_lowsel ON public.customers USING btree (country)</td><td>idx_customers_country</td><td>CREATE INDEX idx_customers_country ON public.customers USING btree (country)</td></tr><tr class=""><td>public</td><td>customers</td><td>idx_customers_country</td><td>CREATE INDEX idx_customers_country ON public.customers USING btree (country)</td><td>idx_customers_country_lowsel</td><td>CREATE INDEX idx_customers_country_lowsel ON public.customers USING btree (country)</td></tr><tr class=""><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>CREATE INDEX idx_products_stock_unused ON public.products USING btree (stock)</td><td>idx_products_stock</td><td>CREATE INDEX idx_products_stock ON public.products USING btree (stock)</td></tr><tr class=""><td>public</td><td>products</td><td>idx_products_stock</td><td>CREATE INDEX idx_products_stock ON public.products USING btree (stock)</td><td>idx_products_stock_unused</td><td>CREATE INDEX idx_products_stock_unused ON public.products USING btree (stock)</td></tr></tbody></table><div class="metric-title">Metric: queries_high_full_table_scans</div><table><thead><tr><th>table_name</th><th>total_full_scans</th><th>total_rows_read_via_scan</th><th>avg_rows_per_scan</th><th>total_index_scans</th><th>table_size</th></tr></thead><tbody><tr class=""><td>customers</td><td>8</td><td>60120</td><td>7515</td><td>17</td><td>3216 kB</td></tr><tr class=""><td>orders</td><td>5</td><td>60</td><td>12</td><td>36</td><td>72 kB</td></tr><tr class=""><td>products</td><td>4</td><td>45</td><td>11</td><td>21</td><td>56 kB</td></tr><tr class=""><td>payments</td><td>4</td><td>45</td><td>11</td><td>0</td><td>56 kB</td></tr><tr class=""><td>order_items</td><td>4</td><td>63</td><td>16</td><td>0</td><td>56 kB</td></tr></tbody></table><div class="metric-title">Metric: low_selectivity_indexes</div><table><thead><tr><th>database_name</th><th>table_name</th><th>column_name</th><th>n_distinct</th><th>correlation</th><th>estimated_selectivity_pct</th></tr></thead><tbody><tr class=""><td>public</td><td>customers</td><td>country</td><td>12.0</td><td>0.33342236</td><td>0.08</td></tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 USERS</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: account_password_hygiene</div><table><thead><tr><th>username</th><th>can_login</th><th>is_superuser</th><th>inherits_privileges</th><th>can_create_db</th><th>can_create_roles</th><th>password_expires_at</th><th>password_risk_status</th></tr></thead><tbody><tr class="row-warning"><td>cloudsqladmin</td><td>True</td><td>True</td><td>True</td><td>True</td><td>True</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>cloudsqlsuperuser</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>cloudsqlagent</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>cloudsqlimportexport</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>cloudsqlreplica</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>cloudsqlobservability</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>cloudsqlconnpooladmin</td><td>True</td><td>False</td><td>True</td><td>False</td><td>False</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr><tr class="row-warning"><td>postgres</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>None</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr></tbody></table><div class="metric-title">Metric: excessive_administrative_privileges</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 PERFORMANCE</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: buffer_pool_hit_ratio</div><table><thead><tr><th>table_name</th><th>blocks_read_from_disk</th><th>blocks_from_memory</th><th>buffer_hit_ratio_pct</th></tr></thead><tbody><tr class=""><td>payments</td><td>3</td><td>48</td><td>94.12</td></tr><tr class=""><td>products</td><td>3</td><td>75</td><td>96.15</td></tr><tr class=""><td>order_items</td><td>3</td><td>81</td><td>96.43</td></tr><tr class=""><td>customers</td><td>483</td><td>18854</td><td>97.50</td></tr><tr class=""><td>orders</td><td>3</td><td>121</td><td>97.58</td></tr></tbody></table><div class="metric-title">Metric: dirty_pages</div><table><thead><tr><th>table_name</th><th>dirty_data_size</th><th>dirty_page_count</th><th>pct_of_total_dirty</th></tr></thead><tbody><tr class=""><td>pg_statistic</td><td>376 kB</td><td>47</td><td>77.05</td></tr></tbody></table><div class="metric-title">Metric: redo_log</div><table><thead><tr><th>current_wal_position</th><th>total_wal_bytes_written</th><th>total_wal_size</th><th>total_wal_files</th><th>total_wal_directory_size</th></tr></thead><tbody><tr class=""><td>6/D405C000</td><td>29326950400</td><td>27 GB</td><td>4</td><td>192 MB</td></tr></tbody></table><div class="metric-title">Metric: temp_table_usage</div><table><thead><tr><th>database_name</th><th>temp_files_created</th><th>temp_data_written_to_disk</th><th>deadlocks</th><th>conflicts</th></tr></thead><tbody><tr class=""><td>postgres</td><td>33</td><td>236 MB</td><td>0</td><td>0</td></tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 LOCKS</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: lock_waits</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 CONNECTIONS</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: active_connections</div><table><thead><tr><th>state</th><th>connection_count</th><th>longest_seconds</th><th>max_connections_allowed</th><th>pct_of_max</th></tr></thead><tbody><tr class=""><td>None</td><td>7</td><td>None</td><td>400</td><td>1.75</td></tr><tr class=""><td>idle</td><td>2</td><td>13</td><td>400</td><td>0.50</td></tr><tr class=""><td>active</td><td>1</td><td>0</td><td>400</td><td>0.25</td></tr></tbody></table><div class="metric-title">Metric: aborted_connections</div><table><thead><tr><th>database_name</th><th>aborted_due_to_conflicts</th><th>aborted_due_to_deadlocks</th><th>block_read_time_ms</th><th>block_write_time_ms</th></tr></thead><tbody><tr class=""><td>postgres</td><td>0</td><td>0</td><td>1506.199</td><td>5.907</td></tr></tbody></table><div class="metric-title">Metric: thread_activity</div><table><thead><tr><th>state</th><th>wait_event_type</th><th>wait_event</th><th>thread_count</th></tr></thead><tbody><tr class=""><td>idle</td><td>Client</td><td>ClientRead</td><td>2</td></tr><tr class=""><td>active</td><td>None</td><td>None</td><td>1</td></tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 STORAGE</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: fragmentation</div><table><thead><tr><th>database_name</th><th>table_name</th><th>live_rows</th><th>dead_rows</th><th>total_size</th><th>fragmentation_pct</th><th>last_vacuum</th><th>last_autovacuum</th></tr></thead><tbody><tr class=""><td>public</td><td>products</td><td>15</td><td>0</td><td>56 kB</td><td>0.00</td><td>None</td><td>None</td></tr><tr class=""><td>public</td><td>orders</td><td>15</td><td>0</td><td>72 kB</td><td>0.00</td><td>None</td><td>None</td></tr><tr class=""><td>public</td><td>payments</td><td>15</td><td>0</td><td>56 kB</td><td>0.00</td><td>None</td><td>None</td></tr><tr class=""><td>public</td><td>customers</td><td>15020</td><td>0</td><td>3216 kB</td><td>0.00</td><td>None</td><td>2026-09-02 06:47:53.707935+00:00</td></tr><tr class=""><td>public</td><td>order_items</td><td>21</td><td>0</td><td>56 kB</td><td>0.00</td><td>None</td><td>None</td></tr></tbody></table></div></div></div><div class="instance-block" data-server="inventory-db" id="srv-inventory-db"><div class="instance-title">🖥️ inventory-db</div><div class="section-card"><div class="section-title">📋 Provisioned Specs</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">MYSQL 8 4</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">1</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">1.7 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">10 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Read Replica count</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup time</div>
+                <div class="spec-value">2026-09-03T00:00:00Z</div>
+            </div></div><div class="section-title" style="margin-top:16px;">📊 Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr>
+            <th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th>
+        </tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>8.61</td>
+                <td>8.96</td>
+                <td>8.98</td>
+                <td>8.61</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>58.07</td>
+                <td>60.1</td>
+                <td>60.21</td>
+                <td>58.07</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>11.43</td>
+                <td>11.44</td>
+                <td>11.46</td>
+                <td>11.43</td>
+            </tr><tr>
+                <td><strong>Disk Read Ops</strong></td>
+                <td>2803.0</td>
+                <td>2922.83</td>
+                <td>2928.41</td>
+                <td>2803.0</td>
+            </tr><tr>
+                <td><strong>Disk Write Ops</strong></td>
+                <td>168042.0</td>
+                <td>167693.3</td>
+                <td>168013.48</td>
+                <td>168042.0</td>
+            </tr><tr>
+                <td><strong>Disk Bytes Used</strong></td>
+                <td>1195981479.0</td>
+                <td>374507255.5</td>
+                <td>374507255.5</td>
+                <td>1195981479.0</td>
+            </tr><tr>
+                <td><strong>Connections</strong></td>
+                <td>6.0</td>
+                <td>6.25</td>
+                <td>6.26</td>
+                <td>6.0</td>
+            </tr><tr>
+                <td><strong>Queries</strong></td>
+                <td>100013.0</td>
+                <td>102949.14</td>
+                <td>103145.7</td>
+                <td>100013.0</td>
+            </tr></tbody></table></div><div class="db-card" data-server="inventory-db" data-db="inventory" id="db-inventory-db-inventory"><div class="db-title">🗄️ Database: inventory</div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 INDEXES</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: unused_indexes</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: redundant_indexes</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: queries_high_full_table_scans</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: low_selectivity_indexes</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 USERS</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: account_password_hygiene</div><table><thead><tr><th>user</th><th>host</th><th>auth_plugin</th><th>account_locked</th><th>password_expired</th><th>password_last_changed</th><th>password_lifetime</th><th>password_risk_status</th></tr></thead><tbody><tr class="row-critical"><td>cloudiamgroup</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>None</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqliamworkforceidentity</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>None</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlinactiveuser</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>None</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlreplica</td><td>%</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlsuperuser</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>None</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>root</td><td>localhost</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlreplicaindex</td><td>localhost</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>None</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlexport</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlimport</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:05</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="row-critical"><td>cloudsqlobservabilityadmin</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>None</td><td><span class="alert-badge">NO PASSWORD</span></td></tr></tbody></table><div class="metric-title">Metric: excessive_administrative_privileges</div><table><thead><tr><th>GRANTEE</th><th>PRIVILEGE_TYPE</th><th>IS_GRANTABLE</th></tr></thead><tbody><tr class=""><td>'cloudsqlsuperuser'@'%'</td><td>RELOAD</td><td>YES</td></tr><tr class=""><td>'cloudsqlsuperuser'@'%'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class=""><td>'root'@'127.0.0.1'</td><td>RELOAD</td><td>YES</td></tr><tr class=""><td>'root'@'127.0.0.1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class=""><td>'root'@'127.0.0.1'</td><td>SUPER</td><td>YES</td></tr><tr class=""><td>'root'@'127.0.0.1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class=""><td>'root'@'::1'</td><td>RELOAD</td><td>YES</td></tr><tr class=""><td>'root'@'::1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class=""><td>'root'@'::1'</td><td>SUPER</td><td>YES</td></tr><tr class=""><td>'root'@'::1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 PERFORMANCE</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: buffer_pool_hit_ratio</div><table><thead><tr><th>variable_name</th><th>variable_value</th></tr></thead><tbody><tr class=""><td>Innodb_buffer_pool_read_requests</td><td>83010</td></tr><tr class=""><td>Innodb_buffer_pool_reads</td><td>1163</td></tr></tbody></table><div class="metric-title">Metric: dirty_pages</div><table><thead><tr><th>variable_name</th><th>variable_value</th></tr></thead><tbody><tr class=""><td>Innodb_buffer_pool_pages_dirty</td><td>0</td></tr><tr class=""><td>Innodb_buffer_pool_pages_total</td><td>40960</td></tr></tbody></table><div class="metric-title">Metric: redo_log</div><table><thead><tr><th>variable_name</th><th>variable_value</th></tr></thead><tbody><tr class=""><td>Innodb_log_waits</td><td>0</td></tr><tr class=""><td>Innodb_log_write_requests</td><td>8523</td></tr><tr class=""><td>Innodb_os_log_written</td><td>1209856</td></tr></tbody></table><div class="metric-title">Metric: temp_table_usage</div><table><thead><tr><th>variable_name</th><th>variable_value</th></tr></thead><tbody><tr class=""><td>Created_tmp_disk_tables</td><td>148</td></tr><tr class=""><td>Created_tmp_tables</td><td>1359</td></tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 LOCKS</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: lock_waits</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 CONNECTIONS</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: active_connections</div><table><thead><tr><th>variable_name</th><th>variable_value</th></tr></thead><tbody><tr class=""><td>Max_used_connections</td><td>10</td></tr><tr class=""><td>Threads_connected</td><td>7</td></tr><tr class=""><td>max_connections</td><td>1030</td></tr></tbody></table><div class="metric-title">Metric: aborted_connections</div><table><thead><tr><th>variable_name</th><th>variable_value</th></tr></thead><tbody><tr class=""><td>Aborted_clients</td><td>2</td></tr><tr class=""><td>Aborted_connects</td><td>0</td></tr></tbody></table><div class="metric-title">Metric: thread_activity</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>📂 STORAGE</span><span>▼</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Metric: fragmentation</div><p class="no-issues">✅ No issues or records flagged.</p></div></div></div>
+</div>
+
+<script>
+const navData = {"bhakti-health-report-test": ["postgres"], "inventory-db": ["inventory"]};
+
+const serverSel = document.getElementById('filter-server');
+Object.keys(navData).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    serverSel.appendChild(o);
+});
+
+function filterServer() {
+    const srv = serverSel.value;
+    const dbSel = document.getElementById('filter-db');
+    dbSel.innerHTML = '<option value="ALL">All Databases</option>';
+    const dbs = srv === 'ALL' ? Object.values(navData).flat() : (navData[srv] || []);
+    [...new Set(dbs)].forEach(db => {
+        const o = document.createElement('option');
+        o.value = db; o.textContent = db;
+        dbSel.appendChild(o);
+    });
+    filterDb();
+}
+
+function filterDb() {
+    const srv = serverSel.value;
+    const db  = document.getElementById('filter-db').value;
+    document.querySelectorAll('.instance-block').forEach(block => {
+        const match = srv === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !match);
+    });
+    document.querySelectorAll('.db-card').forEach(card => {
+        const srvMatch = srv === 'ALL' || card.dataset.server === srv;
+        const dbMatch  = db  === 'ALL' || card.dataset.db    === db;
+        card.classList.toggle('hidden', !(srvMatch && dbMatch));
+    });
+}
+
+function toggleCategory(el) {
+    const content = el.nextElementSibling;
+    const arrow   = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.textContent = isHidden ? '▶' : '▼';
+}
+
+function searchReport() {
+    const term = document.getElementById('search-box').value.toLowerCase().trim();
+    document.querySelectorAll('.highlight').forEach(el => { el.outerHTML = el.innerHTML; });
+    if (!term) {
+        document.querySelectorAll('.db-card, .instance-block').forEach(el => el.classList.remove('hidden'));
+        return;
+    }
+    document.querySelectorAll('.db-card').forEach(card => {
+        card.classList.toggle('hidden', !card.textContent.toLowerCase().includes(term));
+    });
+    document.querySelectorAll('td').forEach(td => {
+        if (td.textContent.toLowerCase().includes(term)) {
+            td.innerHTML = td.innerHTML.replace(new RegExp(`(${term})`, 'gi'), '<span class="highlight">$1</span>');
+        }
+    });
+    document.querySelectorAll('.instance-block').forEach(block => {
+        const anyVisible = [...block.querySelectorAll('.db-card')].some(c => !c.classList.contains('hidden'));
+        block.classList.toggle('hidden', !anyVisible);
+    });
+}
+</script>
+</body>
+</html>
