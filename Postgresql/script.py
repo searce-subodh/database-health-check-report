@@ -114,40 +114,71 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     metric_suffix = metric_type.split('/')[-1]
     value_col = f"value.{metric_suffix}"
 
-    mql_query = f"""
+    # Query 1 — Mean, P95, P99 over 24h aggregated into one point
+    mql_aggregated = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
     | filter (resource.database_id == '{project_id}:{instance_id}')
     | within 24h
     | group_by [], [
-        mean_val: mean({value_col}), max_val: max({value_col}),
-        p95: percentile({value_col}, 95), p99: percentile({value_col}, 99)
+        mean_val: mean({value_col}),
+        p95: percentile({value_col}, 95),
+        p99: percentile({value_col}, 99)
       ]
     | every 24h
     """
-    request = monitoring_v3.QueryTimeSeriesRequest(
-        name=f"projects/{project_id}", query=mql_query
-    )
 
+    # Query 2 — True max: get per-minute points then take the highest one
+    mql_max = f"""
+    fetch cloudsql_database
+    | metric '{metric_type}'
+    | filter (resource.database_id == '{project_id}:{instance_id}')
+    | within 24h
+    | group_by [], [max_val: max({value_col})]
+    | every 1m
+    """
+
+    result = {"mean": None, "max": None, "p95": None, "p99": None}
+
+    # Fetch mean/P95/P99
     try:
+        request = monitoring_v3.QueryTimeSeriesRequest(
+            name=f"projects/{project_id}", query=mql_aggregated
+        )
         response = client.query_time_series(request=request)
         for series_data in response:
             if not series_data.point_data:
                 continue
             point = series_data.point_data[0]
-            vals = [extract_typed_value(point.values[i]) for i in range(4)]
+            vals = [extract_typed_value(point.values[i]) for i in range(3)]
             if "utilization" in metric_key:
                 vals = [v * 100 for v in vals]
-            return {
-                "mean": round(vals[0], 2),
-                "max":  round(vals[1], 2),
-                "p95":  round(vals[2], 2),
-                "p99":  round(vals[3], 2),
-            }
+            result["mean"] = round(vals[0], 2)
+            result["p95"]  = round(vals[1], 2)
+            result["p99"]  = round(vals[2], 2)
     except Exception:
         pass
 
-    return {"mean": None, "max": None, "p95": None, "p99": None}
+    # Fetch true max — highest single per-minute reading in 24h
+    try:
+        request = monitoring_v3.QueryTimeSeriesRequest(
+            name=f"projects/{project_id}", query=mql_max
+        )
+        response = client.query_time_series(request=request)
+        true_max = None
+        for series_data in response:
+            for point in series_data.point_data:
+                val = extract_typed_value(point.values[0])
+                if "utilization" in metric_key:
+                    val = val * 100
+                if true_max is None or val > true_max:
+                    true_max = val
+        if true_max is not None:
+            result["max"] = round(true_max, 2)
+    except Exception:
+        pass
+
+    return result
 
 
 # ─────────────────────────────────────────────
