@@ -1,0 +1,1366 @@
+{
+    "bhakti-health-report-test": {
+        "report_window": {
+            "from": "10 Sep 2026, 07:15 AM UTC",
+            "to": "11 Sep 2026, 07:15 AM UTC"
+        },
+        "provisioned_specs": {
+            "Engine": "POSTGRES 17",
+            "Edition": "ENTERPRISE",
+            "CPU": "2",
+            "Memory": "8.0 GB",
+            "Storage": "10 GB SSD",
+            "Availability": "Zonal",
+            "Read Replica count": 0,
+            "Last Backup time": "10 Sep 2026, 07:00 PM UTC",
+            "Uptime": "3d 1h 52m"
+        },
+        "resource_utilization": {
+            "cpu_utilization": {
+                "mean": 6.47,
+                "max": 8.47,
+                "p95": 6.69,
+                "p99": 6.7
+            },
+            "memory_utilization": {
+                "mean": 48.05,
+                "max": 48.44,
+                "p95": 49.44,
+                "p99": 49.54
+            },
+            "disk_utilization": {
+                "mean": 2.35,
+                "max": 2.35,
+                "p95": 2.4,
+                "p99": 2.41
+            },
+            "disk_read_ops": {
+                "mean": 1.0,
+                "max": 1.0,
+                "p95": 1.03,
+                "p99": 1.03
+            },
+            "disk_write_ops": {
+                "mean": 282356.0,
+                "max": 395.0,
+                "p95": 286812.45,
+                "p99": 287360.07
+            },
+            "disk_bytes_used": {
+                "mean": 246223355.0,
+                "max": 246415360.0,
+                "p95": 252877725.1,
+                "p99": 253360546.53
+            },
+            "connections": {
+                "mean": null,
+                "max": null,
+                "p95": null,
+                "p99": null
+            },
+            "queries": {
+                "mean": null,
+                "max": null,
+                "p95": null,
+                "p99": null
+            }
+        },
+        "health_checks": {
+            "postgres": {
+                "indexes": {
+                    "unused_indexes": [
+                        {
+                            "schema_name": "public",
+                            "table_name": "customers",
+                            "index_name": "idx_customers_country",
+                            "index_size": "136 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "payments",
+                            "index_name": "idx_payments_status",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "products",
+                            "index_name": "idx_products_stock",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "products",
+                            "index_name": "idx_products_stock_unused",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "orders",
+                            "index_name": "idx_orders_customer_duplicate",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "order_items",
+                            "index_name": "idx_items_product",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "payments",
+                            "index_name": "idx_payments_order",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "order_items",
+                            "index_name": "idx_items_order",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "orders",
+                            "index_name": "idx_orders_customer",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "orders",
+                            "index_name": "idx_orders_status",
+                            "index_size": "16 kB",
+                            "times_used": 0
+                        }
+                    ],
+                    "redundant_indexes": [
+                        {
+                            "schema_name": "public",
+                            "table_name": "customers",
+                            "redundant_indexes": "idx_customers_country_lowsel",
+                            "dominant_index": "idx_customers_country",
+                            "index_columns": "CREATE INDEX idx_customers_country_lowsel ON public.customers USING btree (country)"
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "customers",
+                            "redundant_indexes": "idx_customers_country",
+                            "dominant_index": "idx_customers_country_lowsel",
+                            "index_columns": "CREATE INDEX idx_customers_country ON public.customers USING btree (country)"
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "products",
+                            "redundant_indexes": "idx_products_stock_unused",
+                            "dominant_index": "idx_products_stock",
+                            "index_columns": "CREATE INDEX idx_products_stock_unused ON public.products USING btree (stock)"
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "products",
+                            "redundant_indexes": "idx_products_stock",
+                            "dominant_index": "idx_products_stock_unused",
+                            "index_columns": "CREATE INDEX idx_products_stock ON public.products USING btree (stock)"
+                        }
+                    ],
+                    "queries_high_full_table_scans": [
+                        {
+                            "table_name": "customers",
+                            "total_full_scans": 8,
+                            "total_rows_read_via_scan": 60120,
+                            "avg_rows_per_scan": "7515",
+                            "total_index_scans": 17,
+                            "table_size": "3216 kB"
+                        },
+                        {
+                            "table_name": "orders",
+                            "total_full_scans": 5,
+                            "total_rows_read_via_scan": 60,
+                            "avg_rows_per_scan": "12",
+                            "total_index_scans": 36,
+                            "table_size": "72 kB"
+                        },
+                        {
+                            "table_name": "products",
+                            "total_full_scans": 4,
+                            "total_rows_read_via_scan": 45,
+                            "avg_rows_per_scan": "11",
+                            "total_index_scans": 21,
+                            "table_size": "56 kB"
+                        },
+                        {
+                            "table_name": "payments",
+                            "total_full_scans": 4,
+                            "total_rows_read_via_scan": 45,
+                            "avg_rows_per_scan": "11",
+                            "total_index_scans": 0,
+                            "table_size": "56 kB"
+                        },
+                        {
+                            "table_name": "order_items",
+                            "total_full_scans": 4,
+                            "total_rows_read_via_scan": 63,
+                            "avg_rows_per_scan": "16",
+                            "total_index_scans": 0,
+                            "table_size": "56 kB"
+                        }
+                    ],
+                    "low_selectivity_indexes": [
+                        {
+                            "database_name": "public",
+                            "table_name": "customers",
+                            "column_name": "country",
+                            "n_distinct": 12.0,
+                            "correlation": 0.33342236,
+                            "estimated_selectivity_pct": "0.08"
+                        }
+                    ]
+                },
+                "users": {
+                    "account_password_hygiene": [
+                        {
+                            "username": "postgres",
+                            "can_login": true,
+                            "is_superuser": false,
+                            "inherits_privileges": true,
+                            "can_create_db": true,
+                            "can_create_roles": true,
+                            "password_expires_at": null,
+                            "password_risk_status": "NEVER EXPIRES"
+                        }
+                    ],
+                    "excessive_administrative_privileges": []
+                },
+                "performance": {
+                    "buffer_pool_hit_ratio": [
+                        {
+                            "table_name": "payments",
+                            "blocks_read_from_disk": 3,
+                            "blocks_from_memory": 55,
+                            "buffer_hit_ratio_pct": "94.83"
+                        },
+                        {
+                            "table_name": "products",
+                            "blocks_read_from_disk": 3,
+                            "blocks_from_memory": 82,
+                            "buffer_hit_ratio_pct": "96.47"
+                        },
+                        {
+                            "table_name": "order_items",
+                            "blocks_read_from_disk": 3,
+                            "blocks_from_memory": 88,
+                            "buffer_hit_ratio_pct": "96.70"
+                        },
+                        {
+                            "table_name": "customers",
+                            "blocks_read_from_disk": 635,
+                            "blocks_from_memory": 19857,
+                            "buffer_hit_ratio_pct": "96.90"
+                        },
+                        {
+                            "table_name": "orders",
+                            "blocks_read_from_disk": 3,
+                            "blocks_from_memory": 128,
+                            "buffer_hit_ratio_pct": "97.71"
+                        }
+                    ],
+                    "dirty_pages": [
+                        {
+                            "table_name": "pg_statistic",
+                            "dirty_data_size": "384 kB",
+                            "dirty_page_count": 48,
+                            "pct_of_total_dirty": "72.73"
+                        },
+                        {
+                            "table_name": "pg_class",
+                            "dirty_data_size": "8192 bytes",
+                            "dirty_page_count": 1,
+                            "pct_of_total_dirty": "1.52"
+                        }
+                    ],
+                    "redo_log": [
+                        {
+                            "current_wal_position": "14/A401F528",
+                            "total_wal_bytes_written": "88650937640",
+                            "total_wal_size": "83 GB",
+                            "total_wal_files": 4,
+                            "total_wal_directory_size": "192 MB"
+                        }
+                    ],
+                    "temp_table_usage": [
+                        {
+                            "database_name": "postgres",
+                            "temp_files_created": 47,
+                            "temp_data_written_to_disk": "336 MB",
+                            "deadlocks": 0,
+                            "conflicts": 0
+                        }
+                    ],
+                    "top_queries_by_execution_time": [
+                        {
+                            "query": "SELECT app_name, query_count, pg_postmaster_start_time() as reset FROM public.google_app_stats_get_all_app_query_counts()",
+                            "calls": 13088,
+                            "total_ms": "195.74",
+                            "avg_ms": "0.01",
+                            "pct_of_total_time": "33.79",
+                            "rows": 26176
+                        },
+                        {
+                            "query": "SELECT captured, consolidated, qps_exceeded, cool_off, queue_full, sent_succ, sent_fail, stats_reset FROM public.get_live_sync_stats()",
+                            "calls": 13112,
+                            "total_ms": "193.68",
+                            "avg_ms": "0.01",
+                            "pct_of_total_time": "33.43",
+                            "rows": 13112
+                        },
+                        {
+                            "query": "SELECT public.passwords_for_reuse_check($1)",
+                            "calls": 1,
+                            "total_ms": "52.44",
+                            "avg_ms": "52.44",
+                            "pct_of_total_time": "9.05",
+                            "rows": 1
+                        },
+                        {
+                            "query": "CREATE EXTENSION IF NOT EXISTS \"google_sql_validation\" SCHEMA \"public\"",
+                            "calls": 1,
+                            "total_ms": "37.12",
+                            "avg_ms": "37.12",
+                            "pct_of_total_time": "6.41",
+                            "rows": 0
+                        },
+                        {
+                            "query": "-- Dataplex\nCREATE UNIQUE INDEX IF NOT EXISTS idx_resource_lookup\nON public.resource_timestamps (database_oid, resource_type, resource_oid)",
+                            "calls": 4,
+                            "total_ms": "17.10",
+                            "avg_ms": "4.28",
+                            "pct_of_total_time": "2.95",
+                            "rows": 0
+                        },
+                        {
+                            "query": "DO $$\nBEGIN\n  IF CAST(current_setting('server_version_num') AS INTEGER) >= 150000 THEN\n    GRANT pg_checkpoint TO cloudsqlsuperuser WITH ADMIN OPTION;\n  END IF;\nEND $$",
+                            "calls": 8,
+                            "total_ms": "11.88",
+                            "avg_ms": "1.48",
+                            "pct_of_total_time": "2.05",
+                            "rows": 0
+                        },
+                        {
+                            "query": "-- Dataplex\nINSERT INTO public.resource_timestamps (database_oid, resource_oid, resource_type, create_time, update_time)\nVALUES ($1, $2, $3, NOW() AT TIME ZONE $4, NOW() AT TIME ZONE $5)\nON CONFLICT (database_oid, resource_type, resource_oid) DO NOTHING",
+                            "calls": 4,
+                            "total_ms": "11.04",
+                            "avg_ms": "2.76",
+                            "pct_of_total_time": "1.91",
+                            "rows": 1
+                        },
+                        {
+                            "query": "ALTER SYSTEM SET google_app_stats.enabled=on",
+                            "calls": 2,
+                            "total_ms": "8.65",
+                            "avg_ms": "4.33",
+                            "pct_of_total_time": "1.49",
+                            "rows": 0
+                        },
+                        {
+                            "query": "ALTER SYSTEM SET google_dataplex.enable=on",
+                            "calls": 1,
+                            "total_ms": "5.33",
+                            "avg_ms": "5.33",
+                            "pct_of_total_time": "0.92",
+                            "rows": 0
+                        },
+                        {
+                            "query": "-- Dataplex\nCREATE TABLE IF NOT EXISTS public.resource_timestamps (\n    database_oid BIGINT NOT NULL,\n    resource_oid BIGINT NOT NULL,\n    resource_type CHAR(1) NOT NULL,\n    create_time TIMESTAMP(6) WITHOUT TIME ZONE NOT NULL,\n    update_time TIMESTAMP(6) WITHOUT TIME ZONE NOT NULL\n)",
+                            "calls": 4,
+                            "total_ms": "4.61",
+                            "avg_ms": "1.15",
+                            "pct_of_total_time": "0.80",
+                            "rows": 0
+                        },
+                        {
+                            "query": "SELECT stmt_location, stmt_len FROM parse_statements($1)",
+                            "calls": 55,
+                            "total_ms": "4.33",
+                            "avg_ms": "0.08",
+                            "pct_of_total_time": "0.75",
+                            "rows": 86
+                        },
+                        {
+                            "query": "-- Now run a query with no index on the 'name' column \u2014 forces full table scan\nSELECT * FROM customers WHERE name = $1",
+                            "calls": 3,
+                            "total_ms": "2.91",
+                            "avg_ms": "0.97",
+                            "pct_of_total_time": "0.50",
+                            "rows": 3
+                        },
+                        {
+                            "query": "CREATE EXTENSION IF NOT EXISTS google_dataplex",
+                            "calls": 1,
+                            "total_ms": "2.37",
+                            "avg_ms": "2.37",
+                            "pct_of_total_time": "0.41",
+                            "rows": 0
+                        },
+                        {
+                            "query": "CREATE EXTENSION IF NOT EXISTS \"google_app_stats\" SCHEMA \"public\"",
+                            "calls": 1,
+                            "total_ms": "2.36",
+                            "avg_ms": "2.36",
+                            "pct_of_total_time": "0.41",
+                            "rows": 0
+                        },
+                        {
+                            "query": "-- Orders\nCREATE TABLE orders (\n    order_id    SERIAL PRIMARY KEY,\n    customer_id INTEGER REFERENCES customers(customer_id),\n    status      VARCHAR(30) DEFAULT 'pending',\n    total       NUMERIC(10, 2),\n    created_at  TIMESTAMP DEFAULT NOW()\n)",
+                            "calls": 1,
+                            "total_ms": "1.90",
+                            "avg_ms": "1.90",
+                            "pct_of_total_time": "0.33",
+                            "rows": 0
+                        }
+                    ]
+                },
+                "locks": {
+                    "lock_waits": []
+                },
+                "connections": {
+                    "active_connections": [
+                        {
+                            "state": null,
+                            "connection_count": 7,
+                            "longest_seconds": null,
+                            "max_connections_allowed": 400,
+                            "pct_of_max": "1.75"
+                        },
+                        {
+                            "state": "idle",
+                            "connection_count": 3,
+                            "longest_seconds": 10,
+                            "max_connections_allowed": 400,
+                            "pct_of_max": "0.75"
+                        },
+                        {
+                            "state": "active",
+                            "connection_count": 1,
+                            "longest_seconds": 0,
+                            "max_connections_allowed": 400,
+                            "pct_of_max": "0.25"
+                        }
+                    ],
+                    "aborted_connections": [
+                        {
+                            "database_name": "postgres",
+                            "aborted_due_to_conflicts": 0,
+                            "aborted_due_to_deadlocks": 0,
+                            "block_read_time_ms": 1664.32,
+                            "block_write_time_ms": 6.324
+                        }
+                    ],
+                    "thread_activity": [
+                        {
+                            "state": "idle",
+                            "wait_event_type": "Client",
+                            "wait_event": "ClientRead",
+                            "thread_count": 3
+                        },
+                        {
+                            "state": "active",
+                            "wait_event_type": null,
+                            "wait_event": null,
+                            "thread_count": 1
+                        }
+                    ]
+                },
+                "storage": {
+                    "fragmentation": [
+                        {
+                            "schema_name": "public",
+                            "table_name": "products",
+                            "live_rows": 15,
+                            "dead_rows": 0,
+                            "total_size": "56 kB",
+                            "fragmentation_pct": "0.00",
+                            "last_vacuum": null,
+                            "last_autovacuum": null
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "orders",
+                            "live_rows": 15,
+                            "dead_rows": 0,
+                            "total_size": "72 kB",
+                            "fragmentation_pct": "0.00",
+                            "last_vacuum": null,
+                            "last_autovacuum": null
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "payments",
+                            "live_rows": 15,
+                            "dead_rows": 0,
+                            "total_size": "56 kB",
+                            "fragmentation_pct": "0.00",
+                            "last_vacuum": null,
+                            "last_autovacuum": null
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "customers",
+                            "live_rows": 15020,
+                            "dead_rows": 0,
+                            "total_size": "3216 kB",
+                            "fragmentation_pct": "0.00",
+                            "last_vacuum": null,
+                            "last_autovacuum": "2026-09-02 06:47:53.707935+00:00"
+                        },
+                        {
+                            "schema_name": "public",
+                            "table_name": "order_items",
+                            "live_rows": 21,
+                            "dead_rows": 0,
+                            "total_size": "56 kB",
+                            "fragmentation_pct": "0.00",
+                            "last_vacuum": null,
+                            "last_autovacuum": null
+                        }
+                    ]
+                }
+            }
+        }
+    },
+    "inventory-db": {
+        "report_window": {
+            "from": "10 Sep 2026, 07:15 AM UTC",
+            "to": "11 Sep 2026, 07:15 AM UTC"
+        },
+        "provisioned_specs": {
+            "Engine": "MYSQL 8 4",
+            "Edition": "ENTERPRISE",
+            "CPU": "1",
+            "Memory": "1.7 GB",
+            "Storage": "10 GB SSD",
+            "Availability": "Zonal",
+            "Read Replica count": 0,
+            "Last Backup time": "11 Sep 2026, 12:00 AM UTC",
+            "Uptime": "3d 1h 52m"
+        },
+        "resource_utilization": {
+            "cpu_utilization": {
+                "mean": 8.59,
+                "max": 11.17,
+                "p95": 8.96,
+                "p99": 8.98
+            },
+            "memory_utilization": {
+                "mean": 62.89,
+                "max": 64.79,
+                "p95": 63.1,
+                "p99": 63.22
+            },
+            "disk_utilization": {
+                "mean": 11.45,
+                "max": 11.45,
+                "p95": 11.44,
+                "p99": 11.46
+            },
+            "disk_read_ops": {
+                "mean": 12.0,
+                "max": 4.0,
+                "p95": 12.38,
+                "p99": 12.4
+            },
+            "disk_write_ops": {
+                "mean": 553891.0,
+                "max": 447.0,
+                "p95": 567869.04,
+                "p99": 568953.28
+            },
+            "disk_bytes_used": {
+                "mean": 1198137344.0,
+                "max": 1198137344.0,
+                "p95": 374507255.5,
+                "p99": 374507255.5
+            },
+            "connections": {
+                "mean": 6.0,
+                "max": 8.0,
+                "p95": 6.25,
+                "p99": 6.26
+            },
+            "queries": {
+                "mean": 368609.0,
+                "max": 378.0,
+                "p95": 384356.12,
+                "p99": 385089.97
+            }
+        },
+        "health_checks": {
+            "ecommerce_db": {
+                "indexes": {
+                    "unused_indexes": [],
+                    "redundant_indexes": [
+                        {
+                            "schema_name": "hr_db",
+                            "table_name": "employees",
+                            "redundant_indexes": "idx_emp_dept_v2",
+                            "dominant_index": "idx_emp_dept",
+                            "index_columns": "dept_id"
+                        }
+                    ],
+                    "queries_high_full_table_scans": [],
+                    "low_selectivity_indexes": []
+                },
+                "users": {
+                    "account_password_hygiene": [
+                        {
+                            "user": "cloudiamgroup",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "Y",
+                            "password_expired": "Y",
+                            "password_last_changed": "2026-08-20 05:41:05",
+                            "password_lifetime": null,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "127.0.0.1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "::1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "localhost",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "bhakti",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-08 06:22:18",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "root",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:15",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "testuser",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:06",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        }
+                    ],
+                    "excessive_administrative_privileges": [
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        }
+                    ]
+                },
+                "performance": {
+                    "full_table_scans": [],
+                    "temp_table_usage": [],
+                    "buffer_pool_hit_ratio": [
+                        {
+                            "total_read_requests": "8641940",
+                            "disk_reads": "1190",
+                            "buffer_pool_hit_ratio_pct": 99.99
+                        }
+                    ],
+                    "dirty_pages": [
+                        {
+                            "dirty_pages_count": "0",
+                            "total_pages_count": "40960",
+                            "dirty_page_pct": 0.0
+                        }
+                    ],
+                    "redo_log": [
+                        {
+                            "log_buffer_waits": "0",
+                            "write_requests": "676051",
+                            "physical_writes": "179966",
+                            "total_fsyncs": "250252"
+                        }
+                    ],
+                    "top_queries_by_execution_time": []
+                },
+                "locks": {
+                    "lock_waits": []
+                },
+                "connections": {
+                    "connections_metrics": [
+                        {
+                            "max_concurrent_connections_recorded": "11",
+                            "configured_max_connections": "1030",
+                            "max_connection_utilization_pct": 1.07
+                        }
+                    ],
+                    "thread_metrics": [
+                        {
+                            "cached_threads": "3",
+                            "total_threads_created": "11",
+                            "thread_miss_ratio_pct": 0.01
+                        }
+                    ],
+                    "aborted_connections_metrics": [
+                        {
+                            "total_aborted_connects_auth": "1",
+                            "total_aborted_clients_network": "20",
+                            "total_connection_attempts": "124566",
+                            "abort_auth_pct": 0.0,
+                            "abort_client_pct": 0.02
+                        }
+                    ]
+                },
+                "storage": {
+                    "table_fragmentation_status": []
+                }
+            },
+            "hr_db": {
+                "indexes": {
+                    "unused_indexes": [],
+                    "redundant_indexes": [
+                        {
+                            "schema_name": "hr_db",
+                            "table_name": "employees",
+                            "redundant_indexes": "idx_emp_dept_v2",
+                            "dominant_index": "idx_emp_dept",
+                            "index_columns": "dept_id"
+                        }
+                    ],
+                    "queries_high_full_table_scans": [],
+                    "low_selectivity_indexes": []
+                },
+                "users": {
+                    "account_password_hygiene": [
+                        {
+                            "user": "cloudiamgroup",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "Y",
+                            "password_expired": "Y",
+                            "password_last_changed": "2026-08-20 05:41:05",
+                            "password_lifetime": null,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "127.0.0.1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "::1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "localhost",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "bhakti",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-08 06:22:18",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "root",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:15",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "testuser",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:06",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        }
+                    ],
+                    "excessive_administrative_privileges": [
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        }
+                    ]
+                },
+                "performance": {
+                    "full_table_scans": [],
+                    "temp_table_usage": [],
+                    "buffer_pool_hit_ratio": [
+                        {
+                            "total_read_requests": "8644668",
+                            "disk_reads": "1190",
+                            "buffer_pool_hit_ratio_pct": 99.99
+                        }
+                    ],
+                    "dirty_pages": [
+                        {
+                            "dirty_pages_count": "0",
+                            "total_pages_count": "40960",
+                            "dirty_page_pct": 0.0
+                        }
+                    ],
+                    "redo_log": [
+                        {
+                            "log_buffer_waits": "0",
+                            "write_requests": "676051",
+                            "physical_writes": "179966",
+                            "total_fsyncs": "250252"
+                        }
+                    ],
+                    "top_queries_by_execution_time": []
+                },
+                "locks": {
+                    "lock_waits": []
+                },
+                "connections": {
+                    "connections_metrics": [
+                        {
+                            "max_concurrent_connections_recorded": "11",
+                            "configured_max_connections": "1030",
+                            "max_connection_utilization_pct": 1.07
+                        }
+                    ],
+                    "thread_metrics": [
+                        {
+                            "cached_threads": "2",
+                            "total_threads_created": "11",
+                            "thread_miss_ratio_pct": 0.01
+                        }
+                    ],
+                    "aborted_connections_metrics": [
+                        {
+                            "total_aborted_connects_auth": "1",
+                            "total_aborted_clients_network": "20",
+                            "total_connection_attempts": "124567",
+                            "abort_auth_pct": 0.0,
+                            "abort_client_pct": 0.02
+                        }
+                    ]
+                },
+                "storage": {
+                    "table_fragmentation_status": []
+                }
+            },
+            "inventory": {
+                "indexes": {
+                    "unused_indexes": [],
+                    "redundant_indexes": [
+                        {
+                            "schema_name": "hr_db",
+                            "table_name": "employees",
+                            "redundant_indexes": "idx_emp_dept_v2",
+                            "dominant_index": "idx_emp_dept",
+                            "index_columns": "dept_id"
+                        }
+                    ],
+                    "queries_high_full_table_scans": [],
+                    "low_selectivity_indexes": []
+                },
+                "users": {
+                    "account_password_hygiene": [
+                        {
+                            "user": "cloudiamgroup",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "Y",
+                            "password_expired": "Y",
+                            "password_last_changed": "2026-08-20 05:41:05",
+                            "password_lifetime": null,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "127.0.0.1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "::1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "localhost",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "bhakti",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-08 06:22:18",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "root",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:15",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "testuser",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:06",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        }
+                    ],
+                    "excessive_administrative_privileges": [
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        }
+                    ]
+                },
+                "performance": {
+                    "full_table_scans": [],
+                    "temp_table_usage": [],
+                    "buffer_pool_hit_ratio": [
+                        {
+                            "total_read_requests": "8647396",
+                            "disk_reads": "1190",
+                            "buffer_pool_hit_ratio_pct": 99.99
+                        }
+                    ],
+                    "dirty_pages": [
+                        {
+                            "dirty_pages_count": "0",
+                            "total_pages_count": "40960",
+                            "dirty_page_pct": 0.0
+                        }
+                    ],
+                    "redo_log": [
+                        {
+                            "log_buffer_waits": "0",
+                            "write_requests": "676051",
+                            "physical_writes": "179966",
+                            "total_fsyncs": "250252"
+                        }
+                    ],
+                    "top_queries_by_execution_time": []
+                },
+                "locks": {
+                    "lock_waits": []
+                },
+                "connections": {
+                    "connections_metrics": [
+                        {
+                            "max_concurrent_connections_recorded": "11",
+                            "configured_max_connections": "1030",
+                            "max_connection_utilization_pct": 1.07
+                        }
+                    ],
+                    "thread_metrics": [
+                        {
+                            "cached_threads": "1",
+                            "total_threads_created": "11",
+                            "thread_miss_ratio_pct": 0.01
+                        }
+                    ],
+                    "aborted_connections_metrics": [
+                        {
+                            "total_aborted_connects_auth": "1",
+                            "total_aborted_clients_network": "20",
+                            "total_connection_attempts": "124568",
+                            "abort_auth_pct": 0.0,
+                            "abort_client_pct": 0.02
+                        }
+                    ]
+                },
+                "storage": {
+                    "table_fragmentation_status": []
+                }
+            },
+            "logistics_db": {
+                "indexes": {
+                    "unused_indexes": [],
+                    "redundant_indexes": [
+                        {
+                            "schema_name": "hr_db",
+                            "table_name": "employees",
+                            "redundant_indexes": "idx_emp_dept_v2",
+                            "dominant_index": "idx_emp_dept",
+                            "index_columns": "dept_id"
+                        }
+                    ],
+                    "queries_high_full_table_scans": [],
+                    "low_selectivity_indexes": []
+                },
+                "users": {
+                    "account_password_hygiene": [
+                        {
+                            "user": "cloudiamgroup",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "Y",
+                            "password_expired": "Y",
+                            "password_last_changed": "2026-08-20 05:41:05",
+                            "password_lifetime": null,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "127.0.0.1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "::1",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "root",
+                            "host": "localhost",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-08-20 05:41:06",
+                            "password_lifetime": 0,
+                            "password_risk_status": "NO PASSWORD"
+                        },
+                        {
+                            "user": "bhakti",
+                            "host": "%",
+                            "auth_plugin": "caching_sha2_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-08 06:22:18",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "root",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:15",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        },
+                        {
+                            "user": "testuser",
+                            "host": "%",
+                            "auth_plugin": "mysql_native_password",
+                            "account_locked": "N",
+                            "password_expired": "N",
+                            "password_last_changed": "2026-09-07 10:58:06",
+                            "password_lifetime": null,
+                            "password_risk_status": "NEVER EXPIRES (Global)"
+                        }
+                    ],
+                    "excessive_administrative_privileges": [
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'127.0.0.1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "RELOAD",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SHUTDOWN",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SUPER",
+                            "IS_GRANTABLE": "YES"
+                        },
+                        {
+                            "GRANTEE": "'root'@'::1'",
+                            "PRIVILEGE_TYPE": "SYSTEM_VARIABLES_ADMIN",
+                            "IS_GRANTABLE": "YES"
+                        }
+                    ]
+                },
+                "performance": {
+                    "full_table_scans": [],
+                    "temp_table_usage": [],
+                    "buffer_pool_hit_ratio": [
+                        {
+                            "total_read_requests": "8650124",
+                            "disk_reads": "1190",
+                            "buffer_pool_hit_ratio_pct": 99.99
+                        }
+                    ],
+                    "dirty_pages": [
+                        {
+                            "dirty_pages_count": "0",
+                            "total_pages_count": "40960",
+                            "dirty_page_pct": 0.0
+                        }
+                    ],
+                    "redo_log": [
+                        {
+                            "log_buffer_waits": "0",
+                            "write_requests": "676051",
+                            "physical_writes": "179966",
+                            "total_fsyncs": "250252"
+                        }
+                    ],
+                    "top_queries_by_execution_time": []
+                },
+                "locks": {
+                    "lock_waits": []
+                },
+                "connections": {
+                    "connections_metrics": [
+                        {
+                            "max_concurrent_connections_recorded": "11",
+                            "configured_max_connections": "1030",
+                            "max_connection_utilization_pct": 1.07
+                        }
+                    ],
+                    "thread_metrics": [
+                        {
+                            "cached_threads": "0",
+                            "total_threads_created": "11",
+                            "thread_miss_ratio_pct": 0.01
+                        }
+                    ],
+                    "aborted_connections_metrics": [
+                        {
+                            "total_aborted_connects_auth": "1",
+                            "total_aborted_clients_network": "20",
+                            "total_connection_attempts": "124569",
+                            "abort_auth_pct": 0.0,
+                            "abort_client_pct": 0.02
+                        }
+                    ]
+                },
+                "storage": {
+                    "table_fragmentation_status": []
+                }
+            }
+        }
+    }
+}
