@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Health Check Report</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Arial, sans-serif; background: #f1f5f9; color: #1e293b; }
+
+        /* ── FROZEN TOP BAR ── */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #0f172a; color: white;
+            padding: 12px 24px; display: flex; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #topbar h1 { font-size: 1em; font-weight: 700; color: white; white-space: nowrap; }
+        #topbar select {
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em; cursor: pointer;
+            min-width: 140px;
+        }
+        #topbar select:focus { outline: 2px solid #3b82f6; }
+        .topbar-timestamp { margin-left: auto; font-size: 0.75em; color: #94a3b8; white-space: nowrap; text-align: right; line-height: 1.5; }
+
+        /* ── MAIN CONTENT ── */
+        #content { margin-top: 70px; padding: 24px; }
+
+        /* ── PROVISIONED SPECS ── */
+        .specs-grid {
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+            gap: 8px; margin-bottom: 16px;
+        }
+        .spec-item {
+            background: #f8fafc; border-radius: 6px; padding: 10px;
+            border-left: 3px solid #2563eb;
+        }
+        .spec-label { font-size: 0.7em; color: #64748b; text-transform: uppercase; margin-bottom: 2px; }
+        .spec-value { font-size: 0.9em; font-weight: 700; color: #0f172a; }
+
+        /* ── MONITORING METRICS ── */
+        .metrics-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.82em; }
+        .metrics-table th { background: #1e40af; color: white; padding: 8px 10px; text-align: left; }
+        .metrics-table td { border: 1px solid #e2e8f0; padding: 8px 10px; }
+        .metrics-table tr:nth-child(even) td { background: #f8fafc; }
+
+        /* ── INSTANCE CARDS ── */
+        .instance-block { margin-bottom: 32px; }
+        .instance-title {
+            font-size: 1.1em; font-weight: 700; color: #0f172a;
+            padding: 10px 16px; background: #e2e8f0;
+            border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+        }
+        .section-card {
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 16px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .section-title {
+            font-size: 1em; font-weight: 700; color: #0f172a;
+            margin-bottom: 12px; padding-bottom: 6px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* ── CATEGORY ── */
+        .category-title {
+            font-size: 0.9em; font-weight: 700; color: #2563eb;
+            margin-top: 14px; padding: 6px 0;
+            border-bottom: 1px solid #e2e8f0; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }
+        .category-title:hover { color: #1d4ed8; }
+        .metric-title { font-size: 0.85em; font-weight: 600; color: #334155; margin: 10px 0 4px; }
+
+        /* ── TABLES ── */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.82em; }
+        th { background: #334155; color: white; padding: 9px 10px; text-align: left; }
+        td { border: 1px solid #e2e8f0; padding: 8px 10px; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        tr.row-critical td { background: #fee2e2 !important; }
+        tr.row-warning td { background: #fef9c3 !important; }
+        tr:hover td { background: #eff6ff !important; }
+
+        /* ── PAGINATION ── */
+        .pagination {
+            display: flex; align-items: center; gap: 12px;
+            padding: 8px 0; font-size: 0.82em; color: #334155;
+        }
+        .pagination button {
+            padding: 4px 12px; border-radius: 4px; border: 1px solid #cbd5e1;
+            background: white; cursor: pointer; font-size: 0.85em;
+        }
+        .pagination button:hover { background: #e2e8f0; }
+
+        .alert-badge { font-weight: 700; color: #991b1b; background: #fee2e2; padding: 2px 6px; border-radius: 4px; }
+        .warn-badge  { font-weight: 700; color: #854d0e; background: #fef9c3; padding: 2px 6px; border-radius: 4px; }
+        .no-issues   { color: #16a34a; font-style: italic; font-size: 0.85em; padding: 4px 0; }
+        .error-box   { color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 8px 0; }
+        .hidden      { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- FROZEN TOP BAR -->
+<div id="topbar">
+    <h1>🏥 DB Health Report</h1>
+    <select id="filter-dbtype" onchange="filterByType()">
+        <option value="ALL">All DB Types</option>
+        <option value="PostgreSQL">PostgreSQL</option>
+        <option value="MySQL">MySQL</option>
+    </select>
+    <select id="filter-server" onchange="filterByServer()">
+        <option value="ALL">All Servers</option>
+    </select>
+    <div class="topbar-timestamp">
+        Report Period:<br>
+        10 Sep 2026, 07:15 AM UTC
+        → 11 Sep 2026, 07:15 AM UTC
+    </div>
+</div>
+
+<div id="content">
+<div class="instance-block" data-server="bhakti-health-report-test" data-dbtype="PostgreSQL" id="srv-bhakti-health-report-test"><div class="instance-title">🖥️ bhakti-health-report-test <small style="font-weight:400;font-size:0.8em;color:#64748b;">(PostgreSQL)</small></div><div class="section-card"><div class="section-title">📋 Provisioned Specs</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">POSTGRES 17</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">2</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">8.0 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">10 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Read Replica count</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup time</div>
+                <div class="spec-value">10 Sep 2026, 07:00 PM UTC</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Uptime</div>
+                <div class="spec-value">3d 1h 52m</div>
+            </div></div><div class="section-title" style="margin-top:16px;">📊 Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>6.47</td>
+                <td>6.69</td>
+                <td>6.7</td>
+                <td>8.47</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>48.05</td>
+                <td>49.44</td>
+                <td>49.54</td>
+                <td>48.44</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>2.35</td>
+                <td>2.4</td>
+                <td>2.41</td>
+                <td>2.35</td>
+            </tr><tr>
+                <td><strong>Disk Read Ops</strong></td>
+                <td>1.0</td>
+                <td>1.03</td>
+                <td>1.03</td>
+                <td>1.0</td>
+            </tr><tr>
+                <td><strong>Disk Write Ops</strong></td>
+                <td>282356.0</td>
+                <td>286812.45</td>
+                <td>287360.07</td>
+                <td>395.0</td>
+            </tr><tr>
+                <td><strong>Disk Bytes Used</strong></td>
+                <td>246223355.0</td>
+                <td>252877725.1</td>
+                <td>253360546.53</td>
+                <td>246415360.0</td>
+            </tr><tr>
+                <td><strong>Connections</strong></td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td><strong>Queries</strong></td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr></tbody></table></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 INDEXES</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: low_selectivity_indexes</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_indexes_low_selectivity_indexes_1"><table id="tbl-bhakti-health-report-test_indexes_low_selectivity_indexes_1"><thead><tr><th>db_name</th><th>database_name</th><th>table_name</th><th>column_name</th><th>n_distinct</th><th>correlation</th><th>estimated_selectivity_pct</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>country</td><td>12.0</td><td>0.33342236</td><td>0.08</td></tr></tbody></table></div><div class="metric-title">Metric: queries_high_full_table_scans</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_indexes_queries_high_full_table_scans_2"><table id="tbl-bhakti-health-report-test_indexes_queries_high_full_table_scans_2"><thead><tr><th>db_name</th><th>table_name</th><th>total_full_scans</th><th>total_rows_read_via_scan</th><th>avg_rows_per_scan</th><th>total_index_scans</th><th>table_size</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>customers</td><td>8</td><td>60120</td><td>7515</td><td>17</td><td>3216 kB</td></tr><tr class="page-row "><td>postgres</td><td>orders</td><td>5</td><td>60</td><td>12</td><td>36</td><td>72 kB</td></tr><tr class="page-row "><td>postgres</td><td>products</td><td>4</td><td>45</td><td>11</td><td>21</td><td>56 kB</td></tr><tr class="page-row "><td>postgres</td><td>payments</td><td>4</td><td>45</td><td>11</td><td>0</td><td>56 kB</td></tr><tr class="page-row "><td>postgres</td><td>order_items</td><td>4</td><td>63</td><td>16</td><td>0</td><td>56 kB</td></tr></tbody></table></div><div class="metric-title">Metric: redundant_indexes</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_indexes_redundant_indexes_3"><table id="tbl-bhakti-health-report-test_indexes_redundant_indexes_3"><thead><tr><th>db_name</th><th>schema_name</th><th>table_name</th><th>redundant_indexes</th><th>dominant_index</th><th>index_columns</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>idx_customers_country_lowsel</td><td>idx_customers_country</td><td>CREATE INDEX idx_customers_country_lowsel ON public.customers USING btree (country)</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>idx_customers_country</td><td>idx_customers_country_lowsel</td><td>CREATE INDEX idx_customers_country ON public.customers USING btree (country)</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>idx_products_stock</td><td>CREATE INDEX idx_products_stock_unused ON public.products USING btree (stock)</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock</td><td>idx_products_stock_unused</td><td>CREATE INDEX idx_products_stock ON public.products USING btree (stock)</td></tr></tbody></table></div><div class="metric-title">Metric: unused_indexes</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_indexes_unused_indexes_4"><table id="tbl-bhakti-health-report-test_indexes_unused_indexes_4"><thead><tr><th>db_name</th><th>schema_name</th><th>table_name</th><th>index_name</th><th>index_size</th><th>times_used</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>idx_customers_country</td><td>136 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>payments</td><td>idx_payments_status</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_orders_customer_duplicate</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>order_items</td><td>idx_items_product</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>payments</td><td>idx_payments_order</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>order_items</td><td>idx_items_order</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_orders_customer</td><td>16 kB</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_orders_status</td><td>16 kB</td><td>0</td></tr></tbody></table></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 USERS</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: account_password_hygiene</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_users_account_password_hygiene_5"><table id="tbl-bhakti-health-report-test_users_account_password_hygiene_5"><thead><tr><th>db_name</th><th>username</th><th>can_login</th><th>is_superuser</th><th>inherits_privileges</th><th>can_create_db</th><th>can_create_roles</th><th>password_expires_at</th><th>password_risk_status</th></tr></thead><tbody><tr class="page-row row-warning"><td>postgres</td><td>postgres</td><td>True</td><td>False</td><td>True</td><td>True</td><td>True</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES</span></td></tr></tbody></table></div><div class="metric-title">Metric: excessive_administrative_privileges</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 PERFORMANCE</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: buffer_pool_hit_ratio</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_performance_buffer_pool_hit_ratio_7"><table id="tbl-bhakti-health-report-test_performance_buffer_pool_hit_ratio_7"><thead><tr><th>db_name</th><th>table_name</th><th>blocks_read_from_disk</th><th>blocks_from_memory</th><th>buffer_hit_ratio_pct</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>payments</td><td>3</td><td>55</td><td>94.83</td></tr><tr class="page-row "><td>postgres</td><td>products</td><td>3</td><td>82</td><td>96.47</td></tr><tr class="page-row "><td>postgres</td><td>order_items</td><td>3</td><td>88</td><td>96.70</td></tr><tr class="page-row "><td>postgres</td><td>customers</td><td>635</td><td>19857</td><td>96.90</td></tr><tr class="page-row "><td>postgres</td><td>orders</td><td>3</td><td>128</td><td>97.71</td></tr></tbody></table></div><div class="metric-title">Metric: dirty_pages</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_performance_dirty_pages_8"><table id="tbl-bhakti-health-report-test_performance_dirty_pages_8"><thead><tr><th>db_name</th><th>table_name</th><th>dirty_data_size</th><th>dirty_page_count</th><th>pct_of_total_dirty</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>pg_statistic</td><td>384 kB</td><td>48</td><td>72.73</td></tr><tr class="page-row "><td>postgres</td><td>pg_class</td><td>8192 bytes</td><td>1</td><td>1.52</td></tr></tbody></table></div><div class="metric-title">Metric: redo_log</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_performance_redo_log_9"><table id="tbl-bhakti-health-report-test_performance_redo_log_9"><thead><tr><th>db_name</th><th>current_wal_position</th><th>total_wal_bytes_written</th><th>total_wal_size</th><th>total_wal_files</th><th>total_wal_directory_size</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>14/A401F528</td><td>88650937640</td><td>83 GB</td><td>4</td><td>192 MB</td></tr></tbody></table></div><div class="metric-title">Metric: temp_table_usage</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_performance_temp_table_usage_10"><table id="tbl-bhakti-health-report-test_performance_temp_table_usage_10"><thead><tr><th>db_name</th><th>database_name</th><th>temp_files_created</th><th>temp_data_written_to_disk</th><th>deadlocks</th><th>conflicts</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>postgres</td><td>47</td><td>336 MB</td><td>0</td><td>0</td></tr></tbody></table></div><div class="metric-title">Metric: top_queries_by_execution_time</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_performance_top_queries_by_execution_time_11"><table id="tbl-bhakti-health-report-test_performance_top_queries_by_execution_time_11"><thead><tr><th>db_name</th><th>query</th><th>calls</th><th>total_ms</th><th>avg_ms</th><th>pct_of_total_time</th><th>rows</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>SELECT app_name, query_count, pg_postmaster_start_time() as reset FROM public.google_app_stats_get_all_app_query_counts()</td><td>13088</td><td>195.74</td><td>0.01</td><td>33.79</td><td>26176</td></tr><tr class="page-row "><td>postgres</td><td>SELECT captured, consolidated, qps_exceeded, cool_off, queue_full, sent_succ, sent_fail, stats_reset FROM public.get_live_sync_stats()</td><td>13112</td><td>193.68</td><td>0.01</td><td>33.43</td><td>13112</td></tr><tr class="page-row "><td>postgres</td><td>SELECT public.passwords_for_reuse_check($1)</td><td>1</td><td>52.44</td><td>52.44</td><td>9.05</td><td>1</td></tr><tr class="page-row "><td>postgres</td><td>CREATE EXTENSION IF NOT EXISTS "google_sql_validation" SCHEMA "public"</td><td>1</td><td>37.12</td><td>37.12</td><td>6.41</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>-- Dataplex
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resource_lookup
+ON public.resource_timestamps (database_oid, resource_type, resource_oid)</td><td>4</td><td>17.10</td><td>4.28</td><td>2.95</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>DO $$
+BEGIN
+  IF CAST(current_setting('server_version_num') AS INTEGER) >= 150000 THEN
+    GRANT pg_checkpoint TO cloudsqlsuperuser WITH ADMIN OPTION;
+  END IF;
+END $$</td><td>8</td><td>11.88</td><td>1.48</td><td>2.05</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>-- Dataplex
+INSERT INTO public.resource_timestamps (database_oid, resource_oid, resource_type, create_time, update_time)
+VALUES ($1, $2, $3, NOW() AT TIME ZONE $4, NOW() AT TIME ZONE $5)
+ON CONFLICT (database_oid, resource_type, resource_oid) DO NOTHING</td><td>4</td><td>11.04</td><td>2.76</td><td>1.91</td><td>1</td></tr><tr class="page-row "><td>postgres</td><td>ALTER SYSTEM SET google_app_stats.enabled=on</td><td>2</td><td>8.65</td><td>4.33</td><td>1.49</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>ALTER SYSTEM SET google_dataplex.enable=on</td><td>1</td><td>5.33</td><td>5.33</td><td>0.92</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>-- Dataplex
+CREATE TABLE IF NOT EXISTS public.resource_timestamps (
+    database_oid BIGINT NOT NULL,
+    resource_oid BIGINT NOT NULL,
+    resource_type CHAR(1) NOT NULL,
+    create_time TIMESTAMP(6) WITHOUT TIME ZONE NOT NULL,
+    update_time TIMESTAMP(6) WITHOUT TIME ZONE NOT NULL
+)</td><td>4</td><td>4.61</td><td>1.15</td><td>0.80</td><td>0</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>SELECT stmt_location, stmt_len FROM parse_statements($1)</td><td>55</td><td>4.33</td><td>0.08</td><td>0.75</td><td>86</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>-- Now run a query with no index on the 'name' column — forces full table scan
+SELECT * FROM customers WHERE name = $1</td><td>3</td><td>2.91</td><td>0.97</td><td>0.50</td><td>3</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>CREATE EXTENSION IF NOT EXISTS google_dataplex</td><td>1</td><td>2.37</td><td>2.37</td><td>0.41</td><td>0</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>CREATE EXTENSION IF NOT EXISTS "google_app_stats" SCHEMA "public"</td><td>1</td><td>2.36</td><td>2.36</td><td>0.41</td><td>0</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>-- Orders
+CREATE TABLE orders (
+    order_id    SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(customer_id),
+    status      VARCHAR(30) DEFAULT 'pending',
+    total       NUMERIC(10, 2),
+    created_at  TIMESTAMP DEFAULT NOW()
+)</td><td>1</td><td>1.90</td><td>1.90</td><td>0.33</td><td>0</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('bhakti-health-report-test_performance_top_queries_by_execution_time_11', -1)">◀ Prev</button>
+            <span id="page-info-bhakti-health-report-test_performance_top_queries_by_execution_time_11">Page 1 of 2</span>
+            <button onclick="changePage('bhakti-health-report-test_performance_top_queries_by_execution_time_11', 1)">Next ▶</button>
+        </div></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 LOCKS</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: lock_waits</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 CONNECTIONS</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: aborted_connections</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_connections_aborted_connections_13"><table id="tbl-bhakti-health-report-test_connections_aborted_connections_13"><thead><tr><th>db_name</th><th>database_name</th><th>aborted_due_to_conflicts</th><th>aborted_due_to_deadlocks</th><th>block_read_time_ms</th><th>block_write_time_ms</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>postgres</td><td>0</td><td>0</td><td>1664.32</td><td>6.324</td></tr></tbody></table></div><div class="metric-title">Metric: active_connections</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_connections_active_connections_14"><table id="tbl-bhakti-health-report-test_connections_active_connections_14"><thead><tr><th>db_name</th><th>state</th><th>connection_count</th><th>longest_seconds</th><th>max_connections_allowed</th><th>pct_of_max</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>N/A</td><td>7</td><td>N/A</td><td>400</td><td>1.75</td></tr><tr class="page-row "><td>postgres</td><td>idle</td><td>3</td><td>10</td><td>400</td><td>0.75</td></tr><tr class="page-row "><td>postgres</td><td>active</td><td>1</td><td>0</td><td>400</td><td>0.25</td></tr></tbody></table></div><div class="metric-title">Metric: thread_activity</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_connections_thread_activity_15"><table id="tbl-bhakti-health-report-test_connections_thread_activity_15"><thead><tr><th>db_name</th><th>state</th><th>wait_event_type</th><th>wait_event</th><th>thread_count</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>idle</td><td>Client</td><td>ClientRead</td><td>3</td></tr><tr class="page-row "><td>postgres</td><td>active</td><td>N/A</td><td>N/A</td><td>1</td></tr></tbody></table></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 STORAGE</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: fragmentation</div><div class="table-wrapper" id="wrapper-bhakti-health-report-test_storage_fragmentation_16"><table id="tbl-bhakti-health-report-test_storage_fragmentation_16"><thead><tr><th>db_name</th><th>schema_name</th><th>table_name</th><th>live_rows</th><th>dead_rows</th><th>total_size</th><th>fragmentation_pct</th><th>last_vacuum</th><th>last_autovacuum</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>15</td><td>0</td><td>56 kB</td><td>0.00</td><td>N/A</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>15</td><td>0</td><td>72 kB</td><td>0.00</td><td>N/A</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>payments</td><td>15</td><td>0</td><td>56 kB</td><td>0.00</td><td>N/A</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>15020</td><td>0</td><td>3216 kB</td><td>0.00</td><td>N/A</td><td>2026-09-02 06:47:53.707935+00:00</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>order_items</td><td>21</td><td>0</td><td>56 kB</td><td>0.00</td><td>N/A</td><td>N/A</td></tr></tbody></table></div></div></div><div class="instance-block" data-server="inventory-db" data-dbtype="MySQL" id="srv-inventory-db"><div class="instance-title">🖥️ inventory-db <small style="font-weight:400;font-size:0.8em;color:#64748b;">(MySQL)</small></div><div class="section-card"><div class="section-title">📋 Provisioned Specs</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">MYSQL 8 4</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">1</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">1.7 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">10 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Read Replica count</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup time</div>
+                <div class="spec-value">11 Sep 2026, 12:00 AM UTC</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Uptime</div>
+                <div class="spec-value">3d 1h 52m</div>
+            </div></div><div class="section-title" style="margin-top:16px;">📊 Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>8.59</td>
+                <td>8.96</td>
+                <td>8.98</td>
+                <td>11.17</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>62.89</td>
+                <td>63.1</td>
+                <td>63.22</td>
+                <td>64.79</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>11.45</td>
+                <td>11.44</td>
+                <td>11.46</td>
+                <td>11.45</td>
+            </tr><tr>
+                <td><strong>Disk Read Ops</strong></td>
+                <td>12.0</td>
+                <td>12.38</td>
+                <td>12.4</td>
+                <td>4.0</td>
+            </tr><tr>
+                <td><strong>Disk Write Ops</strong></td>
+                <td>553891.0</td>
+                <td>567869.04</td>
+                <td>568953.28</td>
+                <td>447.0</td>
+            </tr><tr>
+                <td><strong>Disk Bytes Used</strong></td>
+                <td>1198137344.0</td>
+                <td>374507255.5</td>
+                <td>374507255.5</td>
+                <td>1198137344.0</td>
+            </tr><tr>
+                <td><strong>Connections</strong></td>
+                <td>6.0</td>
+                <td>6.25</td>
+                <td>6.26</td>
+                <td>8.0</td>
+            </tr><tr>
+                <td><strong>Queries</strong></td>
+                <td>368609.0</td>
+                <td>384356.12</td>
+                <td>385089.97</td>
+                <td>378.0</td>
+            </tr></tbody></table></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 INDEXES</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: low_selectivity_indexes</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: queries_high_full_table_scans</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: redundant_indexes</div><div class="table-wrapper" id="wrapper-inventory-db_indexes_redundant_indexes_19"><table id="tbl-inventory-db_indexes_redundant_indexes_19"><thead><tr><th>db_name</th><th>schema_name</th><th>table_name</th><th>redundant_indexes</th><th>dominant_index</th><th>index_columns</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>hr_db</td><td>employees</td><td>idx_emp_dept_v2</td><td>idx_emp_dept</td><td>dept_id</td></tr><tr class="page-row "><td>hr_db</td><td>hr_db</td><td>employees</td><td>idx_emp_dept_v2</td><td>idx_emp_dept</td><td>dept_id</td></tr><tr class="page-row "><td>inventory</td><td>hr_db</td><td>employees</td><td>idx_emp_dept_v2</td><td>idx_emp_dept</td><td>dept_id</td></tr><tr class="page-row "><td>logistics_db</td><td>hr_db</td><td>employees</td><td>idx_emp_dept_v2</td><td>idx_emp_dept</td><td>dept_id</td></tr></tbody></table></div><div class="metric-title">Metric: unused_indexes</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 USERS</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: account_password_hygiene</div><div class="table-wrapper" id="wrapper-inventory-db_users_account_password_hygiene_21"><table id="tbl-inventory-db_users_account_password_hygiene_21"><thead><tr><th>db_name</th><th>user</th><th>host</th><th>auth_plugin</th><th>account_locked</th><th>password_expired</th><th>password_last_changed</th><th>password_lifetime</th><th>password_risk_status</th></tr></thead><tbody><tr class="page-row row-critical"><td>ecommerce_db</td><td>cloudiamgroup</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>N/A</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical"><td>ecommerce_db</td><td>root</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical"><td>ecommerce_db</td><td>root</td><td>::1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical"><td>ecommerce_db</td><td>root</td><td>localhost</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-warning"><td>ecommerce_db</td><td>bhakti</td><td>%</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-09-08 06:22:18</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning"><td>ecommerce_db</td><td>root</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:15</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning"><td>ecommerce_db</td><td>testuser</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:06</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-critical"><td>hr_db</td><td>cloudiamgroup</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>N/A</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical"><td>hr_db</td><td>root</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical"><td>hr_db</td><td>root</td><td>::1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>hr_db</td><td>root</td><td>localhost</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-warning" style="display:none"><td>hr_db</td><td>bhakti</td><td>%</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-09-08 06:22:18</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning" style="display:none"><td>hr_db</td><td>root</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:15</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning" style="display:none"><td>hr_db</td><td>testuser</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:06</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-critical" style="display:none"><td>inventory</td><td>cloudiamgroup</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>N/A</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>inventory</td><td>root</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>inventory</td><td>root</td><td>::1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>inventory</td><td>root</td><td>localhost</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-warning" style="display:none"><td>inventory</td><td>bhakti</td><td>%</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-09-08 06:22:18</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning" style="display:none"><td>inventory</td><td>root</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:15</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning" style="display:none"><td>inventory</td><td>testuser</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:06</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-critical" style="display:none"><td>logistics_db</td><td>cloudiamgroup</td><td>%</td><td>caching_sha2_password</td><td>Y</td><td>Y</td><td>2026-08-20 05:41:05</td><td>N/A</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>logistics_db</td><td>root</td><td>127.0.0.1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>logistics_db</td><td>root</td><td>::1</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-critical" style="display:none"><td>logistics_db</td><td>root</td><td>localhost</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-08-20 05:41:06</td><td>0</td><td><span class="alert-badge">NO PASSWORD</span></td></tr><tr class="page-row row-warning" style="display:none"><td>logistics_db</td><td>bhakti</td><td>%</td><td>caching_sha2_password</td><td>N</td><td>N</td><td>2026-09-08 06:22:18</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning" style="display:none"><td>logistics_db</td><td>root</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:15</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr><tr class="page-row row-warning" style="display:none"><td>logistics_db</td><td>testuser</td><td>%</td><td>mysql_native_password</td><td>N</td><td>N</td><td>2026-09-07 10:58:06</td><td>N/A</td><td><span class="warn-badge">NEVER EXPIRES (Global)</span></td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('inventory-db_users_account_password_hygiene_21', -1)">◀ Prev</button>
+            <span id="page-info-inventory-db_users_account_password_hygiene_21">Page 1 of 3</span>
+            <button onclick="changePage('inventory-db_users_account_password_hygiene_21', 1)">Next ▶</button>
+        </div></div><div class="metric-title">Metric: excessive_administrative_privileges</div><div class="table-wrapper" id="wrapper-inventory-db_users_excessive_administrative_privileges_22"><table id="tbl-inventory-db_users_excessive_administrative_privileges_22"><thead><tr><th>db_name</th><th>GRANTEE</th><th>PRIVILEGE_TYPE</th><th>IS_GRANTABLE</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>'root'@'127.0.0.1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'127.0.0.1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'127.0.0.1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'127.0.0.1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'::1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'::1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'::1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row "><td>ecommerce_db</td><td>'root'@'::1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row "><td>hr_db</td><td>'root'@'127.0.0.1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row "><td>hr_db</td><td>'root'@'127.0.0.1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>hr_db</td><td>'root'@'127.0.0.1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>hr_db</td><td>'root'@'127.0.0.1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>hr_db</td><td>'root'@'::1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>hr_db</td><td>'root'@'::1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>hr_db</td><td>'root'@'::1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>hr_db</td><td>'root'@'::1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'127.0.0.1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'127.0.0.1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'127.0.0.1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'127.0.0.1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'::1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'::1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'::1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>inventory</td><td>'root'@'::1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'127.0.0.1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'127.0.0.1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'127.0.0.1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'127.0.0.1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'::1'</td><td>RELOAD</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'::1'</td><td>SHUTDOWN</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'::1'</td><td>SUPER</td><td>YES</td></tr><tr class="page-row " style="display:none"><td>logistics_db</td><td>'root'@'::1'</td><td>SYSTEM_VARIABLES_ADMIN</td><td>YES</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('inventory-db_users_excessive_administrative_privileges_22', -1)">◀ Prev</button>
+            <span id="page-info-inventory-db_users_excessive_administrative_privileges_22">Page 1 of 4</span>
+            <button onclick="changePage('inventory-db_users_excessive_administrative_privileges_22', 1)">Next ▶</button>
+        </div></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 PERFORMANCE</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: buffer_pool_hit_ratio</div><div class="table-wrapper" id="wrapper-inventory-db_performance_buffer_pool_hit_ratio_23"><table id="tbl-inventory-db_performance_buffer_pool_hit_ratio_23"><thead><tr><th>db_name</th><th>total_read_requests</th><th>disk_reads</th><th>buffer_pool_hit_ratio_pct</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>8641940</td><td>1190</td><td>99.99</td></tr><tr class="page-row "><td>hr_db</td><td>8644668</td><td>1190</td><td>99.99</td></tr><tr class="page-row "><td>inventory</td><td>8647396</td><td>1190</td><td>99.99</td></tr><tr class="page-row "><td>logistics_db</td><td>8650124</td><td>1190</td><td>99.99</td></tr></tbody></table></div><div class="metric-title">Metric: dirty_pages</div><div class="table-wrapper" id="wrapper-inventory-db_performance_dirty_pages_24"><table id="tbl-inventory-db_performance_dirty_pages_24"><thead><tr><th>db_name</th><th>dirty_pages_count</th><th>total_pages_count</th><th>dirty_page_pct</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>0</td><td>40960</td><td>0.0</td></tr><tr class="page-row "><td>hr_db</td><td>0</td><td>40960</td><td>0.0</td></tr><tr class="page-row "><td>inventory</td><td>0</td><td>40960</td><td>0.0</td></tr><tr class="page-row "><td>logistics_db</td><td>0</td><td>40960</td><td>0.0</td></tr></tbody></table></div><div class="metric-title">Metric: full_table_scans</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: redo_log</div><div class="table-wrapper" id="wrapper-inventory-db_performance_redo_log_26"><table id="tbl-inventory-db_performance_redo_log_26"><thead><tr><th>db_name</th><th>log_buffer_waits</th><th>write_requests</th><th>physical_writes</th><th>total_fsyncs</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>0</td><td>676051</td><td>179966</td><td>250252</td></tr><tr class="page-row "><td>hr_db</td><td>0</td><td>676051</td><td>179966</td><td>250252</td></tr><tr class="page-row "><td>inventory</td><td>0</td><td>676051</td><td>179966</td><td>250252</td></tr><tr class="page-row "><td>logistics_db</td><td>0</td><td>676051</td><td>179966</td><td>250252</td></tr></tbody></table></div><div class="metric-title">Metric: temp_table_usage</div><p class="no-issues">✅ No issues or records flagged.</p><div class="metric-title">Metric: top_queries_by_execution_time</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 LOCKS</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: lock_waits</div><p class="no-issues">✅ No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 CONNECTIONS</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: aborted_connections_metrics</div><div class="table-wrapper" id="wrapper-inventory-db_connections_aborted_connections_metrics_30"><table id="tbl-inventory-db_connections_aborted_connections_metrics_30"><thead><tr><th>db_name</th><th>total_aborted_connects_auth</th><th>total_aborted_clients_network</th><th>total_connection_attempts</th><th>abort_auth_pct</th><th>abort_client_pct</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>1</td><td>20</td><td>124566</td><td>0.0</td><td>0.02</td></tr><tr class="page-row "><td>hr_db</td><td>1</td><td>20</td><td>124567</td><td>0.0</td><td>0.02</td></tr><tr class="page-row "><td>inventory</td><td>1</td><td>20</td><td>124568</td><td>0.0</td><td>0.02</td></tr><tr class="page-row "><td>logistics_db</td><td>1</td><td>20</td><td>124569</td><td>0.0</td><td>0.02</td></tr></tbody></table></div><div class="metric-title">Metric: connections_metrics</div><div class="table-wrapper" id="wrapper-inventory-db_connections_connections_metrics_31"><table id="tbl-inventory-db_connections_connections_metrics_31"><thead><tr><th>db_name</th><th>max_concurrent_connections_recorded</th><th>configured_max_connections</th><th>max_connection_utilization_pct</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>11</td><td>1030</td><td>1.07</td></tr><tr class="page-row "><td>hr_db</td><td>11</td><td>1030</td><td>1.07</td></tr><tr class="page-row "><td>inventory</td><td>11</td><td>1030</td><td>1.07</td></tr><tr class="page-row "><td>logistics_db</td><td>11</td><td>1030</td><td>1.07</td></tr></tbody></table></div><div class="metric-title">Metric: thread_metrics</div><div class="table-wrapper" id="wrapper-inventory-db_connections_thread_metrics_32"><table id="tbl-inventory-db_connections_thread_metrics_32"><thead><tr><th>db_name</th><th>cached_threads</th><th>total_threads_created</th><th>thread_miss_ratio_pct</th></tr></thead><tbody><tr class="page-row "><td>ecommerce_db</td><td>3</td><td>11</td><td>0.01</td></tr><tr class="page-row "><td>hr_db</td><td>2</td><td>11</td><td>0.01</td></tr><tr class="page-row "><td>inventory</td><td>1</td><td>11</td><td>0.01</td></tr><tr class="page-row "><td>logistics_db</td><td>0</td><td>11</td><td>0.01</td></tr></tbody></table></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 STORAGE</span><span>▼</span>
+            </div>
+            <div class="category-content"><div class="metric-title">Metric: table_fragmentation_status</div><p class="no-issues">✅ No issues or records flagged.</p></div></div>
+</div>
+
+<script>
+const navData = {"bhakti-health-report-test": "PostgreSQL", "inventory-db": "MySQL"};
+
+// ── POPULATE SERVER DROPDOWN ──
+const serverSel = document.getElementById('filter-server');
+Object.keys(navData).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    serverSel.appendChild(o);
+});
+
+// ── FILTER BY DB TYPE ──
+function filterByType() {
+    const type = document.getElementById('filter-dbtype').value;
+
+    // Rebuild server dropdown filtered by type
+    serverSel.innerHTML = '<option value="ALL">All Servers</option>';
+    Object.entries(navData).forEach(([srv, dbtype]) => {
+        if (type === 'ALL' || dbtype === type) {
+            const o = document.createElement('option');
+            o.value = srv; o.textContent = srv;
+            serverSel.appendChild(o);
+        }
+    });
+
+    filterByServer();
+}
+
+// ── FILTER BY SERVER ──
+function filterByServer() {
+    const type = document.getElementById('filter-dbtype').value;
+    const srv  = serverSel.value;
+
+    document.querySelectorAll('.instance-block').forEach(block => {
+        const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
+        const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !(typeMatch && srvMatch));
+    });
+}
+
+// ── COLLAPSIBLE CATEGORIES ──
+function toggleCategory(el) {
+    const content = el.nextElementSibling;
+    const arrow   = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.textContent = isHidden ? '▶' : '▼';
+}
+
+// ── PAGINATION ──
+const pageState = {};
+
+function changePage(tableId, direction) {
+    const rows       = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
+    const totalPages = Math.ceil(rows.length / 10);
+
+    if (!pageState[tableId]) pageState[tableId] = 1;
+    pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
+
+    const currentPage = pageState[tableId];
+    const start       = (currentPage - 1) * 10;
+    const end         = start + 10;
+
+    rows.forEach((row, i) => {
+        row.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+
+    const info = document.getElementById(`page-info-${tableId}`);
+    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
+}
+</script>
+</body>
+</html>
