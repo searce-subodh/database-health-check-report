@@ -502,10 +502,37 @@ def main():
                 for db_name in databases:
                     print(f"\n  🗄️  Checking database: {db_name}")
                     try:
-                        if db_type == "postgresql":
-                            engine = connect_postgresql(connector, connection_name, db_user, db_pass, db_name)
+                        auth_type = row.get("auth_type", "").strip().lower()
+                        region    = row.get("region", "").strip()
+                        host      = row.get("host", "127.0.0.1").strip()
+                        port      = row.get("port", "").strip()
+
+                        if auth_type == "iam":
+                            engine = get_iam_engine({
+                                "project_id": project_id,
+                                "region":     region or connection_name.split(":")[1],
+                                "instance":   instance_name,
+                                "user":       db_user,
+                                "database":   db_name,
+                                "db_type":    "postgres" if db_type == "postgresql" else "mysql",
+                            }, connector)
+
+                        elif auth_type == "native":
+                            engine = get_native_engine({
+                                "db_type":  "postgres" if db_type == "postgresql" else "mysql",
+                                "user":     db_user,
+                                "password": db_pass,
+                                "host":     host,
+                                "port":     int(port) if port else (5432 if db_type == "postgresql" else 3306),
+                                "database": db_name,
+                            })
+
                         else:
-                            engine = connect_mysql(connector, connection_name, db_user, db_pass, db_name)
+                            # Default — username + password via Cloud SQL Connector
+                            if db_type == "postgresql":
+                                engine = connect_postgresql(connector, connection_name, db_user, db_pass, db_name)
+                            else:
+                                engine = connect_mysql(connector, connection_name, db_user, db_pass, db_name)
 
                         report[instance_name]["health_checks"][db_name] = run_queries(engine, db_type, all_queries)
                         print(f"    ✅ Done.")
