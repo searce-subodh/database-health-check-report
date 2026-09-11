@@ -8,16 +8,18 @@ with open("database_health_report.json", "r") as f:
 generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
 # ─────────────────────────────────────────────
-# BUILD NAVIGATION DATA FOR DROPDOWNS
+# BUILD NAVIGATION DATA
 # ─────────────────────────────────────────────
 
 nav_data = {}
 for instance, data in report_data.items():
-    health_checks = data.get("health_checks", {})
-    nav_data[instance] = [db for db in health_checks.keys() if db != "error" and db != "connection_error"]
+    specs    = data.get("provisioned_specs", {})
+    engine   = specs.get("Engine", "")
+    db_type  = "PostgreSQL" if "POSTGRES" in engine.upper() else "MySQL" if "MYSQL" in engine.upper() else "Unknown"
+    nav_data[instance] = db_type
 
 # ─────────────────────────────────────────────
-# HELPER — ROW COLOR BY VALUE
+# HELPERS
 # ─────────────────────────────────────────────
 
 def row_class(row):
@@ -28,27 +30,56 @@ def row_class(row):
         return "row-warning"
     return ""
 
-# ─────────────────────────────────────────────
-# HELPER — BUILD A TABLE FROM LIST OF DICTS
-# ─────────────────────────────────────────────
+def merge_db_results(health_checks, category, metric):
+    """Merge results from all databases for a given category/metric into one flat list."""
+    merged = []
+    for db_name, categories in health_checks.items():
+        if not isinstance(categories, dict):
+            continue
+        rows = categories.get(category, {}).get(metric, [])
+        if isinstance(rows, list):
+            for row in rows:
+                r = {"db_name": db_name}
+                r.update(row)
+                merged.append(r)
+    return merged
 
-def build_table(rows):
+def build_paginated_table(rows, table_id):
+    """Build a table with pagination — 10 rows per page."""
     if not rows:
         return '<p class="no-issues">✅ No issues or records flagged.</p>'
+
     headers = list(rows[0].keys())
-    html = '<table><thead><tr>' + ''.join([f'<th>{h}</th>' for h in headers]) + '</tr></thead><tbody>'
-    for row in rows:
-        rc = row_class(row)
-        html += f'<tr class="{rc}">'
+    html  = f'<div class="table-wrapper" id="wrapper-{table_id}">'
+    html += f'<table id="tbl-{table_id}"><thead><tr>'
+    html += ''.join([f'<th>{h}</th>' for h in headers])
+    html += '</tr></thead><tbody>'
+
+    for i, row in enumerate(rows):
+        rc    = row_class(row)
+        style = '' if i < 10 else ' style="display:none"'
+        html += f'<tr class="page-row {rc}"{style}>'
         for h in headers:
-            val = str(row[h])
+            val = str(row[h]) if row[h] is not None else "N/A"
             if any(x in val for x in ["EXPIRED", "NO PASSWORD"]):
                 val = f'<span class="alert-badge">{val}</span>'
             elif any(x in val for x in ["NEVER EXPIRES", "WARNING"]):
                 val = f'<span class="warn-badge">{val}</span>'
             html += f'<td>{val}</td>'
         html += '</tr>'
+
     html += '</tbody></table>'
+
+    total_pages = (len(rows) + 9) // 10
+    if total_pages > 1:
+        html += f'''
+        <div class="pagination">
+            <button onclick="changePage('{table_id}', -1)">◀ Prev</button>
+            <span id="page-info-{table_id}">Page 1 of {total_pages}</span>
+            <button onclick="changePage('{table_id}', 1)">Next ▶</button>
+        </div>'''
+
+    html += '</div>'
     return html
 
 # ─────────────────────────────────────────────
@@ -76,33 +107,13 @@ html_content = f"""<!DOCTYPE html>
         #topbar select {{
             padding: 6px 10px; border-radius: 6px; border: none;
             background: #1e293b; color: white; font-size: 0.85em; cursor: pointer;
+            min-width: 140px;
         }}
-        #search-box {{
-            padding: 6px 10px; border-radius: 6px; border: none;
-            background: #1e293b; color: white; font-size: 0.85em; width: 200px;
-        }}
-        #search-box::placeholder {{ color: #94a3b8; }}
-        .topbar-timestamp {{ margin-left: auto; font-size: 0.75em; color: #94a3b8; white-space: nowrap; }}
+        #topbar select:focus {{ outline: 2px solid #3b82f6; }}
+        .topbar-timestamp {{ margin-left: auto; font-size: 0.75em; color: #94a3b8; white-space: nowrap; text-align: right; line-height: 1.5; }}
 
         /* ── MAIN CONTENT ── */
         #content {{ margin-top: 70px; padding: 24px; }}
-
-        /* ── SUMMARY CARDS ── */
-        .summary-grid {{
-            display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-            gap: 12px; margin-bottom: 24px;
-        }}
-        .summary-card {{
-            background: white; border-radius: 8px; padding: 14px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 4px solid #2563eb;
-        }}
-        .summary-card.has-issues {{ border-top-color: #dc2626; }}
-        .summary-card-title {{ font-size: 0.75em; color: #64748b; margin-bottom: 4px; text-transform: uppercase; }}
-        .summary-card-server {{ font-size: 0.85em; font-weight: 700; color: #0f172a; margin-bottom: 6px; word-break: break-all; }}
-        .summary-card-db {{ font-size: 0.8em; color: #334155; margin-bottom: 6px; }}
-        .summary-badges {{ display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; }}
-        .cat-badge {{ font-size: 0.7em; padding: 2px 6px; border-radius: 10px; background: #dcfce7; color: #166534; }}
-        .cat-badge.has-issues {{ background: #fee2e2; color: #991b1b; }}
 
         /* ── PROVISIONED SPECS ── */
         .specs-grid {{
@@ -122,7 +133,7 @@ html_content = f"""<!DOCTYPE html>
         .metrics-table td {{ border: 1px solid #e2e8f0; padding: 8px 10px; }}
         .metrics-table tr:nth-child(even) td {{ background: #f8fafc; }}
 
-        /* ── INSTANCE / DB CARDS ── */
+        /* ── INSTANCE CARDS ── */
         .instance-block {{ margin-bottom: 32px; }}
         .instance-title {{
             font-size: 1.1em; font-weight: 700; color: #0f172a;
@@ -134,13 +145,6 @@ html_content = f"""<!DOCTYPE html>
             padding: 16px; margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }}
-        .db-card {{
-            background: white; border-radius: 6px;
-            padding: 16px; margin-bottom: 16px;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-            border-left: 5px solid #3b82f6;
-        }}
-        .db-title {{ font-size: 1em; font-weight: 700; color: #1e40af; margin-bottom: 12px; }}
         .section-title {{
             font-size: 1em; font-weight: 700; color: #0f172a;
             margin-bottom: 12px; padding-bottom: 6px;
@@ -158,7 +162,7 @@ html_content = f"""<!DOCTYPE html>
         .metric-title {{ font-size: 0.85em; font-weight: 600; color: #334155; margin: 10px 0 4px; }}
 
         /* ── TABLES ── */
-        table {{ width: 100%; border-collapse: collapse; margin-bottom: 14px; font-size: 0.82em; }}
+        table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.82em; }}
         th {{ background: #334155; color: white; padding: 9px 10px; text-align: left; }}
         td {{ border: 1px solid #e2e8f0; padding: 8px 10px; }}
         tr:nth-child(even) td {{ background: #f8fafc; }}
@@ -166,12 +170,22 @@ html_content = f"""<!DOCTYPE html>
         tr.row-warning td {{ background: #fef9c3 !important; }}
         tr:hover td {{ background: #eff6ff !important; }}
 
+        /* ── PAGINATION ── */
+        .pagination {{
+            display: flex; align-items: center; gap: 12px;
+            padding: 8px 0; font-size: 0.82em; color: #334155;
+        }}
+        .pagination button {{
+            padding: 4px 12px; border-radius: 4px; border: 1px solid #cbd5e1;
+            background: white; cursor: pointer; font-size: 0.85em;
+        }}
+        .pagination button:hover {{ background: #e2e8f0; }}
+
         .alert-badge {{ font-weight: 700; color: #991b1b; background: #fee2e2; padding: 2px 6px; border-radius: 4px; }}
-        .warn-badge {{ font-weight: 700; color: #854d0e; background: #fef9c3; padding: 2px 6px; border-radius: 4px; }}
-        .no-issues {{ color: #16a34a; font-style: italic; font-size: 0.85em; padding: 4px 0; }}
-        .error-box {{ color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 8px 0; }}
-        .highlight {{ background: #fde68a; border-radius: 2px; }}
-        .hidden {{ display: none !important; }}
+        .warn-badge  {{ font-weight: 700; color: #854d0e; background: #fef9c3; padding: 2px 6px; border-radius: 4px; }}
+        .no-issues   {{ color: #16a34a; font-style: italic; font-size: 0.85em; padding: 4px 0; }}
+        .error-box   {{ color: #991b1b; background: #fee2e2; padding: 10px; border-radius: 6px; font-size: 0.85em; margin: 8px 0; }}
+        .hidden      {{ display: none !important; }}
     </style>
 </head>
 <body>
@@ -179,14 +193,19 @@ html_content = f"""<!DOCTYPE html>
 <!-- FROZEN TOP BAR -->
 <div id="topbar">
     <h1>🏥 DB Health Report</h1>
-    <select id="filter-server" onchange="filterServer()">
-        <option value="ALL">All Instances</option>
+    <select id="filter-dbtype" onchange="filterByType()">
+        <option value="ALL">All DB Types</option>
+        <option value="PostgreSQL">PostgreSQL</option>
+        <option value="MySQL">MySQL</option>
     </select>
-    <select id="filter-db" onchange="filterDb()">
-        <option value="ALL">All Databases</option>
+    <select id="filter-server" onchange="filterByServer()">
+        <option value="ALL">All Servers</option>
     </select>
-    <input id="search-box" type="text" placeholder="🔍 Search..." oninput="searchReport()">
-    <span class="topbar-timestamp">Generated: {generated_at}</span>
+    <div class="topbar-timestamp">
+        Report Period:<br>
+        {list(report_data.values())[0].get('report_window', {}).get('from', generated_at)}
+        → {list(report_data.values())[0].get('report_window', {}).get('to', generated_at)}
+    </div>
 </div>
 
 <div id="content">
@@ -196,17 +215,20 @@ html_content = f"""<!DOCTYPE html>
 # MAIN REPORT — PER INSTANCE
 # ─────────────────────────────────────────────
 
+table_counter = [0]
+
 for instance, data in report_data.items():
     safe_instance = instance.replace(":", "-").replace(" ", "_")
     specs         = data.get("provisioned_specs", {})
     utilization   = data.get("resource_utilization", {})
     health_checks = data.get("health_checks", {})
+    db_type_label = nav_data.get(instance, "Unknown")
 
-    html_content += f'<div class="instance-block" data-server="{instance}" id="srv-{safe_instance}">'
-    html_content += f'<div class="instance-title">🖥️ {instance}</div>'
+    html_content += f'<div class="instance-block" data-server="{instance}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
+    html_content += f'<div class="instance-title">🖥️ {instance} <small style="font-weight:400;font-size:0.8em;color:#64748b;">({db_type_label})</small></div>'
     html_content += '<div class="section-card">'
 
-    # ── SECTION 1: Provisioned Specs ──
+    # ── Provisioned Specs ──
     if specs and "Error" not in specs:
         html_content += '<div class="section-title">📋 Provisioned Specs</div>'
         html_content += '<div class="specs-grid">'
@@ -214,19 +236,17 @@ for instance, data in report_data.items():
             html_content += f'''
             <div class="spec-item">
                 <div class="spec-label">{key}</div>
-                <div class="spec-value">{val}</div>
+                <div class="spec-value">{val if val is not None else "N/A"}</div>
             </div>'''
         html_content += '</div>'
     elif "Error" in specs:
         html_content += f'<div class="error-box">❌ {specs["Error"]}</div>'
 
-    # ── SECTION 2: Resource Utilization ──
+    # ── Resource Utilization ──
     if utilization:
         html_content += '<div class="section-title" style="margin-top:16px;">📊 Resource Utilization (Last 24h)</div>'
         html_content += '''<table class="metrics-table">
-        <thead><tr>
-            <th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th>
-        </tr></thead><tbody>'''
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody>'''
 
         metric_labels = {
             "cpu_utilization":    "CPU Utilization (%)",
@@ -253,40 +273,38 @@ for instance, data in report_data.items():
 
     html_content += '</div>'  # close section-card
 
-    # ── SECTION 3: Health Checks per Database ──
+    # ── Health Checks — flattened per category/metric across all DBs ──
     if "connection_error" in health_checks:
-        html_content += f'<div class="error-box">❌ DB Connection Error: {health_checks["connection_error"]}</div>'
-    else:
+        html_content += f'<div class="error-box">❌ {health_checks["connection_error"]}</div>'
+    elif health_checks:
+        # Collect all categories and metrics from all databases
+        all_categories = {}
         for db_name, categories in health_checks.items():
-            safe_db = db_name.replace(" ", "_")
-            html_content += f'<div class="db-card" data-server="{instance}" data-db="{db_name}" id="db-{safe_instance}-{safe_db}">'
-            html_content += f'<div class="db-title">🗄️ Database: {db_name}</div>'
-
-            if "error" in categories:
-                html_content += f'<div class="error-box">❌ {categories["error"]}</div></div>'
+            if not isinstance(categories, dict):
                 continue
-
             for category, queries in categories.items():
                 if not isinstance(queries, dict):
                     continue
-                html_content += f'''
-                <div class="category-title" onclick="toggleCategory(this)">
-                    <span>📂 {category.upper()}</span><span>▼</span>
-                </div>
-                <div class="category-content">'''
+                if category not in all_categories:
+                    all_categories[category] = set()
+                all_categories[category].update(queries.keys())
 
-                for key, rows in queries.items():
-                    html_content += f'<div class="metric-title">Metric: {key}</div>'
-                    if isinstance(rows, list):
-                        html_content += build_table(rows)
-                    elif isinstance(rows, dict) and "error" in rows:
-                        html_content += f'<div class="error-box">❌ {rows["error"]}</div>'
-                    else:
-                        html_content += '<p class="no-issues">✅ No issues or records flagged.</p>'
+        for category, metrics in all_categories.items():
+            html_content += f'''
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>📂 {category.upper()}</span><span>▼</span>
+            </div>
+            <div class="category-content">'''
 
-                html_content += '</div>'  # close category-content
+            for metric in sorted(metrics):
+                table_counter[0] += 1
+                tid   = f"{safe_instance}_{category}_{metric}_{table_counter[0]}"
+                rows  = merge_db_results(health_checks, category, metric)
 
-            html_content += '</div>'  # close db-card
+                html_content += f'<div class="metric-title">Metric: {metric}</div>'
+                html_content += build_paginated_table(rows, tid)
+
+            html_content += '</div>'
 
     html_content += '</div>'  # close instance-block
 
@@ -302,6 +320,7 @@ html_content += f"""
 <script>
 const navData = {nav_json};
 
+// ── POPULATE SERVER DROPDOWN ──
 const serverSel = document.getElementById('filter-server');
 Object.keys(navData).forEach(s => {{
     const o = document.createElement('option');
@@ -309,33 +328,36 @@ Object.keys(navData).forEach(s => {{
     serverSel.appendChild(o);
 }});
 
-function filterServer() {{
-    const srv = serverSel.value;
-    const dbSel = document.getElementById('filter-db');
-    dbSel.innerHTML = '<option value="ALL">All Databases</option>';
-    const dbs = srv === 'ALL' ? Object.values(navData).flat() : (navData[srv] || []);
-    [...new Set(dbs)].forEach(db => {{
-        const o = document.createElement('option');
-        o.value = db; o.textContent = db;
-        dbSel.appendChild(o);
+// ── FILTER BY DB TYPE ──
+function filterByType() {{
+    const type = document.getElementById('filter-dbtype').value;
+
+    // Rebuild server dropdown filtered by type
+    serverSel.innerHTML = '<option value="ALL">All Servers</option>';
+    Object.entries(navData).forEach(([srv, dbtype]) => {{
+        if (type === 'ALL' || dbtype === type) {{
+            const o = document.createElement('option');
+            o.value = srv; o.textContent = srv;
+            serverSel.appendChild(o);
+        }}
     }});
-    filterDb();
+
+    filterByServer();
 }}
 
-function filterDb() {{
-    const srv = serverSel.value;
-    const db  = document.getElementById('filter-db').value;
+// ── FILTER BY SERVER ──
+function filterByServer() {{
+    const type = document.getElementById('filter-dbtype').value;
+    const srv  = serverSel.value;
+
     document.querySelectorAll('.instance-block').forEach(block => {{
-        const match = srv === 'ALL' || block.dataset.server === srv;
-        block.classList.toggle('hidden', !match);
-    }});
-    document.querySelectorAll('.db-card').forEach(card => {{
-        const srvMatch = srv === 'ALL' || card.dataset.server === srv;
-        const dbMatch  = db  === 'ALL' || card.dataset.db    === db;
-        card.classList.toggle('hidden', !(srvMatch && dbMatch));
+        const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
+        const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !(typeMatch && srvMatch));
     }});
 }}
 
+// ── COLLAPSIBLE CATEGORIES ──
 function toggleCategory(el) {{
     const content = el.nextElementSibling;
     const arrow   = el.querySelector('span:last-child');
@@ -343,25 +365,26 @@ function toggleCategory(el) {{
     arrow.textContent = isHidden ? '▶' : '▼';
 }}
 
-function searchReport() {{
-    const term = document.getElementById('search-box').value.toLowerCase().trim();
-    document.querySelectorAll('.highlight').forEach(el => {{ el.outerHTML = el.innerHTML; }});
-    if (!term) {{
-        document.querySelectorAll('.db-card, .instance-block').forEach(el => el.classList.remove('hidden'));
-        return;
-    }}
-    document.querySelectorAll('.db-card').forEach(card => {{
-        card.classList.toggle('hidden', !card.textContent.toLowerCase().includes(term));
+// ── PAGINATION ──
+const pageState = {{}};
+
+function changePage(tableId, direction) {{
+    const rows       = document.querySelectorAll(`#tbl-${{tableId}} tbody .page-row`);
+    const totalPages = Math.ceil(rows.length / 10);
+
+    if (!pageState[tableId]) pageState[tableId] = 1;
+    pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
+
+    const currentPage = pageState[tableId];
+    const start       = (currentPage - 1) * 10;
+    const end         = start + 10;
+
+    rows.forEach((row, i) => {{
+        row.style.display = (i >= start && i < end) ? '' : 'none';
     }});
-    document.querySelectorAll('td').forEach(td => {{
-        if (td.textContent.toLowerCase().includes(term)) {{
-            td.innerHTML = td.innerHTML.replace(new RegExp(`(${{term}})`, 'gi'), '<span class="highlight">$1</span>');
-        }}
-    }});
-    document.querySelectorAll('.instance-block').forEach(block => {{
-        const anyVisible = [...block.querySelectorAll('.db-card')].some(c => !c.classList.contains('hidden'));
-        block.classList.toggle('hidden', !anyVisible);
-    }});
+
+    const info = document.getElementById(`page-info-${{tableId}}`);
+    if (info) info.textContent = `Page ${{currentPage}} of ${{totalPages}}`;
 }}
 </script>
 </body>
