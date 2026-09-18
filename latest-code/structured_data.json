@@ -1,0 +1,787 @@
+{
+    "csql-mysql-db": {
+        "provisioned_specs": {
+            "Engine": "MYSQL 8 4",
+            "Edition": "ENTERPRISE",
+            "CPU": "1",
+            "Memory": "3.75 GB",
+            "Storage": "10 GB SSD",
+            "Availability": "Zonal",
+            "Read Replica count": 0,
+            "Last Backup time": "2026-09-07T04:00:00Z"
+        },
+        "resource_utilization": {
+            "cpu_utilization": {
+                "mean": 7.6,
+                "max": 12.57,
+                "p95": 7.74,
+                "p99": 7.76
+            },
+            "memory_utilization": {
+                "mean": 40.99,
+                "max": 41.7,
+                "p95": 42.71,
+                "p99": 42.79
+            },
+            "disk_utilization": {
+                "mean": 13.55,
+                "max": 13.55,
+                "p95": 13.91,
+                "p99": 13.93
+            },
+            "disk_read_ops": {
+                "mean": 4191.0,
+                "max": 1819.0,
+                "p95": 4318.35,
+                "p99": 4326.6
+            },
+            "disk_write_ops": {
+                "mean": 92669.0,
+                "max": 3947.0,
+                "p95": 93377.91,
+                "p99": 93556.19
+            },
+            "disk_bytes_used": {
+                "mean": 1418045842.0,
+                "max": 1418104832.0,
+                "p95": 374507255.5,
+                "p99": 374507255.5
+            },
+            "connections": {
+                "mean": 8.0,
+                "max": 9.0,
+                "p95": 8.38,
+                "p99": 8.39
+            },
+            "queries": {
+                "mean": 62839.0,
+                "max": 405.0,
+                "p95": 63201.84,
+                "p99": 63322.51
+            }
+        },
+        "health_checks": {
+            "indexes": {
+                "unused_indexes": [
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest1",
+                        "Index Name": "k_1",
+                        "Index Size (MB)": "1.52"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest3",
+                        "Index Name": "k_3",
+                        "Index Size (MB)": "1.42"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest2",
+                        "Index Name": "k_2",
+                        "Index Size (MB)": "1.41"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest4",
+                        "Index Name": "k_4",
+                        "Index Size (MB)": "1.36"
+                    },
+                    {
+                        "Database Name": "health_check_test",
+                        "Table Name": "users",
+                        "Index Name": "idx_status",
+                        "Index Size (MB)": "0.02"
+                    }
+                ],
+                "redundant_indexes": [],
+                "queries_high_full_table_scans": [
+                    {
+                        "Database Name": "health_check_test",
+                        "SQL Query": "SHOW SCHEMAS",
+                        "Execution Count": 1,
+                        "Total Latency (Seconds)": "0.00",
+                        "Average Latency (ms)": "1.05",
+                        "Full Table Scans Count": 1,
+                        "Suboptimal Index Scans": 0,
+                        "Full Scan Percentage": "100.00",
+                        "First Seen At": "2026-09-11 06:23:01.448977",
+                        "Last Seen At": "2026-09-11 06:23:01.448977"
+                    }
+                ],
+                "low_selectivity_indexes": [
+                    {
+                        "Database Name": "health_check_test",
+                        "Table Name": "users",
+                        "Index Name": "idx_status",
+                        "Column Name": "status",
+                        "Unique Values Count": 3,
+                        "Total Table Rows": 829,
+                        "Selectivity Percentage": "0.36"
+                    }
+                ]
+            },
+            "users": {
+                "account_password_hygiene": [
+                    {
+                        "Username": "cloudiamgroup",
+                        "Connection Host": "%",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "Y",
+                        "Is Password Expired": "Y",
+                        "Password Last Changed At": "2026-08-13 07:56:56",
+                        "Password Validity (Days)": null,
+                        "Security Risk Status": "NO PASSWORD"
+                    },
+                    {
+                        "Username": "root",
+                        "Connection Host": "127.0.0.1",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": "2026-08-13 07:56:56",
+                        "Password Validity (Days)": 0,
+                        "Security Risk Status": "NO PASSWORD"
+                    },
+                    {
+                        "Username": "root",
+                        "Connection Host": "::1",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": "2026-08-13 07:56:56",
+                        "Password Validity (Days)": 0,
+                        "Security Risk Status": "NO PASSWORD"
+                    },
+                    {
+                        "Username": "root",
+                        "Connection Host": "localhost",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": "2026-08-13 07:56:56",
+                        "Password Validity (Days)": 0,
+                        "Security Risk Status": "NO PASSWORD"
+                    },
+                    {
+                        "Username": "318822345557-compute",
+                        "Connection Host": "%",
+                        "Authentication Plugin": "gcp_iam_auth",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": null,
+                        "Password Validity (Days)": null,
+                        "Security Risk Status": "NEVER EXPIRES (Global)"
+                    },
+                    {
+                        "Username": "admin",
+                        "Connection Host": "%",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": "2026-08-13 09:54:28",
+                        "Password Validity (Days)": null,
+                        "Security Risk Status": "NEVER EXPIRES (Global)"
+                    },
+                    {
+                        "Username": "datastream",
+                        "Connection Host": "%",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": "2026-08-13 09:56:25",
+                        "Password Validity (Days)": null,
+                        "Security Risk Status": "NEVER EXPIRES (Global)"
+                    },
+                    {
+                        "Username": "root",
+                        "Connection Host": "%",
+                        "Authentication Plugin": "caching_sha2_password",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": "2026-08-13 07:58:17",
+                        "Password Validity (Days)": null,
+                        "Security Risk Status": "NEVER EXPIRES (Global)"
+                    },
+                    {
+                        "Username": "subodh.sonawane",
+                        "Connection Host": "%",
+                        "Authentication Plugin": "gcp_iam_auth",
+                        "Is Account Locked": "N",
+                        "Is Password Expired": "N",
+                        "Password Last Changed At": null,
+                        "Password Validity (Days)": null,
+                        "Security Risk Status": "NEVER EXPIRES (Global)"
+                    }
+                ],
+                "excessive_administrative_privileges": [
+                    {
+                        "Account Name": "'datastream'@'%'",
+                        "Privilege Granted": "RELOAD",
+                        "Can Grant To Others": "NO"
+                    },
+                    {
+                        "Account Name": "'root'@'127.0.0.1'",
+                        "Privilege Granted": "RELOAD",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'127.0.0.1'",
+                        "Privilege Granted": "SHUTDOWN",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'127.0.0.1'",
+                        "Privilege Granted": "SUPER",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'127.0.0.1'",
+                        "Privilege Granted": "SYSTEM_VARIABLES_ADMIN",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'::1'",
+                        "Privilege Granted": "RELOAD",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'::1'",
+                        "Privilege Granted": "SHUTDOWN",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'::1'",
+                        "Privilege Granted": "SUPER",
+                        "Can Grant To Others": "YES"
+                    },
+                    {
+                        "Account Name": "'root'@'::1'",
+                        "Privilege Granted": "SYSTEM_VARIABLES_ADMIN",
+                        "Can Grant To Others": "YES"
+                    }
+                ]
+            },
+            "performance": {
+                "full_table_scans": [
+                    {
+                        "Database Name": "health_check_test",
+                        "SQL Query": "SHOW SCHEMAS",
+                        "Execution Count": 1,
+                        "Total Latency (Seconds)": "0.00",
+                        "Average Latency (ms)": "1.05",
+                        "Full Table Scans Count": 1,
+                        "Suboptimal Index Scans": 0,
+                        "Full Scan Percentage": "100.00",
+                        "First Seen At": "2026-09-11 06:23:01.448977",
+                        "Last Seen At": "2026-09-11 06:23:01.448977"
+                    }
+                ],
+                "temp_table_usage": [],
+                "buffer_pool_hit_ratio": [
+                    {
+                        "Total Memory Read Requests": "1007387",
+                        "Physical Disk Reads": "3941",
+                        "Buffer Pool Hit Percentage": 99.61
+                    }
+                ],
+                "dirty_pages": [
+                    {
+                        "Modified Pages Count": "0",
+                        "Total Pages Allocated": "90112",
+                        "Dirty Pages Percentage": 0.0
+                    }
+                ],
+                "redo_log": [
+                    {
+                        "Redo Log Waits Count": "0",
+                        "Memory Write Requests": "48974",
+                        "Physical Disk Writes": "9826",
+                        "Total Disk Syncs": "13096"
+                    }
+                ],
+                "top_queries_by_execution_time": [
+                    {
+                        "Database Name": "health_check_test",
+                        "SQL Query": "CALL `Run_Complete_Healthcheck_Stress` ( )",
+                        "Execution Count": 2,
+                        "Total Execution Time (ms)": "5088.55",
+                        "Average Execution Time (ms)": "2544.27",
+                        "Percentage Of Total DB Time": "99.95",
+                        "Total Rows Returned": 0
+                    }
+                ]
+            },
+            "locks": {
+                "lock_waits": [
+                    {
+                        "Database Name": "load_test_db",
+                        "Table Name": "stress_test",
+                        "Total Lock Incidents": 6,
+                        "Total Waiting Time (ms)": "0.01",
+                        "Average Waiting Time (ms)": "0.00",
+                        "Max Waiting Time (ms)": "0.00"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest4",
+                        "Total Lock Incidents": 4,
+                        "Total Waiting Time (ms)": "0.01",
+                        "Average Waiting Time (ms)": "0.00",
+                        "Max Waiting Time (ms)": "0.00"
+                    },
+                    {
+                        "Database Name": "health_check_test",
+                        "Table Name": "users",
+                        "Total Lock Incidents": 4,
+                        "Total Waiting Time (ms)": "0.01",
+                        "Average Waiting Time (ms)": "0.00",
+                        "Max Waiting Time (ms)": "0.00"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest2",
+                        "Total Lock Incidents": 4,
+                        "Total Waiting Time (ms)": "0.01",
+                        "Average Waiting Time (ms)": "0.00",
+                        "Max Waiting Time (ms)": "0.00"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest3",
+                        "Total Lock Incidents": 4,
+                        "Total Waiting Time (ms)": "0.01",
+                        "Average Waiting Time (ms)": "0.00",
+                        "Max Waiting Time (ms)": "0.00"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest1",
+                        "Total Lock Incidents": 4,
+                        "Total Waiting Time (ms)": "0.01",
+                        "Average Waiting Time (ms)": "0.00",
+                        "Max Waiting Time (ms)": "0.00"
+                    }
+                ]
+            },
+            "connections": {
+                "connections_metrics": [
+                    {
+                        "Peak Concurrent Connections": "11",
+                        "Allowed Max Connections": "4030",
+                        "Connection Utilization Percentage": 0.27
+                    }
+                ],
+                "thread_metrics": [
+                    {
+                        "Reusable Cached Threads": "1",
+                        "Total New Threads Created": "11",
+                        "Thread Cache Miss Percentage": 0.11
+                    }
+                ],
+                "aborted_connections_metrics": [
+                    {
+                        "Auth Failures Count": "0",
+                        "Network Drops Count": "0",
+                        "Total Connection Attempts": "10415",
+                        "Auth Failure Percentage": 0.0,
+                        "Network Drop Percentage": 0.0
+                    }
+                ]
+            },
+            "storage": {
+                "table_fragmentation_status": [
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest1",
+                        "Actual Data Size (MB)": "21.27",
+                        "Index Size (MB)": "1.52",
+                        "Wasted Fragmented Space (MB)": "4.00",
+                        "Fragmentation Percentage": "14.94"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest2",
+                        "Actual Data Size (MB)": "21.27",
+                        "Index Size (MB)": "1.41",
+                        "Wasted Fragmented Space (MB)": "4.00",
+                        "Fragmentation Percentage": "15.00"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest3",
+                        "Actual Data Size (MB)": "21.27",
+                        "Index Size (MB)": "1.42",
+                        "Wasted Fragmented Space (MB)": "4.00",
+                        "Fragmentation Percentage": "14.99"
+                    },
+                    {
+                        "Database Name": "sbtest",
+                        "Table Name": "sbtest4",
+                        "Actual Data Size (MB)": "21.27",
+                        "Index Size (MB)": "1.36",
+                        "Wasted Fragmented Space (MB)": "4.00",
+                        "Fragmentation Percentage": "15.02"
+                    }
+                ]
+            }
+        }
+    },
+    "csql-psql-db": {
+        "provisioned_specs": {
+            "Engine": "POSTGRES 18",
+            "Edition": "ENTERPRISE",
+            "CPU": "1",
+            "Memory": "3.75 GB",
+            "Storage": "109 GB SSD",
+            "Availability": "Zonal",
+            "Read Replica count": 0,
+            "Last Backup time": "2026-09-07T21:00:00Z"
+        },
+        "resource_utilization": {
+            "cpu_utilization": {
+                "mean": 12.19,
+                "max": 24.26,
+                "p95": 12.61,
+                "p99": 12.64
+            },
+            "memory_utilization": {
+                "mean": 28.81,
+                "max": 30.78,
+                "p95": 28.91,
+                "p99": 28.96
+            },
+            "disk_utilization": {
+                "mean": 0.44,
+                "max": 0.44,
+                "p95": 0.95,
+                "p99": 0.99
+            },
+            "disk_read_ops": {
+                "mean": 3068.0,
+                "max": 1006.0,
+                "p95": 3068.97,
+                "p99": 3074.83
+            },
+            "disk_write_ops": {
+                "mean": 46190.0,
+                "max": 789.0,
+                "p95": 47162.19,
+                "p99": 47252.23
+            },
+            "disk_bytes_used": {
+                "mean": 510897591.0,
+                "max": 518725632.0,
+                "p95": 374507255.5,
+                "p99": 374507255.5
+            },
+            "connections": {
+                "mean": null,
+                "max": null,
+                "p95": null,
+                "p99": null
+            },
+            "queries": {
+                "mean": null,
+                "max": null,
+                "p95": null,
+                "p99": null
+            }
+        },
+        "health_checks": {
+            "indexes": {
+                "unused_indexes": [
+                    {
+                        "Database Name": "public",
+                        "Table Name": "stress_test",
+                        "Index Name": "idx_stress_status",
+                        "Formatted Index Size": "1000 kB",
+                        "Usage Count": 0
+                    }
+                ],
+                "redundant_indexes": [],
+                "queries_high_full_table_scans": [
+                    {
+                        "Table Name": "stress_test",
+                        "Full Table Scans Count": 35,
+                        "Total Rows Scanned": 1110000,
+                        "Average Rows Per Scan": "31714",
+                        "Index Scans Count": 7,
+                        "Formatted Table Size": "62 MB"
+                    },
+                    {
+                        "Table Name": "users",
+                        "Full Table Scans Count": 1,
+                        "Total Rows Scanned": 0,
+                        "Average Rows Per Scan": "0",
+                        "Index Scans Count": 0,
+                        "Formatted Table Size": "8192 bytes"
+                    }
+                ],
+                "low_selectivity_indexes": [
+                    {
+                        "Database Name": "public",
+                        "Table Name": "stress_test",
+                        "Column Name": "status",
+                        "Unique Values Count": 2.0,
+                        "Data Correlation": 0.4914512,
+                        "Selectivity Percentage": "0.00"
+                    }
+                ]
+            },
+            "users": {
+                "account_password_hygiene": [
+                    {
+                        "Username": "datastream",
+                        "Has Login Access": true,
+                        "Is Superuser": false,
+                        "Inherits Privileges": true,
+                        "Can Create Databases": false,
+                        "Can Create Roles": false,
+                        "Password Expiration Date": null,
+                        "Security Risk Status": "NEVER EXPIRES"
+                    },
+                    {
+                        "Username": "postgres",
+                        "Has Login Access": true,
+                        "Is Superuser": false,
+                        "Inherits Privileges": true,
+                        "Can Create Databases": true,
+                        "Can Create Roles": true,
+                        "Password Expiration Date": null,
+                        "Security Risk Status": "NEVER EXPIRES"
+                    },
+                    {
+                        "Username": "318822345557-compute@developer",
+                        "Has Login Access": true,
+                        "Is Superuser": false,
+                        "Inherits Privileges": true,
+                        "Can Create Databases": false,
+                        "Can Create Roles": false,
+                        "Password Expiration Date": null,
+                        "Security Risk Status": "NEVER EXPIRES"
+                    }
+                ],
+                "excessive_administrative_privileges": []
+            },
+            "performance": {
+                "buffer_pool_hit_ratio": [
+                    {
+                        "Table Name": "stress_test",
+                        "Disk Blocks Read": 3813,
+                        "Memory Blocks Hit": 762072,
+                        "Buffer Hit Percentage": "99.50"
+                    }
+                ],
+                "dirty_pages": {
+                    "error": "(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '42P01', 'M': 'relation \"pg_buffercache\" does not exist', 'P': '266', 'F': 'parse_relation.c', 'L': '1501', 'R': 'parserOpenTable'}\n[SQL: SELECT c.relname AS \"Table Name\", pg_size_pretty(count(*) * 8192) AS \"Formatted Dirty Data Size\", count(*) AS \"Dirty Pages Count\", round(100.0 * count(*) / NULLIF((SELECT count(*) FROM pg_buffercache WHERE isdirty), 0), 2) AS \"Percentage Of Total Dirty Pages\" FROM pg_buffercache b JOIN pg_class c ON b.relfilenode = pg_relation_filenode(c.oid) JOIN pg_database d ON (b.reltablespace = d.dattablespace OR b.reltablespace = 0) AND d.datname = current_database() WHERE b.isdirty = true AND c.relkind IN ('r', 'm') GROUP BY c.relname ORDER BY \"Dirty Pages Count\" DESC;]\n(Background on this error at: https://sqlalche.me/e/20/4xp6)"
+                },
+                "redo_log": [
+                    {
+                        "Current WAL Position": "25/B8002FF8",
+                        "Total WAL Bytes Written": "162000809976",
+                        "Formatted Total WAL Size": "151 GB",
+                        "WAL Files Count": 5,
+                        "Formatted WAL Directory Size": "256 MB"
+                    }
+                ],
+                "temp_table_usage": [
+                    {
+                        "Database Name": "postgres",
+                        "Temp Files Created Count": 11,
+                        "Formatted Temp Data Written": "92 MB",
+                        "Deadlocks Count": 0,
+                        "Conflicts Count": 0
+                    }
+                ],
+                "top_queries_by_execution_time": [
+                    {
+                        "SQL Query": "CALL generate_healthcheck_traffic()",
+                        "Execution Count": 6,
+                        "Total Execution Time (ms)": "4020.19",
+                        "Average Execution Time (ms)": "670.03",
+                        "Percentage Of Total DB Time": "29.21",
+                        "Total Rows Processed": 0
+                    },
+                    {
+                        "SQL Query": "select pg_logical_emit_message($1, $2, $3)",
+                        "Execution Count": 4047,
+                        "Total Execution Time (ms)": "2431.02",
+                        "Average Execution Time (ms)": "0.60",
+                        "Percentage Of Total DB Time": "17.66",
+                        "Total Rows Processed": 4047
+                    },
+                    {
+                        "SQL Query": "BEGIN",
+                        "Execution Count": 48787,
+                        "Total Execution Time (ms)": "599.91",
+                        "Average Execution Time (ms)": "0.01",
+                        "Percentage Of Total DB Time": "4.36",
+                        "Total Rows Processed": 0
+                    },
+                    {
+                        "SQL Query": "SELECT app_name, query_count, pg_postmaster_start_time() as reset FROM public.google_app_stats_get_all_app_query_counts()",
+                        "Execution Count": 23927,
+                        "Total Execution Time (ms)": "568.22",
+                        "Average Execution Time (ms)": "0.02",
+                        "Percentage Of Total DB Time": "4.13",
+                        "Total Rows Processed": 47854
+                    },
+                    {
+                        "SQL Query": "CREATE DATABASE application",
+                        "Execution Count": 1,
+                        "Total Execution Time (ms)": "548.07",
+                        "Average Execution Time (ms)": "548.07",
+                        "Percentage Of Total DB Time": "3.98",
+                        "Total Rows Processed": 0
+                    },
+                    {
+                        "SQL Query": "SET application_name = $1",
+                        "Execution Count": 12261,
+                        "Total Execution Time (ms)": "547.51",
+                        "Average Execution Time (ms)": "0.04",
+                        "Percentage Of Total DB Time": "3.98",
+                        "Total Rows Processed": 0
+                    },
+                    {
+                        "SQL Query": "SELECT captured, consolidated, qps_exceeded, cool_off, queue_full, sent_succ, sent_fail, stats_reset FROM public.get_live_sync_stats()",
+                        "Execution Count": 23953,
+                        "Total Execution Time (ms)": "516.19",
+                        "Average Execution Time (ms)": "0.02",
+                        "Percentage Of Total DB Time": "3.75",
+                        "Total Rows Processed": 23953
+                    },
+                    {
+                        "SQL Query": "SELECT $1",
+                        "Execution Count": 48766,
+                        "Total Execution Time (ms)": "441.47",
+                        "Average Execution Time (ms)": "0.01",
+                        "Percentage Of Total DB Time": "3.21",
+                        "Total Rows Processed": 48766
+                    },
+                    {
+                        "SQL Query": "INSERT INTO sbtest4(k, c, pad) VALUES($1, $2, $3)",
+                        "Execution Count": 37,
+                        "Total Execution Time (ms)": "416.15",
+                        "Average Execution Time (ms)": "11.25",
+                        "Percentage Of Total DB Time": "3.02",
+                        "Total Rows Processed": 99974
+                    },
+                    {
+                        "SQL Query": "INSERT INTO sbtest3(k, c, pad) VALUES($1, $2, $3)",
+                        "Execution Count": 37,
+                        "Total Execution Time (ms)": "402.47",
+                        "Average Execution Time (ms)": "10.88",
+                        "Percentage Of Total DB Time": "2.92",
+                        "Total Rows Processed": 99974
+                    },
+                    {
+                        "SQL Query": "INSERT INTO sbtest1(k, c, pad) VALUES($1, $2, $3)",
+                        "Execution Count": 37,
+                        "Total Execution Time (ms)": "375.93",
+                        "Average Execution Time (ms)": "10.16",
+                        "Percentage Of Total DB Time": "2.73",
+                        "Total Rows Processed": 99974
+                    },
+                    {
+                        "SQL Query": "COMMIT",
+                        "Execution Count": 48779,
+                        "Total Execution Time (ms)": "361.17",
+                        "Average Execution Time (ms)": "0.01",
+                        "Percentage Of Total DB Time": "2.62",
+                        "Total Rows Processed": 0
+                    },
+                    {
+                        "SQL Query": "INSERT INTO sbtest2(k, c, pad) VALUES($1, $2, $3)",
+                        "Execution Count": 37,
+                        "Total Execution Time (ms)": "344.35",
+                        "Average Execution Time (ms)": "9.31",
+                        "Percentage Of Total DB Time": "2.50",
+                        "Total Rows Processed": 99974
+                    },
+                    {
+                        "SQL Query": "INSERT INTO orders_hash_poc (id, customer_name, amount)\nSELECT \n    g AS id,\n    $1 || g AS customer_name,\n    (random() * $2)::numeric(10, 2) AS amount\nFROM generate_series($3, $4) g",
+                        "Execution Count": 1,
+                        "Total Execution Time (ms)": "249.89",
+                        "Average Execution Time (ms)": "249.89",
+                        "Percentage Of Total DB Time": "1.82",
+                        "Total Rows Processed": 100000
+                    },
+                    {
+                        "SQL Query": "SELECT \"public\".\"sbtest1\".\"id\", \"public\".\"sbtest1\".\"k\", \"public\".\"sbtest1\".\"c\", \"public\".\"sbtest1\".\"pad\" FROM \"public\".\"sbtest1\"",
+                        "Execution Count": 1,
+                        "Total Execution Time (ms)": "158.08",
+                        "Average Execution Time (ms)": "158.08",
+                        "Percentage Of Total DB Time": "1.15",
+                        "Total Rows Processed": 100000
+                    }
+                ]
+            },
+            "locks": {
+                "lock_waits": []
+            },
+            "connections": {
+                "active_connections": [
+                    {
+                        "Connection State": null,
+                        "Active Connections Count": 10,
+                        "Longest Connection Duration (Seconds)": null,
+                        "Allowed Max Connections": 100,
+                        "Connection Utilization Percentage": "10.00"
+                    },
+                    {
+                        "Connection State": "idle",
+                        "Active Connections Count": 2,
+                        "Longest Connection Duration (Seconds)": 12,
+                        "Allowed Max Connections": 100,
+                        "Connection Utilization Percentage": "2.00"
+                    },
+                    {
+                        "Connection State": "active",
+                        "Active Connections Count": 1,
+                        "Longest Connection Duration (Seconds)": 0,
+                        "Allowed Max Connections": 100,
+                        "Connection Utilization Percentage": "1.00"
+                    }
+                ],
+                "aborted_connections": [
+                    {
+                        "Database Name": "postgres",
+                        "Dropped Due To Conflicts": 0,
+                        "Dropped Due To Deadlocks": 0,
+                        "Total Block Read Time (ms)": 3651.841,
+                        "Total Block Write Time (ms)": 122.56
+                    }
+                ],
+                "thread_activity": [
+                    {
+                        "Connection State": "idle",
+                        "Wait Event Category": "Client",
+                        "Specific Wait Event": "ClientRead",
+                        "Active Threads Count": 2
+                    },
+                    {
+                        "Connection State": "active",
+                        "Wait Event Category": null,
+                        "Specific Wait Event": null,
+                        "Active Threads Count": 1
+                    }
+                ]
+            },
+            "storage": {
+                "fragmentation": [
+                    {
+                        "Database Name": "public",
+                        "Table Name": "stress_test",
+                        "Active Rows Count": 60000,
+                        "Dead Rows Count": 0,
+                        "Formatted Total Size": "62 MB",
+                        "Fragmentation Percentage": "0.00",
+                        "Last Manual Vacuum At": null,
+                        "Last Auto Vacuum At": "2026-09-11 06:24:57.954293+00:00"
+                    }
+                ]
+            }
+        }
+    }
+}
