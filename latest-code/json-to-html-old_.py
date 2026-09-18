@@ -38,15 +38,15 @@ def row_class(row):
         return "row-warning"
     return ""
 
-def format_clean_title(key):
-    """Formats raw JSON keys like 'cpu_utilization' into readable titles without prefixes."""
+def format_metric_label(key):
+    """Formats raw JSON keys like 'cpu_utilization' into readable titles."""
     words = key.replace("_", " ").title()
     return words.replace("Cpu", "CPU").replace("Ops", "Ops")
 
 def build_paginated_table(rows, table_id):
     """Build a table with pagination — 10 rows per page."""
     if not rows or not isinstance(rows, list):
-        return '<p class="no-issues">No issues or records flagged.</p>'
+        return '<p class="no-issues">[OK] No issues or records flagged.</p>'
 
     headers = list(rows[0].keys())
     html = f'<div class="table-wrapper" id="wrapper-{table_id}">'
@@ -93,9 +93,9 @@ html_content = f"""<!DOCTYPE html>
     <title>Database Health Check Report</title>
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        /* Formal Corporate Font Stack */
+        /* Clean Sans-Serif for body and headers */
         body {{ 
-            font-family: Arial, Helvetica, 'Segoe UI', sans-serif; 
+            font-family: system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; 
             background: #f1f5f9; 
             color: #1e293b; 
         }}
@@ -126,21 +126,21 @@ html_content = f"""<!DOCTYPE html>
         /* -- PROVISIONED SPECS (FLEXBOX SINGLE LINE) -- */
         .specs-grid {{
             display: flex;
-            flex-wrap: nowrap; /* Forces a single line */
-            overflow-x: auto; /* Adds a horizontal scrollbar only if screen is too small */
-            gap: 12px; 
+            flex-wrap: wrap; /* Allows wrapping on smaller screens */
+            gap: 10px; 
             margin-bottom: 16px;
-            padding-bottom: 8px; /* Room for scrollbar if triggered */
         }}
         .spec-item {{
-            flex: 1 1 auto; 
-            white-space: nowrap; /* Prevents text from breaking into multiple lines */
+            flex: 1 1 auto; /* Grow to fill space uniformly */
+            min-width: 130px; /* Minimum width before forcing a wrap */
             background: #f8fafc; border-radius: 6px; padding: 12px 16px;
             border-left: 4px solid #2563eb;
         }}
         .spec-label {{ font-size: 0.75em; color: #64748b; text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }}
         .spec-value {{ 
-            font-size: 1em; font-weight: 700; color: #0f172a; 
+            font-size: 0.95em; font-weight: 700; color: #0f172a; 
+            /* Monospace for specification values */
+            font-family: ui-monospace, SFMono-Regular, Consolas, Monaco, monospace;
         }}
 
         /* -- MONITORING METRICS -- */
@@ -169,21 +169,23 @@ html_content = f"""<!DOCTYPE html>
 
         /* -- CATEGORY -- */
         .category-title {{
-            font-size: 1.05em; color: #2563eb;
+            font-size: 1em; color: #2563eb;
             margin-top: 16px; padding: 8px 0;
             border-bottom: 1px solid #e2e8f0; cursor: pointer;
             display: flex; justify-content: space-between;
         }}
         .category-title:hover {{ color: #1d4ed8; }}
-        .metric-title {{ font-size: 0.95em; font-weight: 600; color: #334155; margin: 16px 0 8px; }}
+        .metric-title {{ font-size: 0.9em; font-weight: 600; color: #334155; margin: 12px 0 8px; text-transform: uppercase; }}
 
         /* -- TABLES -- */
         table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 0.85em; }}
         th {{ background: #334155; color: white; padding: 10px 12px; text-align: left; }}
+        /* Monospace font applied directly to table data cells for DBA readability */
         td {{ 
             border: 1px solid #e2e8f0; 
             padding: 8px 12px; 
-            word-break: normal;
+            font-family: ui-monospace, SFMono-Regular, Consolas, Monaco, monospace; 
+            word-break: break-word;
         }}
         tr:nth-child(even) td {{ background: #f8fafc; }}
         tr.row-critical td {{ background: #fee2e2 !important; }}
@@ -193,7 +195,7 @@ html_content = f"""<!DOCTYPE html>
         /* -- PAGINATION -- */
         .pagination {{
             display: flex; align-items: center; gap: 12px;
-            padding: 8px 0; font-size: 0.9em; color: #334155; 
+            padding: 8px 0; font-size: 0.9em; color: #334155; font-family: system-ui, sans-serif;
         }}
         .pagination button {{
             padding: 6px 14px; border-radius: 4px; border: 1px solid #cbd5e1;
@@ -201,14 +203,15 @@ html_content = f"""<!DOCTYPE html>
         }}
         .pagination button:hover {{ background: #e2e8f0; }}
 
-        .alert-badge {{ font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
-        .warn-badge  {{ font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
-        .no-issues   {{ color: #16a34a; font-style: italic; font-size: 0.95em; padding: 8px 0; }}
+        .alert-badge {{ font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-family: system-ui, sans-serif; font-size: 0.85em; }}
+        .warn-badge  {{ font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-family: system-ui, sans-serif; font-size: 0.85em; }}
+        .no-issues   {{ color: #16a34a; font-style: italic; font-size: 0.95em; padding: 8px 0; font-family: system-ui, sans-serif; }}
         
         /* Formatted Error Box */
         .error-box {{ 
             color: #7f1d1d; background: #fee2e2; border-left: 4px solid #b91c1c; 
             padding: 12px 16px; border-radius: 4px; font-size: 0.9em; margin: 8px 0; 
+            font-family: ui-monospace, SFMono-Regular, Consolas, Monaco, monospace;
         }}
         .hidden      {{ display: none !important; }}
     </style>
@@ -256,31 +259,24 @@ for instance, data in report_data.items():
     # -- Provisioned Specs --
     if specs and "Error" not in specs:
         html_content += (
-            '<div class="section-title">Provisioned Specifications</div>'
+            '<div class="section-title">[Specs] Provisioned Specifications</div>'
         )
         html_content += '<div class="specs-grid">'
-        
-        # Mapping for display names
         for key, val in specs.items():
-            display_key = key
-            if key == "Read Replica count":
-                display_key = "Replicas"
-            elif key == "Last Backup time":
-                display_key = "Last Backup"
-                
             html_content += f"""
                 <div class="spec-item">
-                    <div class="spec-label">{display_key}</div>
+                    <div class="spec-label">{key}</div>
                     <div class="spec-value">{val if val is not None else "N/A"}</div>
                 </div>"""
         html_content += "</div>"
     elif "Error" in specs:
         html_content += f'<div class="error-box"><strong>Configuration Error:</strong><br>{specs["Error"]}</div>'
 
-    # -- Resource Utilization (Dynamic) --
+    # -- Resource Utilization (Now 100% Dynamic) --
     if utilization:
         html_content += (
-            '<div class="section-title" style="margin-top:24px;">Resource Utilization (Last 24h)</div>'
+            '<div class="section-title" style="margin-top:24px;">[Metrics]'
+            " Resource Utilization (Last 24h)</div>"
         )
         html_content += """<table class="metrics-table">
             <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody>"""
@@ -289,9 +285,9 @@ for instance, data in report_data.items():
             if not isinstance(m, dict):
                 continue
             
-            label = format_clean_title(metric_key)
+            label = format_metric_label(metric_key)
             html_content += f"""<tr>
-                <td style="font-weight: 600;">{label}</td>
+                <td style="font-family: system-ui, sans-serif; font-weight: 600;">{label}</td>
                 <td>{m.get("mean") if m.get("mean") is not None else "N/A"}</td>
                 <td>{m.get("p95")  if m.get("p95")  is not None else "N/A"}</td>
                 <td>{m.get("p99")  if m.get("p99")  is not None else "N/A"}</td>
@@ -312,10 +308,9 @@ for instance, data in report_data.items():
             if not isinstance(metrics, dict):
                 continue
 
-            clean_category = format_clean_title(category)
             html_content += f"""
                 <div class="category-title" onclick="toggleCategory(this)">
-                    <span>{clean_category}</span><span>&#9660;</span>
+                    <span>[Category] {category.upper()}</span><span>&#9660;</span>
                 </div>
                 <div class="category-content">"""
 
@@ -323,8 +318,7 @@ for instance, data in report_data.items():
                 table_counter[0] += 1
                 tid = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
                 
-                clean_metric = format_clean_title(metric_name)
-                html_content += f'<div class="metric-title">{clean_metric}</div>'
+                html_content += f'<div class="metric-title">Metric: {format_metric_label(metric_name)}</div>'
                 
                 # Check for explicit error payloads in the metric execution
                 if isinstance(rows, dict) and "error" in rows:
