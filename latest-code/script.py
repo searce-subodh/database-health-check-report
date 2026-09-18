@@ -1,528 +1,430 @@
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 import json
-import re
-import csv
 import os
-import sqlalchemy
-from google.cloud import monitoring_v3
-from google.cloud.sql.connector import Connector, IPTypes
-from googleapiclient import discovery
-import pg8000
-import pymysql
-import pymysql.cursors
+
+# Load report data
+with open("database_health_report.json", "r") as f:
+    report_data = json.load(f)
+
+generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
 # ─────────────────────────────────────────────
-# TIGHTLY BOUND INTERNAL QUERIES
+# BUILD NAVIGATION DATA
 # ─────────────────────────────────────────────
 
-INTERNAL_QUERIES = {
-    "mysql": {
-        "uptime": "SHOW GLOBAL STATUS LIKE 'Uptime';"
-    },
-    "postgres": {
-        "uptime": "SELECT pg_postmaster_start_time() AS start_time;"
-    },
-}
+nav_data = {}
+for instance, data in report_data.items():
+    specs = data.get("provisioned_specs", {})
+    engine = specs.get("Engine", "")
+    db_type = (
+        "PostgreSQL"
+        if "POSTGRES" in engine.upper()
+        else "MySQL" if "MYSQL" in engine.upper() else "Unknown"
+    )
+    nav_data[instance] = db_type
+
 
 # ─────────────────────────────────────────────
-# TIER MAP & METRIC GROUPS
+# HELPERS
 # ─────────────────────────────────────────────
 
-TIER_MAP = {
-    "db-f1-micro": (1, "0.614 GB"),
-    "db-g1-small": (1, "1.7 GB"),
-}
+def row_class(row):
+    if not isinstance(row, dict):
+        return ""
+    vals = " ".join(str(v) for v in row.values())
+    if any(x in vals for x in ["EXPIRED", "NO PASSWORD", "FAILED"]):
+        return "row-critical"
+    if any(x in vals for x in ["NEVER EXPIRES", "WARNING"]):
+        return "row-warning"
+    return ""
 
-COMMON_METRICS = {
-    "cpu_utilization": "cloudsql.googleapis.com/database/cpu/utilization",
-    "memory_utilization": "cloudsql.googleapis.com/database/memory/utilization",
-    "disk_utilization": "cloudsql.googleapis.com/database/disk/utilization",
-    "disk_read_ops": "cloudsql.googleapis.com/database/disk/read_ops_count",
-    "disk_write_ops": "cloudsql.googleapis.com/database/disk/write_ops_count",
-    "disk_bytes_used": "cloudsql.googleapis.com/database/disk/bytes_used",
-}
+def format_clean_title(key):
+    """Formats raw JSON keys like 'cpu_utilization' into readable titles without prefixes."""
+    words = key.replace("_", " ").title()
+    return words.replace("Cpu", "CPU").replace("Ops", "Ops")
 
-MYSQL_METRICS = {
-    "connections": "cloudsql.googleapis.com/database/network/connections",
-}
+def build_paginated_table(rows, table_id):
+    """Build a table with pagination — 10 rows per page."""
+    if not rows or not isinstance(rows, list):
+        return '<p class="no-issues">No issues or records flagged.</p>'
 
-POSTGRES_METRICS = {
-    "connections": "cloudsql.googleapis.com/database/postgresql/num_backends",
-}
+    headers = list(rows[0].keys())
+    html = f'<div class="table-wrapper" id="wrapper-{table_id}">'
+    html += f'<table id="tbl-{table_id}"><thead><tr>'
+    html += "".join([f"<th>{h}</th>" for h in headers])
+    html += "</tr></thead><tbody>"
+
+    for i, row in enumerate(rows):
+        rc = row_class(row)
+        style = "" if i < 10 else ' style="display:none"'
+        html += f'<tr class="page-row {rc}"{style}>'
+        for h in headers:
+            val = str(row.get(h)) if row.get(h) is not None else "N/A"
+            if any(x in val for x in ["EXPIRED", "NO PASSWORD", "FAILED"]):
+                val = f'<span class="alert-badge">{val}</span>'
+            elif any(x in val for x in ["NEVER EXPIRES", "WARNING"]):
+                val = f'<span class="warn-badge">{val}</span>'
+            html += f"<td>{val}</td>"
+        html += "</tr>"
+
+    html += "</tbody></table>"
+
+    total_pages = (len(rows) + 9) // 10
+    if total_pages > 1:
+        html += f"""
+        <div class="pagination">
+            <button onclick="changePage('{table_id}', -1)">&lt; Prev</button>
+            <span id="page-info-{table_id}">Page 1 of {total_pages}</span>
+            <button onclick="changePage('{table_id}', 1)">Next &gt;</button>
+        </div>"""
+
+    html += "</div>"
+    return html
 
 
-def get_metrics_for_engine(db_type: str) -> dict:
-    """Combines common metrics with engine-specific metric types."""
-    metrics = COMMON_METRICS.copy()
-    
-    if db_type == "mysql":
-        metrics.update(MYSQL_METRICS)
-    elif db_type == "postgres":
-        metrics.update(POSTGRES_METRICS)
+# ─────────────────────────────────────────────
+# HTML HEAD + STYLES
+# ─────────────────────────────────────────────
+
+html_content = f"""<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Health Check Report</title>
+    <style>
+        * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+        /* Formal Corporate Font Stack */
+        body {{ 
+            font-family: Arial, Helvetica, 'Segoe UI', sans-serif; 
+            background: #f1f5f9; 
+            color: #1e293b; 
+        }}
+        h1, .section-title, .category-title {{
+            font-weight: 700;
+        }}
+
+        /* -- FROZEN TOP BAR -- */
+        #topbar {{
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #0f172a; color: white;
+            padding: 12px 24px; display: flex; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }}
+        #topbar h1 {{ font-size: 1.1em; color: white; white-space: nowrap; }}
+        #topbar select {{
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em; cursor: pointer;
+            min-width: 140px; font-family: inherit;
+        }}
+        #topbar select:focus {{ outline: 2px solid #3b82f6; }}
+        .topbar-timestamp {{ margin-left: auto; font-size: 0.85em; color: #94a3b8; white-space: nowrap; text-align: right; line-height: 1.5; }}
+
+        /* -- MAIN CONTENT -- */
+        #content {{ margin-top: 70px; padding: 24px; }}
+
+        /* -- PROVISIONED SPECS (FLEXBOX SINGLE LINE) -- */
+        .specs-grid {{
+            display: flex;
+            flex-wrap: nowrap; /* Forces a single line */
+            overflow-x: auto; /* Adds a horizontal scrollbar only if screen is too small */
+            gap: 12px; 
+            margin-bottom: 16px;
+            padding-bottom: 8px; /* Room for scrollbar if triggered */
+        }}
+        .spec-item {{
+            flex: 1 1 auto; 
+            white-space: nowrap; /* Prevents text from breaking into multiple lines */
+            background: #f8fafc; border-radius: 6px; padding: 12px 16px;
+            border-left: 4px solid #2563eb;
+        }}
+        .spec-label {{ font-size: 0.75em; color: #64748b; text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }}
+        .spec-value {{ 
+            font-size: 1em; font-weight: 700; color: #0f172a; 
+        }}
+
+        /* -- MONITORING METRICS -- */
+        .metrics-table {{ width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9em; }}
+        .metrics-table th {{ background: #1e40af; color: white; padding: 10px 12px; text-align: left; }}
+        .metrics-table td {{ border: 1px solid #e2e8f0; padding: 10px 12px; }}
+        .metrics-table tr:nth-child(even) td {{ background: #f8fafc; }}
+
+        /* -- INSTANCE CARDS -- */
+        .instance-block {{ margin-bottom: 32px; }}
+        .instance-title {{
+            font-size: 1.2em; color: #0f172a;
+            padding: 12px 20px; background: #e2e8f0;
+            border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+        }}
+        .section-card {{
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 20px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }}
+        .section-title {{
+            font-size: 1.1em; color: #0f172a;
+            margin-bottom: 16px; padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }}
+
+        /* -- CATEGORY -- */
+        .category-title {{
+            font-size: 1.05em; color: #2563eb;
+            margin-top: 16px; padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }}
+        .category-title:hover {{ color: #1d4ed8; }}
+        .metric-title {{ font-size: 0.95em; font-weight: 600; color: #334155; margin: 16px 0 8px; }}
+
+        /* -- TABLES -- */
+        table {{ width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 0.85em; }}
+        th {{ background: #334155; color: white; padding: 10px 12px; text-align: left; }}
+        td {{ 
+            border: 1px solid #e2e8f0; 
+            padding: 8px 12px; 
+            word-break: normal;
+        }}
+        tr:nth-child(even) td {{ background: #f8fafc; }}
+        tr.row-critical td {{ background: #fee2e2 !important; }}
+        tr.row-warning td {{ background: #fef9c3 !important; }}
+        tr:hover td {{ background: #eff6ff !important; }}
+
+        /* -- PAGINATION -- */
+        .pagination {{
+            display: flex; align-items: center; gap: 12px;
+            padding: 8px 0; font-size: 0.9em; color: #334155; 
+        }}
+        .pagination button {{
+            padding: 6px 14px; border-radius: 4px; border: 1px solid #cbd5e1;
+            background: white; cursor: pointer; font-size: 0.9em; font-weight: 600;
+        }}
+        .pagination button:hover {{ background: #e2e8f0; }}
+
+        .alert-badge {{ font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
+        .warn-badge  {{ font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
+        .no-issues   {{ color: #16a34a; font-style: italic; font-size: 0.95em; padding: 8px 0; }}
         
-    return metrics
+        /* Formatted Error Box */
+        .error-box {{ 
+            color: #7f1d1d; background: #fee2e2; border-left: 4px solid #b91c1c; 
+            padding: 12px 16px; border-radius: 4px; font-size: 0.9em; margin: 8px 0; 
+        }}
+        .hidden      {{ display: none !important; }}
+    </style>
+</head>
+<body>
 
+<!-- FROZEN TOP BAR -->
+<div id="topbar">
+    <h1>Database Health Report</h1>
+    <select id="filter-dbtype" onchange="filterByType()">
+        <option value="ALL">All DB Types</option>
+        <option value="PostgreSQL">PostgreSQL</option>
+        <option value="MySQL">MySQL</option>
+    </select>
+    <select id="filter-server" onchange="filterByServer()">
+        <option value="ALL">All Servers</option>
+    </select>
+    <div class="topbar-timestamp">
+        Report Period:<br>
+        {list(report_data.values())[0].get('report_window', {}).get('from', generated_at)}
+        &rarr; {list(report_data.values())[0].get('report_window', {}).get('to', generated_at)}
+    </div>
+</div>
+
+<div id="content">
+"""
 
 # ─────────────────────────────────────────────
-# HELPER: FORMAT UPTIME
+# MAIN REPORT — PER INSTANCE
 # ─────────────────────────────────────────────
 
-def format_uptime(uptime_raw: list, db_type: str) -> str:
-    """Converts raw uptime query outputs to human-readable strings."""
-    if not uptime_raw or not isinstance(uptime_raw, list) or len(uptime_raw) == 0:
-        return "N/A"
-    
-    row = uptime_raw[0]
-    db_type_lower = db_type.lower()
-    uptime_seconds = None
-    
-    try:
-        if db_type_lower == "mysql":
-            val = row.get("Value") or row.get("value")
-            if val is not None:
-                uptime_seconds = float(val)
+table_counter = [0]
+
+for instance, data in report_data.items():
+    safe_instance = instance.replace(":", "-").replace(" ", "_")
+    specs = data.get("provisioned_specs", {})
+    utilization = data.get("resource_utilization", {})
+    health_checks = data.get("health_checks", {})
+    db_type_label = nav_data.get(instance, "Unknown")
+
+    html_content += f'<div class="instance-block" data-server="{instance}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
+    html_content += f'<div class="instance-title">Server: {instance} <small style="font-weight:400;font-size:0.85em;color:#64748b;">({db_type_label})</small></div>'
+    html_content += '<div class="section-card">'
+
+    # -- Provisioned Specs --
+    if specs and "Error" not in specs:
+        html_content += (
+            '<div class="section-title">Provisioned Specifications</div>'
+        )
+        html_content += '<div class="specs-grid">'
+        
+        # Mapping for display names
+        for key, val in specs.items():
+            display_key = key
+            if key == "Read Replica count":
+                display_key = "Replicas"
+            elif key == "Last Backup time":
+                display_key = "Last Backup"
                 
-        elif db_type_lower == "postgres":
-            start_time = row.get("start_time")
-            if start_time:
-                # Handle string timestamps
-                if isinstance(start_time, str):
-                    start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+            html_content += f"""
+                <div class="spec-item">
+                    <div class="spec-label">{display_key}</div>
+                    <div class="spec-value">{val if val is not None else "N/A"}</div>
+                </div>"""
+        html_content += "</div>"
+    elif "Error" in specs:
+        html_content += f'<div class="error-box"><strong>Configuration Error:</strong><br>{specs["Error"]}</div>'
+
+    # -- Resource Utilization (Dynamic) --
+    if utilization:
+        html_content += (
+            '<div class="section-title" style="margin-top:24px;">Resource Utilization (Last 24h)</div>'
+        )
+        html_content += """<table class="metrics-table">
+            <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody>"""
+
+        for metric_key, m in utilization.items():
+            if not isinstance(m, dict):
+                continue
+            
+            label = format_clean_title(metric_key)
+            html_content += f"""<tr>
+                <td style="font-weight: 600;">{label}</td>
+                <td>{m.get("mean") if m.get("mean") is not None else "N/A"}</td>
+                <td>{m.get("p95")  if m.get("p95")  is not None else "N/A"}</td>
+                <td>{m.get("p99")  if m.get("p99")  is not None else "N/A"}</td>
+                <td>{m.get("max")  if m.get("max")  is not None else "N/A"}</td>
+            </tr>"""
+
+        html_content += "</tbody></table>"
+
+    html_content += "</div>"  # close section-card
+
+    # -- Health Checks --
+    if "connection_error" in health_checks:
+        html_content += (
+            f'<div class="error-box"><strong>Connection Error:</strong><br>{health_checks["connection_error"]}</div>'
+        )
+    elif isinstance(health_checks, dict):
+        for category, metrics in health_checks.items():
+            if not isinstance(metrics, dict):
+                continue
+
+            clean_category = format_clean_title(category)
+            html_content += f"""
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>{clean_category}</span><span>&#9660;</span>
+                </div>
+                <div class="category-content">"""
+
+            for metric_name, rows in metrics.items():
+                table_counter[0] += 1
+                tid = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
                 
-                # Compare against current timezone-aware UTC time
-                if getattr(start_time, "tzinfo", None):
-                    now = datetime.now(timezone.utc)
+                clean_metric = format_clean_title(metric_name)
+                html_content += f'<div class="metric-title">{clean_metric}</div>'
+                
+                # Check for explicit error payloads in the metric execution
+                if isinstance(rows, dict) and "error" in rows:
+                    err_msg = str(rows.get("error", "Unknown error occurred."))
+                    html_content += f'<div class="error-box"><strong>Query Failed:</strong><br>{err_msg}</div>'
+                elif isinstance(rows, dict) and "status" in rows and rows["status"] == "FAILED":
+                    html_content += f'<div class="error-box"><strong>Execution Failed:</strong> Data retrieval was unsuccessful.</div>'
                 else:
-                    now = datetime.now()
-                    
-                uptime_seconds = (now - start_time).total_seconds()
-                
-        # Convert validated seconds into readable output
-        if uptime_seconds is not None and uptime_seconds >= 0:
-            days = int(uptime_seconds // 86400)
-            hours = int((uptime_seconds % 86400) // 3600)
-            minutes = int((uptime_seconds % 3600) // 60)
-            
-            parts = []
-            if days > 0:
-                parts.append(f"{days} days")
-            if hours > 0:
-                parts.append(f"{hours} hours")
-            parts.append(f"{minutes} mins")
-            
-            if parts:
-                return ", ".join(parts)
-            else:
-                return "0 mins"
-                
-    except Exception as e:
-        print(f"      [!] Uptime parse error: {e}")
+                    html_content += build_paginated_table(rows, tid)
 
-    return "N/A"
+            html_content += "</div>"
 
+    html_content += "</div>"  # close instance-block
 
 # ─────────────────────────────────────────────
-# INFRASTRUCTURE DETAILS
+# JAVASCRIPT
 # ─────────────────────────────────────────────
 
-def parse_compute_specs(tier: str) -> tuple:
-    if not tier:
-        return ("N/A", "N/A")
-        
-    if tier in TIER_MAP:
-        return (str(TIER_MAP[tier][0]), TIER_MAP[tier][1])
-        
-    custom_match = re.search(r"-(\d+)-(\d+)$", tier)
-    if custom_match:
-        memory_gb = round(int(custom_match.group(2)) / 1024, 2)
-        return (custom_match.group(1), f"{memory_gb} GB")
-        
-    suffix_match = re.search(r"-(\d+)$", tier)
-    if suffix_match:
-        return (suffix_match.group(1), "N/A")
-        
-    return ("N/A", "N/A")
+nav_json = json.dumps(nav_data)
 
+html_content += f"""
+</div>
 
-def format_timestamp(ts: str) -> str:
-    if not ts or ts == "No backups found":
-        return ts
-        
-    try:
-        dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
-        return dt.strftime("%d %b %Y, %I:%M %p UTC")
-    except Exception:
-        return ts
+<script>
+const navData = {nav_json};
 
+// -- POPULATE SERVER DROPDOWN --
+const serverSel = document.getElementById('filter-server');
+Object.keys(navData).forEach(s => {{
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    serverSel.appendChild(o);
+}});
 
-def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
-    try:
-        inst = service.instances().get(project=project_id, instance=instance_name).execute()
-    except Exception as e:
-        return ({"Error": f"Failed to fetch instance details: {str(e)}"}, None, None, None, None, None)
+// -- FILTER BY DB TYPE --
+function filterByType() {{
+    const type = document.getElementById('filter-dbtype').value;
 
-    settings = inst.get("settings", {})
-    vcpu, memory = parse_compute_specs(settings.get("tier"))
-    disk_type = settings.get("dataDiskType", "").replace("PD_", "")
-    db_version = inst.get("databaseVersion", "UNKNOWN")
+    // Rebuild server dropdown filtered by type
+    serverSel.innerHTML = '<option value="ALL">All Servers</option>';
+    Object.entries(navData).forEach(([srv, dbtype]) => {{
+        if (type === 'ALL' || dbtype === type) {{
+            const o = document.createElement('option');
+            o.value = srv; o.textContent = srv;
+            serverSel.appendChild(o);
+        }}
+    }});
 
-    # Determine engine type uniformly
-    if "MYSQL" in db_version:
-        db_type = "mysql"
-    elif "POSTGRES" in db_version:
-        db_type = "postgres"
-    else:
-        db_type = "sql_server"
+    filterByServer();
+}}
 
-    connection_name = inst.get("connectionName")
-    region = inst.get("region")
+// -- FILTER BY SERVER --
+function filterByServer() {{
+    const type = document.getElementById('filter-dbtype').value;
+    const srv  = serverSel.value;
 
-    # Find the best IP address (prefer PRIVATE)
-    ip_addresses = inst.get("ipAddresses", [])
-    host = None
-    
-    for ip in ip_addresses:
-        if ip.get("type") == "PRIVATE":
-            host = ip.get("ipAddress")
-            break
-            
-    # Fallback to the first available IP if no private IP exists
-    if not host and ip_addresses:
-        host = ip_addresses[0].get("ipAddress")
+    document.querySelectorAll('.instance-block').forEach(block => {{
+        const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
+        const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !(typeMatch && srvMatch));
+    }});
+}}
 
-    # Set default port uniformly
-    if db_type == "postgres":
-        port = 5432
-    elif db_type == "mysql":
-        port = 3306
-    else:
-        port = 1433
+// -- COLLAPSIBLE CATEGORIES --
+function toggleCategory(el) {{
+    const content = el.nextElementSibling;
+    const arrow   = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
+}}
 
-    # Extract latest backup time
-    last_backup_time = "No backups found"
-    try:
-        request = service.backupRuns().list(project=project_id, instance=instance_name, maxResults=1)
-        response = request.execute()
-        backups = response.get("items", [])
-        
-        if backups and "windowStartTime" in backups[0]:
-            last_backup_time = format_timestamp(backups[0]["windowStartTime"])
-    except Exception:
-        pass
+// -- PAGINATION --
+const pageState = {{}};
 
-    specs = {
-        "Engine": db_version.replace("_", " "),
-        "Edition": settings.get("edition", "ENTERPRISE"),
-        "CPU": vcpu,
-        "Memory": memory,
-        "Storage": f"{settings.get('dataDiskSizeGb', 'N/A')} GB {disk_type}".strip(),
-        "Availability": settings.get("availabilityType", "N/A").title(),
-        "Read Replica count": len(inst.get("replicaNames", [])),
-        "Last Backup time": last_backup_time,
-    }
+function changePage(tableId, direction) {{
+    const rows       = document.querySelectorAll(`#tbl-${{tableId}} tbody .page-row`);
+    const totalPages = Math.ceil(rows.length / 10);
 
-    return specs, connection_name, db_type, region, host, port
+    if (!pageState[tableId]) pageState[tableId] = 1;
+    pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
 
+    const currentPage = pageState[tableId];
+    const start        = (currentPage - 1) * 10;
+    const end          = start + 10;
 
-def extract_typed_value(typed_value):
-    val_type = typed_value._pb.WhichOneof("value")
-    
-    if val_type == "double_value":
-        return typed_value.double_value
-    if val_type == "int64_value":
-        return float(typed_value.int64_value)
-        
-    return 0.0
+    rows.forEach((row, i) => {{
+        row.style.display = (i >= start && i < end) ? '' : 'none';
+    }});
 
+    const info = document.getElementById(`page-info-${{tableId}}`);
+    if (info) info.textContent = `Page ${{currentPage}} of ${{totalPages}}`;
+}}
+</script>
+</body>
+</html>"""
 
-def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
-    metric_suffix = metric_type.split('/')[-1]
-    value_col = f"value.{metric_suffix}"
+output_path = os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "Database_Health_Report.html"
+)
+with open(output_path, "w") as f:
+    f.write(html_content)
 
-    mql_aggregated = f"""
-        fetch cloudsql_database 
-        | metric '{metric_type}' 
-        | filter (resource.database_id == '{project_id}:{instance_id}')
-        | within 24h 
-        | group_by [], [
-            mean_val: mean({value_col}), 
-            p95: percentile({value_col}, 95), 
-            p99: percentile({value_col}, 99)
-        ] 
-        | every 24h
-    """
-    
-    mql_max = f"""
-        fetch cloudsql_database 
-        | metric '{metric_type}' 
-        | filter (resource.database_id == '{project_id}:{instance_id}')
-        | within 24h 
-        | group_by [], [
-            max_val: max({value_col})
-        ] 
-        | every 1m
-    """
-
-    result = {"mean": None, "max": None, "p95": None, "p99": None}
-
-    # Execute Aggregated Query (Mean, P95, P99)
-    try:
-        agg_request = monitoring_v3.QueryTimeSeriesRequest(
-            name=f"projects/{project_id}", 
-            query=mql_aggregated
-        )
-        response = client.query_time_series(request=agg_request)
-        
-        for series_data in response:
-            if series_data.point_data:
-                point = series_data.point_data[0]
-                mean_val = extract_typed_value(point.values[0])
-                p95_val = extract_typed_value(point.values[1])
-                p99_val = extract_typed_value(point.values[2])
-                
-                if "utilization" in metric_key:
-                    mean_val *= 100
-                    p95_val *= 100
-                    p99_val *= 100
-                    
-                result["mean"] = round(mean_val, 2)
-                result["p95"] = round(p95_val, 2)
-                result["p99"] = round(p99_val, 2)
-    except Exception:
-        pass
-
-    # Execute Max Query
-    try:
-        max_request = monitoring_v3.QueryTimeSeriesRequest(
-            name=f"projects/{project_id}", 
-            query=mql_max
-        )
-        response = client.query_time_series(request=max_request)
-        true_max = None
-        
-        for series_data in response:
-            for point in series_data.point_data:
-                val = extract_typed_value(point.values[0])
-                
-                if "utilization" in metric_key:
-                    val *= 100
-                    
-                if true_max is None or val > true_max:
-                    true_max = val
-                    
-        if true_max is not None:
-            result["max"] = round(true_max, 2)
-    except Exception:
-        pass
-
-    return result
-
-
-# ─────────────────────────────────────────────
-# DATABASE ENGINES
-# ─────────────────────────────────────────────
-
-def get_iam_engine(target, connector):
-    db_type = target.get("db_type").lower()
-    instance_name = f"{target['project_id']}:{target['region']}:{target['instance']}"
-    
-    # Engine Check Standardized to 'postgres'
-    if db_type == "postgres":
-        driver = "pg8000"
-        dialect = "postgresql+pg8000://"
-    else:
-        driver = "pymysql"
-        dialect = "mysql+pymysql://"
-  
-    def _getconn():
-        return connector.connect(
-            instance_name, 
-            driver, 
-            user=target["user"], 
-            db=target["database"], 
-            enable_iam_auth=True
-        )
-
-    return sqlalchemy.create_engine(dialect, creator=_getconn, pool_pre_ping=True)
-
-
-def get_native_engine(target):
-    db_type = target["db_type"].lower()
-    user = target["user"]
-    password = target["password"]
-    host = target["host"]
-    port = target["port"]
-    db = target["database"]
-    
-    # Engine Check Standardized to 'postgres'
-    if db_type == "postgres":
-        url = f"postgresql+pg8000://{user}:{password}@{host}:{port}/{db}"
-    else:
-        url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{db}"
-        
-    return sqlalchemy.create_engine(url, pool_pre_ping=True)
-
-
-# ─────────────────────────────────────────────
-# UNIFIED QUERY RUNNER
-# ─────────────────────────────────────────────
-
-def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict) -> tuple:
-    health_checks = {}
-    internal_results = {}
-    
-    db_user_queries = user_queries.get(db_type, {})
-    db_internal_queries = internal_queries.get(db_type, {})
-
-    with engine.connect() as conn:
-        # 1. Execute Dynamic Checks from queries.json
-        for category, category_queries in db_user_queries.items():
-            health_checks[category] = {}
-            for key, sql in category_queries.items():
-                if key.startswith("_"):
-                    continue
-                    
-                try:
-                    with conn.begin_nested():
-                        result = conn.execute(sqlalchemy.text(sql))
-                        if result.returns_rows:
-                            health_checks[category][key] = [dict(row._mapping) for row in result.fetchall()]
-                        else:
-                            health_checks[category][key] = []
-                except Exception as e:
-                    print(f"    Query failed [{category} -> {key}]: {e}")
-                    health_checks[category][key] = [{"error": str(e), "status": "FAILED"}]
-
-        # 2. Execute Hardcoded Internal Queries within the same connection block
-        for key, sql in db_internal_queries.items():
-            try:
-                with conn.begin_nested():
-                    result = conn.execute(sqlalchemy.text(sql))
-                    if result.returns_rows:
-                        internal_results[key] = [dict(row._mapping) for row in result.fetchall()]
-                    else:
-                        internal_results[key] = []
-            except Exception as e:
-                print(f"    Internal Query failed [{key}]: {e}")
-                internal_results[key] = [{"error": str(e), "status": "FAILED"}]
-
-    return health_checks, internal_results
-
-
-# ─────────────────────────────────────────────
-# MAIN EXECUTION
-# ─────────────────────────────────────────────
-
-def main():
-    # Load dynamic JSON queries
-    with open("queries.json", "r") as f:
-        all_queries = json.load(f)
-      
-    sqladmin = discovery.build("sqladmin", "v1", cache_discovery=False)
-    mon_client = monitoring_v3.QueryServiceClient()
-    report = {}
-
-    # Define reporting time window (Last 24 hours)
-    report_end = datetime.now(timezone.utc)
-    report_start = report_end - timedelta(hours=24)
-    report_window = {
-        "from": report_start.strftime("%d %b %Y, %I:%M %p UTC"),
-        "to": report_end.strftime("%d %b %Y, %I:%M %p UTC"),
-    }
-
-    # Initialize Cloud SQL Connector and iterate through CSV targets
-    with Connector(refresh_strategy="LAZY") as connector:
-        with open("config.csv", newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
-            
-            for row in reader:
-                project_id = row.get("project_id", "").strip()
-                instance_name = row.get("instance_name", "").strip()
-                
-                if not project_id or not instance_name:
-                    continue
-
-                print(f"\nInstance: {instance_name} (project: {project_id})")
-                
-                # Initialize instance payload
-                report[instance_name] = {
-                    "report_window": report_window, 
-                    "provisioned_specs": {}, 
-                    "resource_utilization": {}, 
-                    "health_checks": {}
-                }
-
-                # Step 1: Fetch Instance Settings
-                specs, conn_name, db_type, region, host, port = get_instance_details(sqladmin, project_id, instance_name)
-                
-                if "Error" in specs or not conn_name:
-                    report[instance_name]["provisioned_specs"] = specs
-                    print("  Skipping: Invalid specs or connection name.")
-                    continue
-
-                report[instance_name]["provisioned_specs"] = specs
-                print(f"  Engine: {db_type} | Connection: {conn_name}")
-
-                # Step 2: Fetch Cloud Monitoring metrics
-                print("  Fetching Cloud Monitoring metrics...")
-                engine_metrics = get_metrics_for_engine(db_type)
-                for m_key, m_type in engine_metrics.items():
-                    report[instance_name]["resource_utilization"][m_key] = fetch_mql_metric(
-                        mon_client, project_id, instance_name, m_key, m_type
-                    )
-
-                # Step 3: Establish Database Connection and Execute Queries
-                try:
-                    auth_type = row.get("auth_type", "native").strip().lower()
-                    
-                    # Target Database defaults to "postgres" for Postgres engines, else "mysql"
-                    target_database = "postgres" if db_type == "postgres" else "mysql"
-                    
-                    if auth_type == "iam":
-                        target_config = {
-                            "project_id": project_id,
-                            "region": region,
-                            "instance": instance_name,
-                            "db_type": db_type,
-                            "user": row.get("db_user", "").strip(),
-                            "database": target_database
-                        }
-                        engine = get_iam_engine(target_config, connector)
-                    else:
-                        target_config = {
-                            "db_type": db_type,
-                            "user": row.get("db_user", "").strip(),
-                            "password": row.get("db_pass", "").strip(),
-                            "host": host,
-                            "port": port,
-                            "database": target_database
-                        }
-                        engine = get_native_engine(target_config)
-
-                    print("  Executing Database Audits & Internal Queries...")
-                    
-                    # Unpack tuple returned by unified query runner
-                    health_checks, internal_results = run_queries(
-                        engine, db_type, all_queries, INTERNAL_QUERIES
-                    )
-
-                    # Format and assign tightly-bound results
-                    report[instance_name]["health_checks"] = health_checks
-                    report[instance_name]["provisioned_specs"]["Uptime"] = format_uptime(
-                        internal_results.get("uptime"), db_type
-                    )
-                    
-                    print("    Done.")
-
-                except Exception as e:
-                    print(f"    Failed: {e}")
-                    report[instance_name]["health_checks"] = {"error": str(e)}
-
-    # Save output to disk
-    with open("database_health_report.json", "w") as f:
-        json.dump(report, f, indent=4, default=str)
-        
-    print("\nReport saved to database_health_report.json")
-
-if __name__ == "__main__":
-    main()
+print(f"[OK] Report saved to: {output_path}")
