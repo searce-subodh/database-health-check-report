@@ -84,3 +84,31 @@ filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fnetwork%2Fconnectio
     "Window_Start": .interval.startTime,
     "Window_End": .interval.endTime
   }'
+
+
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fnetwork%2Fconnections%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${PG_INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[] | {
+    "Peak_Active_Connections": .value.int64Value,
+    "Window_Start": .interval.startTime,
+    "Window_End": .interval.endTime
+  }'
+
+
+curl -s -G -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries" \
+  --data-urlencode "filter=metric.type=\"cloudsql.googleapis.com/database/postgresql/num_backends\" AND resource.labels.database_id=\"${PROJECT_ID}:${PG_INSTANCE_ID}\"" \
+  --data-urlencode "interval.startTime=${START_TIME}" \
+  --data-urlencode "interval.endTime=${END_TIME}" \
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[]? | {
+    "Connections": .value.int64Value,
+    "Time": .interval.startTime
+  }'
