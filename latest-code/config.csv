@@ -1,0 +1,5 @@
+project_id,instance_name,db_user,db_pass,auth_type
+data-analyst-504209,csql-mysql-db,"318822345557-compute",,iam
+data-analyst-504209,csql-psql-db,"318822345557-compute@developer",,iam
+data-analyst-504209,csql-mysql-db,root,"root",
+data-analyst-504209,csql-psql-db,postgres,"postgres",
