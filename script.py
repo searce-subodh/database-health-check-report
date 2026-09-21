@@ -396,12 +396,22 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
                     with conn.begin_nested():
                         result = conn.execute(sqlalchemy.text(sql))
                         if result.returns_rows:
-                            health_checks[category][key] = [dict(row._mapping) for row in result.fetchall()]
+                            rows = result.fetchall()
+                            if rows:
+                                # Successfully returned data
+                                health_checks[category][key] = [dict(row._mapping) for row in rows]
+                            else:
+                                # Successfully executed but returned 0 rows
+                                health_checks[category][key] = [{"message": "0 records returned"}]
                         else:
-                            health_checks[category][key] = []
+                            # Executed successfully, but query type does not return rows (e.g., DML)
+                            health_checks[category][key] = [{"message": "Query executed successfully (no rows expected)"}]
+                            
                 except Exception as e:
-                    print(f"    Query failed [{category} -> {key}]: {e}")
-                    health_checks[category][key] = [{"error": str(e), "status": "FAILED"}]
+                    # Print full error to console for debugging
+                    print(f"    [!] Query failed [{category} -> {key}]: {e}")
+                    # Keep JSON clean with a placeholder value
+                    health_checks[category][key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
 
         # 2. Execute Hardcoded Internal Queries within the same connection block
         for key, sql in db_internal_queries.items():
@@ -409,12 +419,17 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
                 with conn.begin_nested():
                     result = conn.execute(sqlalchemy.text(sql))
                     if result.returns_rows:
-                        internal_results[key] = [dict(row._mapping) for row in result.fetchall()]
+                        rows = result.fetchall()
+                        if rows:
+                            internal_results[key] = [dict(row._mapping) for row in rows]
+                        else:
+                            internal_results[key] = [{"message": "0 records returned"}]
                     else:
-                        internal_results[key] = []
+                        internal_results[key] = [{"message": "Query executed successfully (no rows expected)"}]
+                        
             except Exception as e:
-                print(f"    Internal Query failed [{key}]: {e}")
-                internal_results[key] = [{"error": str(e), "status": "FAILED"}]
+                print(f"    [!] Internal Query failed [{key}]: {e}")
+                internal_results[key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
 
     return health_checks, internal_results
 
