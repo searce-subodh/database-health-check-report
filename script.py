@@ -146,7 +146,6 @@ def parse_compute_specs(tier: str) -> tuple:
 
 
 def format_timestamp(ts: str) -> str:
-    # """Convert ISO timestamp like 2026-09-02T19:00:00Z to 02 Sep 2026, 07:00 PM UTC"""
     if not ts or ts == "No backups found":
         return ts
     try:

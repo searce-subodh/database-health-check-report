@@ -463,4 +463,4 @@ output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Database
 with open(output_path, "w") as f:
     f.write(html_content)
 
-print(f"[OK] Report saved to: {output_path}")
+print(f"✅ Report saved to: {output_path}")
