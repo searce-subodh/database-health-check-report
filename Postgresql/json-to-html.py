@@ -212,15 +212,17 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── PAGINATION ── */
         .pagination {{
-            display: flex; align-items: center; gap: 12px;
-            padding: 8px 0; font-size: 0.85em; color: #334155;
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 0; font-size: 0.72em; color: #64748b;
         }}
         .pagination button {{
-            padding: 5px 14px; border-radius: 4px;
+            padding: 3px 10px; border-radius: 4px;
             border: 1px solid #cbd5e1; background: white;
-            cursor: pointer; font-size: 0.9em; font-weight: 600;
+            cursor: pointer; font-size: 0.95em; font-weight: 600;
+            color: #334155;
         }}
         .pagination button:hover {{ background: #e2e8f0; }}
+        .pagination button:disabled {{ opacity: 0.4; cursor: default; }}
 
         .alert-badge {{ font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
         .warn-badge  {{ font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
@@ -311,46 +313,80 @@ for instance, data in report_data.items():
 
     html_content += '</div>'  # close section-card
 
-    # ── Health Checks — flat per instance, all DBs merged ──
+    # ── Health Checks ──
     if "connection_error" in health_checks:
         html_content += f'<div class="error-box"><strong>Connection Error:</strong><br>{health_checks["connection_error"]}</div>'
+    elif "error" in health_checks:
+        html_content += f'<div class="error-box"><strong>Error:</strong><br>{health_checks["error"]}</div>'
     elif isinstance(health_checks, dict):
-        # Collect all categories and metrics across all databases
-        all_categories = {}
-        for db_name, categories in health_checks.items():
-            if not isinstance(categories, dict):
-                continue
-            for category, queries in categories.items():
+
+        # Detect structure:
+        # FLAT: health_checks = {category: {metric: [rows]}}
+        # NESTED: health_checks = {db_name: {category: {metric: [rows]}}}
+        first_val = next(iter(health_checks.values()), {})
+        is_flat = isinstance(first_val, dict) and any(
+            isinstance(v, list) for v in first_val.values()
+        )
+
+        if is_flat:
+            # Flat structure — friend's script output
+            for category, queries in health_checks.items():
                 if not isinstance(queries, dict):
                     continue
-                if category not in all_categories:
-                    all_categories[category] = []
-                for metric in queries.keys():
-                    if metric not in all_categories[category]:
-                        all_categories[category].append(metric)
+                clean_category = format_clean_title(category)
+                html_content += f'''
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>{clean_category}</span><span>&#9660;</span>
+                </div>
+                <div class="category-content">'''
 
-        for category, metrics in all_categories.items():
-            clean_category = format_clean_title(category)
-            html_content += f'''
-            <div class="category-title" onclick="toggleCategory(this)">
-                <span>{clean_category}</span><span>&#9660;</span>
-            </div>
-            <div class="category-content">'''
+                for metric_name, rows in queries.items():
+                    table_counter[0] += 1
+                    tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
+                    clean_metric = format_clean_title(metric_name)
+                    html_content += f'<div class="metric-title">{clean_metric}</div>'
 
-            for metric_name in metrics:
-                table_counter[0] += 1
-                tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
-                clean_metric = format_clean_title(metric_name)
-                rows         = merge_db_results(health_checks, category, metric_name)
+                    if isinstance(rows, list):
+                        html_content += build_paginated_table(rows, tid)
+                    elif isinstance(rows, dict) and "error" in rows:
+                        html_content += f'<div class="error-box"><strong>Query Failed:</strong><br>{rows["error"]}</div>'
+                    elif isinstance(rows, list) and len(rows) > 0 and isinstance(rows[0], dict) and "status" in rows[0]:
+                        html_content += f'<div class="error-box"><strong>Query Failed:</strong><br>{rows[0].get("error","")}</div>'
 
-                html_content += f'<div class="metric-title">{clean_metric}</div>'
+                html_content += '</div>'  # close category-content
 
-                if isinstance(rows, list):
+        else:
+            # Nested structure — our multi-db output
+            all_categories = {}
+            for db_name, categories in health_checks.items():
+                if not isinstance(categories, dict):
+                    continue
+                for category, queries in categories.items():
+                    if not isinstance(queries, dict):
+                        continue
+                    if category not in all_categories:
+                        all_categories[category] = []
+                    for metric in queries.keys():
+                        if metric not in all_categories[category]:
+                            all_categories[category].append(metric)
+
+            for category, metrics in all_categories.items():
+                clean_category = format_clean_title(category)
+                html_content += f'''
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>{clean_category}</span><span>&#9660;</span>
+                </div>
+                <div class="category-content">'''
+
+                for metric_name in metrics:
+                    table_counter[0] += 1
+                    tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
+                    clean_metric = format_clean_title(metric_name)
+                    rows         = merge_db_results(health_checks, category, metric_name)
+                    html_content += f'<div class="metric-title">{clean_metric}</div>'
                     html_content += build_paginated_table(rows, tid)
-                elif isinstance(rows, dict) and "error" in rows:
-                    html_content += f'<div class="error-box"><strong>Query Failed:</strong><br>{rows["error"]}</div>'
 
-            html_content += '</div>'  # close category-content
+                html_content += '</div>'  # close category-content
 
     html_content += '</div>'  # close instance-block
 
