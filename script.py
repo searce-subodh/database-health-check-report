@@ -135,7 +135,7 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
         host = ip_addresses[0].get("ipAddress")
 
     # Define port based on engine
-    port = 5432 if db_type == "postgresql" else 3306 if db_type == "mysql" else 1433
+    port = 5432 if db_type == "postgres" else 3306 if db_type == "mysql" else 1433
 
     last_backup_time = "No backups found"
     try:
