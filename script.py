@@ -10,7 +10,18 @@ from googleapiclient import discovery
 import pg8000
 import pymysql
 import pymysql.cursors
+# ─────────────────────────────────────────────
+# TIGHTLY BOUND INTERNAL QUERIES
+# ─────────────────────────────────────────────
 
+INTERNAL_QUERIES = {
+    "mysql": {
+        "uptime": "SHOW GLOBAL STATUS LIKE 'Uptime';"
+    },
+    "postgres": {
+        "uptime": "SELECT pg_postmaster_start_time() AS start_time;"
+    },
+}
 
 # ─────────────────────────────────────────────
 # TIER MAP
@@ -49,15 +60,72 @@ def get_metrics_for_engine(db_type: str) -> dict:
     metrics = COMMON_METRICS.copy()
     if db_type == "mysql":
         metrics.update(MYSQL_METRICS)
-    elif db_type in ("postgres", "postgresql"):
+    elif db_type == "postgres":
         metrics.update(POSTGRES_METRICS)
     return metrics
 
 
 # ─────────────────────────────────────────────
-# PARSE CPU/MEMORY FROM TIER STRING
+# HELPER: FORMAT UPTIME
 # ─────────────────────────────────────────────
 
+def format_uptime(uptime_raw: list, db_type: str) -> str:
+    """Converts raw uptime query outputs to human-readable strings."""
+    if not uptime_raw or not isinstance(uptime_raw, list) or len(uptime_raw) == 0:
+        return "N/A"
+    
+    row = uptime_raw[0]
+    db_type_lower = db_type.lower()
+    uptime_seconds = None
+    
+    try:
+        if db_type_lower == "mysql":
+            val = row.get("Value") or row.get("value")
+            if val is not None:
+                uptime_seconds = float(val)
+                
+        elif db_type_lower == "postgres":
+            start_time = row.get("start_time")
+            if start_time:
+                # Handle string timestamps
+                if isinstance(start_time, str):
+                    start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
+                
+                # Compare against current timezone-aware UTC time
+                if getattr(start_time, "tzinfo", None):
+                    now = datetime.now(timezone.utc)
+                else:
+                    now = datetime.now()
+                    
+                uptime_seconds = (now - start_time).total_seconds()
+                
+        # Convert validated seconds into readable output
+        if uptime_seconds is not None and uptime_seconds >= 0:
+            days = int(uptime_seconds // 86400)
+            hours = int((uptime_seconds % 86400) // 3600)
+            minutes = int((uptime_seconds % 3600) // 60)
+            
+            parts = []
+            if days > 0:
+                parts.append(f"{days} days")
+            if hours > 0:
+                parts.append(f"{hours} hours")
+            parts.append(f"{minutes} mins")
+            
+            if parts:
+                return ", ".join(parts)
+            else:
+                return "0 mins"
+                
+    except Exception as e:
+        print(f"      [!] Uptime parse error: {e}")
+
+    return "N/A"
+
+
+# ─────────────────────────────────────────────
+# PARSE CPU/MEMORY FROM TIER STRING
+# ─────────────────────────────────────────────
 
 def parse_compute_specs(tier: str) -> tuple:
     if not tier:
@@ -78,7 +146,6 @@ def parse_compute_specs(tier: str) -> tuple:
 
 
 def format_timestamp(ts: str) -> str:
-    """Convert ISO timestamp like 2026-09-02T19:00:00Z to 02 Sep 2026, 07:00 PM UTC"""
     if not ts or ts == "No backups found":
         return ts
     try:
@@ -225,8 +292,8 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
             result["mean"] = round(vals[0], 2)
             result["p95"] = round(vals[1], 2)
             result["p99"] = round(vals[2], 2)
-    except Exception:
-        pass
+    except Exception as e:
+        print(f"      [!] Aggregated metric query failed for '{metric_key}': {e}")
 
     try:
         request = monitoring_v3.QueryTimeSeriesRequest(
@@ -243,10 +310,12 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
                     true_max = val
         if true_max is not None:
             result["max"] = round(true_max, 2)
-    except Exception:
-        pass
+    except Exception as e:
+        # Replaced silent pass with explicit error logging
+        print(f"      [!] Max metric query failed for '{metric_key}': {e}")
 
     return result
+
 
 
 # ─────────────────────────────────────────────
@@ -260,7 +329,7 @@ def get_iam_engine(target, connector):
         f"{target['project_id']}:{target['region']}:{target['instance']}"
     )
 
-    if db_type in ("postgres", "postgresql"):
+    if db_type == "postgres":
         driver = "pg8000"
         dialect = "postgresql+pg8000://"
     elif db_type == "mysql":
@@ -294,7 +363,7 @@ def get_native_engine(target):
     database = target.get("database")
     port = target.get("port")
 
-    if db_type in ("postgres", "postgresql"):
+    if db_type == "postgres":
         url = f"postgresql+pg8000://{user}:{password}@{host}:{port}/{database}"
     elif db_type == "mysql":
         url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
@@ -308,35 +377,46 @@ def get_native_engine(target):
 # QUERY RUNNER
 # ─────────────────────────────────────────────
 
-
-def run_queries(engine, db_type: str, all_queries: dict) -> dict:
-    server_results = {}
-    queries = all_queries.get(db_type, {})
+def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict) -> tuple:
+    health_checks = {}
+    internal_results = {}
+    
+    db_user_queries = user_queries.get(db_type, {})
+    db_internal_queries = internal_queries.get(db_type, {})
 
     with engine.connect() as conn:
-        for category, category_queries in queries.items():
-            server_results[category] = {}
+        # 1. Execute Dynamic Checks from queries.json
+        for category, category_queries in db_user_queries.items():
+            health_checks[category] = {}
             for key, sql in category_queries.items():
                 if key.startswith("_"):
                     continue
-
+                    
                 try:
                     with conn.begin_nested():
                         result = conn.execute(sqlalchemy.text(sql))
                         if result.returns_rows:
-                            server_results[category][key] = [
-                                dict(row._mapping) for row in result.fetchall()
-                            ]
+                            health_checks[category][key] = [dict(row._mapping) for row in result.fetchall()]
                         else:
-                            server_results[category][key] = []
+                            health_checks[category][key] = []
                 except Exception as e:
-                    print(f"      [!] Query failed [{category} -> {key}]: {e}")
-                    server_results[category][key] = [{
-                        "error": str(e),
-                        "status": "FAILED",
-                    }]
+                    print(f"    Query failed [{category} -> {key}]: {e}")
+                    health_checks[category][key] = [{"error": str(e), "status": "FAILED"}]
 
-    return server_results
+        # 2. Execute Hardcoded Internal Queries within the same connection block
+        for key, sql in db_internal_queries.items():
+            try:
+                with conn.begin_nested():
+                    result = conn.execute(sqlalchemy.text(sql))
+                    if result.returns_rows:
+                        internal_results[key] = [dict(row._mapping) for row in result.fetchall()]
+                    else:
+                        internal_results[key] = []
+            except Exception as e:
+                print(f"    Internal Query failed [{key}]: {e}")
+                internal_results[key] = [{"error": str(e), "status": "FAILED"}]
+
+    return health_checks, internal_results
 
 
 # ─────────────────────────────────────────────
@@ -408,7 +488,7 @@ def main():
                     if not connection_name:
                         print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
                         continue
-
+                    report[instance_name]["provisioned_specs"] = specs
                     print(f"   -> Engine identified as: {db_type.upper()}")
 
                     # Step 2 — Fetch Engine-Specific Monitoring metrics
@@ -424,6 +504,11 @@ def main():
                     # Step 3 — Run health check queries
                     print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
                     try:
+                        auth_type = row.get("auth_type", "native").strip().lower()
+                        
+                        # Target Database defaults to "postgres" for Postgres engines, else "mysql"
+                        target_database = "postgres" if db_type == "postgres" else "mysql"
+                        
                         if auth_type == "iam":
                             engine = get_iam_engine(
                                 {
@@ -445,9 +530,15 @@ def main():
                                 "port": port,
                                 "database": "mysql" if db_type == "mysql" else "postgres",
                             })
-
-                        report[instance_name]["health_checks"] = run_queries(
-                            engine, db_type, all_queries
+                        print("  Executing Database Audits & Internal Queries...")
+                        # Unpack tuple returned by unified query runner
+                        health_checks, internal_results = run_queries(
+                            engine, db_type, all_queries, INTERNAL_QUERIES
+                        )
+                        # Format and assign tightly-bound results
+                        report[instance_name]["health_checks"] = health_checks
+                        report[instance_name]["provisioned_specs"]["Uptime"] = format_uptime(
+                            internal_results.get("uptime"), db_type
                         )
                         print(f"   -> Successfully executed health check queries for {instance_name}.")
 
