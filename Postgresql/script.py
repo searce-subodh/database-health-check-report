@@ -1,12 +1,12 @@
+from datetime import datetime, timedelta, timezone
 import json
 import re
 import csv
 import os
 import sqlalchemy
-from datetime import datetime, timezone, timedelta
-from googleapiclient import discovery
 from google.cloud import monitoring_v3
 from google.cloud.sql.connector import Connector, IPTypes
+from googleapiclient import discovery
 import pg8000
 import pymysql
 import pymysql.cursors
@@ -22,24 +22,40 @@ TIER_MAP = {
 }
 
 # ─────────────────────────────────────────────
-# CLOUD MONITORING METRICS
+# CLOUD MONITORING METRIC GROUPS
 # ─────────────────────────────────────────────
 
-METRIC_TYPES = {
-    "cpu_utilization":    "cloudsql.googleapis.com/database/cpu/utilization",
+COMMON_METRICS = {
+    "cpu_utilization": "cloudsql.googleapis.com/database/cpu/utilization",
     "memory_utilization": "cloudsql.googleapis.com/database/memory/utilization",
-    "disk_utilization":   "cloudsql.googleapis.com/database/disk/utilization",
-    "disk_read_ops":      "cloudsql.googleapis.com/database/disk/read_ops_count",
-    "disk_write_ops":     "cloudsql.googleapis.com/database/disk/write_ops_count",
-    "disk_bytes_used":    "cloudsql.googleapis.com/database/disk/bytes_used",
-    "connections":        "cloudsql.googleapis.com/database/network/connections",
-    "queries":            "cloudsql.googleapis.com/database/mysql/queries",
+    "disk_utilization": "cloudsql.googleapis.com/database/disk/utilization",
+    "disk_read_ops": "cloudsql.googleapis.com/database/disk/read_ops_count",
+    "disk_write_ops": "cloudsql.googleapis.com/database/disk/write_ops_count",
+    "disk_bytes_used": "cloudsql.googleapis.com/database/disk/bytes_used",
 }
+
+MYSQL_METRICS = {
+    "connections": "cloudsql.googleapis.com/database/network/connections",
+}
+
+POSTGRES_METRICS = {
+    "connections": "cloudsql.googleapis.com/database/postgresql/num_backends",
+}
+
+
+def get_metrics_for_engine(db_type: str) -> dict:
+    metrics = COMMON_METRICS.copy()
+    if db_type == "mysql":
+        metrics.update(MYSQL_METRICS)
+    elif db_type in ("postgres", "postgresql"):
+        metrics.update(POSTGRES_METRICS)
+    return metrics
 
 
 # ─────────────────────────────────────────────
 # PARSE CPU/MEMORY FROM TIER STRING
 # ─────────────────────────────────────────────
+
 
 def parse_compute_specs(tier: str) -> tuple:
     if not tier:
@@ -58,8 +74,9 @@ def parse_compute_specs(tier: str) -> tuple:
 # FORMAT TIMESTAMP TO HUMAN READABLE
 # ─────────────────────────────────────────────
 
+
 def format_timestamp(ts: str) -> str:
-    """Convert ISO timestamp like 2026-09-02T19:00:00Z to 02 Sep 2026, 07:00 PM"""
+    """Convert ISO timestamp like 2026-09-02T19:00:00Z to 02 Sep 2026, 07:00 PM UTC"""
     if not ts or ts == "No backups found":
         return ts
     try:
@@ -70,100 +87,88 @@ def format_timestamp(ts: str) -> str:
 
 
 # ─────────────────────────────────────────────
-# FORMAT UPTIME FROM SECONDS TO HUMAN READABLE
-# ─────────────────────────────────────────────
-
-def format_uptime(seconds) -> str:
-    """Convert seconds to X days Y hours Z minutes"""
-    try:
-        seconds = int(seconds)
-        days    = seconds // 86400
-        hours   = (seconds % 86400) // 3600
-        minutes = (seconds % 3600) // 60
-        parts = []
-        if days:    parts.append(f"{days}d")
-        if hours:   parts.append(f"{hours}h")
-        if minutes: parts.append(f"{minutes}m")
-        return " ".join(parts) if parts else "< 1 minute"
-    except Exception:
-        return str(seconds)
-
-
-# ─────────────────────────────────────────────
 # FETCH INSTANCE DETAILS FROM CLOUD SQL ADMIN API
 # ─────────────────────────────────────────────
 
+
 def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
     try:
-        inst = service.instances().get(project=project_id, instance=instance_name).execute()
+        inst = (
+            service.instances()
+            .get(project=project_id, instance=instance_name)
+            .execute()
+        )
     except Exception as e:
-        return {"Error": f"Failed to fetch instance details: {str(e)}"}, None, None
+        return (
+            {"Error": f"Failed to fetch instance details: {str(e)}"},
+            None,
+            None,
+            None,
+            None,
+            None,
+        )
 
-    settings     = inst.get("settings", {})
+    settings = inst.get("settings", {})
     vcpu, memory = parse_compute_specs(settings.get("tier"))
-    disk_type    = settings.get("dataDiskType", "").replace("PD_", "")
-    db_version   = inst.get("databaseVersion", "UNKNOWN")
-    db_type      = "mysql" if "MYSQL" in db_version else "postgresql" if "POSTGRES" in db_version else "unknown"
+    disk_type = settings.get("dataDiskType", "").replace("PD_", "")
+    db_version = inst.get("databaseVersion", "UNKNOWN")
+
+    db_type = (
+        "mysql"
+        if "MYSQL" in db_version
+        else "postgres" if "POSTGRES" in db_version else "sql_server"
+    )
+
     connection_name = inst.get("connectionName")
+    region = inst.get("region")
+
+    # Extract IP address (Prefer PRIVATE IP, fallback to PRIMARY/Public)
+    ip_addresses = inst.get("ipAddresses", [])
+    host = ""
+    for ip in ip_addresses:
+        if ip.get("type") == "PRIVATE":
+            host = ip.get("ipAddress")
+            break
+    if not host and ip_addresses:
+        host = ip_addresses[0].get("ipAddress")
+
+    # Define port based on engine
+    port = 5432 if db_type == "postgres" else 3306 if db_type == "mysql" else 1433
 
     last_backup_time = "No backups found"
     try:
-        backups = service.backupRuns().list(
-            project=project_id, instance=instance_name, maxResults=1
-        ).execute().get("items", [])
+        backups = (
+            service.backupRuns()
+            .list(project=project_id, instance=instance_name, maxResults=1)
+            .execute()
+            .get("items", [])
+        )
         if backups and "windowStartTime" in backups[0]:
             last_backup_time = format_timestamp(backups[0]["windowStartTime"])
     except Exception:
         pass
 
     specs = {
-        "Engine":             db_version.replace("_", " "),
-        "Edition":            settings.get("edition", "ENTERPRISE"),
-        "CPU":                vcpu,
-        "Memory":             memory,
-        "Storage":            f"{settings.get('dataDiskSizeGb', 'N/A')} GB {disk_type}".strip(),
-        "Availability":       settings.get("availabilityType", "N/A").title(),
-        "Read Replica count": len(inst.get("replicaNames", [])),
-        "Last Backup time":   last_backup_time,
+        "Engine": db_version.replace("_", " "),
+        "Edition": settings.get("edition", "ENTERPRISE"),
+        "CPU": vcpu,
+        "Memory": memory,
+        "Storage": (
+            f"{settings.get('dataDiskSizeGb', 'N/A')} GB {disk_type}".strip()
+        ),
+        "Availability": settings.get("availabilityType", "N/A").title(),
+        "Replicas": len(inst.get("replicaNames", [])),
+        "Last Backup": last_backup_time,
+        "Uptime": "N/A",
     }
 
-    return specs, connection_name, db_type
-
-
-# ─────────────────────────────────────────────
-# FETCH UPTIME FROM DATABASE
-# ─────────────────────────────────────────────
-
-def fetch_uptime(engine, db_type: str) -> str:
-    """Fetch uptime directly from the database and return human readable string"""
-    try:
-        if db_type == "mysql":
-            mysql_conn = engine.raw_connection()
-            cursor = mysql_conn.cursor()
-            cursor.execute("SHOW STATUS LIKE 'Uptime';")
-            row = cursor.fetchone()
-            cursor.close()
-            mysql_conn.close()
-            if row:
-                return format_uptime(row[1])
-
-        elif db_type == "postgresql":
-            with engine.connect() as conn:
-                raw_conn = conn.connection
-                cursor = raw_conn.cursor()
-                cursor.execute("SELECT EXTRACT(EPOCH FROM (NOW() - pg_postmaster_start_time()))::int AS uptime_seconds;")
-                row = cursor.fetchone()
-                cursor.close()
-                if row:
-                    return format_uptime(row[0])
-    except Exception:
-        pass
-    return "N/A"
+    return specs, connection_name, db_type, region, host, port
 
 
 # ─────────────────────────────────────────────
 # FETCH MONITORING METRICS (P95/P99/MEAN/MAX)
 # ─────────────────────────────────────────────
+
 
 def extract_typed_value(typed_value):
     val_type = typed_value._pb.WhichOneof("value")
@@ -175,10 +180,9 @@ def extract_typed_value(typed_value):
 
 
 def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
-    metric_suffix = metric_type.split('/')[-1]
-    value_col     = f"value.{metric_suffix}"
+    metric_suffix = metric_type.split("/")[-1]
+    value_col = f"value.{metric_suffix}"
 
-    # Query 1 — Mean, P95, P99
     mql_aggregated = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
@@ -192,7 +196,6 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     | every 24h
     """
 
-    # Query 2 — True max via per-minute points
     mql_max = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
@@ -205,23 +208,27 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     result = {"mean": None, "max": None, "p95": None, "p99": None}
 
     try:
-        request  = monitoring_v3.QueryTimeSeriesRequest(name=f"projects/{project_id}", query=mql_aggregated)
+        request = monitoring_v3.QueryTimeSeriesRequest(
+            name=f"projects/{project_id}", query=mql_aggregated
+        )
         response = client.query_time_series(request=request)
         for series_data in response:
             if not series_data.point_data:
                 continue
             point = series_data.point_data[0]
-            vals  = [extract_typed_value(point.values[i]) for i in range(3)]
+            vals = [extract_typed_value(point.values[i]) for i in range(3)]
             if "utilization" in metric_key:
                 vals = [v * 100 for v in vals]
             result["mean"] = round(vals[0], 2)
-            result["p95"]  = round(vals[1], 2)
-            result["p99"]  = round(vals[2], 2)
+            result["p95"] = round(vals[1], 2)
+            result["p99"] = round(vals[2], 2)
     except Exception:
         pass
 
     try:
-        request  = monitoring_v3.QueryTimeSeriesRequest(name=f"projects/{project_id}", query=mql_max)
+        request = monitoring_v3.QueryTimeSeriesRequest(
+            name=f"projects/{project_id}", query=mql_max
+        )
         response = client.query_time_series(request=request)
         true_max = None
         for series_data in response:
@@ -240,50 +247,31 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
 
 
 # ─────────────────────────────────────────────
-# CONNECTION FUNCTIONS
-# ─────────────────────────────────────────────
-
-def connect_postgresql(connector: Connector, connection_name: str, db_user: str, db_pass: str, db_name: str) -> sqlalchemy.engine.base.Engine:
-    def getconn():
-        return connector.connect(
-            connection_name, "pg8000",
-            user=db_user, password=db_pass, db=db_name,
-            enable_iam_auth=False, ip_type=IPTypes.PRIVATE,
-        )
-    return sqlalchemy.create_engine("postgresql+pg8000://", creator=getconn)
-
-
-def connect_mysql(connector: Connector, connection_name: str, db_user: str, db_pass: str, db_name: str) -> sqlalchemy.engine.base.Engine:
-    def getconn():
-        return connector.connect(
-            connection_name, "pymysql",
-            user=db_user, password=db_pass, db=db_name,
-            enable_iam_auth=False, ip_type=IPTypes.PRIVATE,
-        )
-    return sqlalchemy.create_engine("mysql+pymysql://", creator=getconn)
-
-
-# ─────────────────────────────────────────────
 # IAM AUTH ENGINE (service account based)
 # ─────────────────────────────────────────────
 
-def get_iam_engine(target, connector):
-    db_type       = target.get("db_type", "mysql").lower()
-    instance_name = f"{target['project_id']}:{target['region']}:{target['instance']}"
 
-    if db_type == "postgres":
-        driver  = "pg8000"
+def get_iam_engine(target, connector):
+    db_type = target.get("db_type").lower()
+    instance_name = (
+        f"{target['project_id']}:{target['region']}:{target['instance']}"
+    )
+
+    if db_type in ("postgres", "postgresql"):
+        driver = "pg8000"
         dialect = "postgresql+pg8000://"
     elif db_type == "mysql":
-        driver  = "pymysql"
+        driver = "pymysql"
         dialect = "mysql+pymysql://"
     else:
         raise ValueError(f"Unsupported db_type: {db_type}")
 
     def _getconn():
         return connector.connect(
-            instance_name, driver,
-            user=target["user"], db=target["database"],
+            instance_name,
+            driver,
+            user=target["user"],
+            db=target["database"],
             enable_iam_auth=True,
         )
 
@@ -294,19 +282,23 @@ def get_iam_engine(target, connector):
 # NATIVE ENGINE (direct host/port connection)
 # ─────────────────────────────────────────────
 
-def get_native_engine(target):
-    db_type  = target.get("db_type", "mysql").lower()
-    user     = target.get("native_user", target.get("user"))
-    password = target.get("password", "")
-    host     = target.get("host", "127.0.0.1")
-    database = target.get("database")
 
-    if db_type == "postgres":
-        port = target.get("port", 5432)
-        url  = f"postgresql+pg8000://{user}:{password}@{host}:{port}/{database}"
+def get_native_engine(target):
+    db_type = target.get("db_type", "").lower()
+    user = target.get("native_user", target.get("user"))
+    password = target.get("password", "")
+    host = target.get("host", "")
+    database = target.get("database")
+    port = target.get("port")
+
+    from urllib.parse import quote_plus
+    user_enc = quote_plus(str(user))
+    pass_enc = quote_plus(str(password))
+
+    if db_type in ("postgres", "postgresql"):
+        url = f"postgresql+pg8000://{user_enc}:{pass_enc}@{host}:{port}/{database}"
     elif db_type == "mysql":
-        port = target.get("port", 3306)
-        url  = f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
+        url = f"mysql+pymysql://{user_enc}:{pass_enc}@{host}:{port}/{database}"
     else:
         raise ValueError(f"Unsupported db_type: {db_type}")
 
@@ -314,108 +306,36 @@ def get_native_engine(target):
 
 
 # ─────────────────────────────────────────────
-# RESOLVE DATABASES
-# ─────────────────────────────────────────────
-
-def resolve_databases(connector, connection_name, db_user, db_pass, db_type, db_name_field) -> list:
-    db_name_field = db_name_field.strip()
-
-    if db_name_field.upper() == "ALL":
-        print("  🔎 db_name = ALL — fetching all databases on instance...")
-        databases = get_all_databases(connector, connection_name, db_user, db_pass, db_type)
-        print(f"  📋 Found: {databases}")
-        return databases
-
-    return [db.strip() for db in db_name_field.split(",") if db.strip()]
-
-
-def get_all_databases(connector, connection_name, db_user, db_pass, db_type) -> list:
-    if db_type == "postgresql":
-        engine = connect_postgresql(connector, connection_name, db_user, db_pass, "postgres")
-        with engine.connect() as conn:
-            raw_conn = conn.connection
-            cursor   = raw_conn.cursor()
-            cursor.execute("""
-                SELECT datname FROM pg_database
-                WHERE datistemplate = false
-                AND datname NOT IN ('postgres', 'cloudsqladmin')
-                ORDER BY datname;
-            """)
-            databases = [r[0] for r in cursor.fetchall()]
-            cursor.close()
-
-    elif db_type == "mysql":
-        engine     = connect_mysql(connector, connection_name, db_user, db_pass, "mysql")
-        mysql_conn = engine.raw_connection()
-        cursor     = mysql_conn.cursor()
-        cursor.execute("""
-            SELECT schema_name FROM information_schema.schemata
-            WHERE schema_name NOT IN
-            ('mysql', 'information_schema', 'performance_schema', 'sys')
-            ORDER BY schema_name;
-        """)
-        databases = [r[0] for r in cursor.fetchall()]
-        cursor.close()
-        mysql_conn.close()
-
-    return databases
-
-
-# ─────────────────────────────────────────────
 # QUERY RUNNER
 # ─────────────────────────────────────────────
 
+
 def run_queries(engine, db_type: str, all_queries: dict) -> dict:
     server_results = {}
-    queries        = all_queries.get(db_type, {})
+    queries = all_queries.get(db_type, {})
 
-    if db_type == "postgresql":
-        with engine.connect() as conn:
-            raw_conn = conn.connection
-            cursor   = raw_conn.cursor()
-
-            print("    🔄 Running ANALYZE...")
-            cursor.execute("ANALYZE;")
-            raw_conn.commit()
-            print("    ✅ ANALYZE done.")
-
-            for category, category_queries in queries.items():
-                server_results[category] = {}
-                for key, sql in category_queries.items():
-                    if key.startswith("_"):
-                        continue
-                    try:
-                        cursor.execute(sql)
-                        columns = [desc[0] for desc in cursor.description]
-                        records = cursor.fetchall()
-                        server_results[category][key] = [
-                            dict(zip(columns, record)) for record in records
-                        ]
-                    except Exception as e:
-                        raw_conn.rollback()
-                        print(f"    ⚠️  Query failed [{category} → {key}]: {e}")
-                        server_results[category][key] = []
-
-            cursor.close()
-
-    elif db_type == "mysql":
-        mysql_conn = engine.raw_connection()
-        cursor     = mysql_conn.cursor(pymysql.cursors.DictCursor)
-
+    with engine.connect() as conn:
         for category, category_queries in queries.items():
             server_results[category] = {}
             for key, sql in category_queries.items():
                 if key.startswith("_"):
                     continue
-                try:
-                    cursor.execute(sql)
-                    server_results[category][key] = cursor.fetchall()
-                except Exception as e:
-                    print(f"    ⚠️  Query failed [{category} → {key}]: {e}")
-                    server_results[category][key] = []
 
-        cursor.close()
-        mysql_conn.close()
+                try:
+                    with conn.begin_nested():
+                        result = conn.execute(sqlalchemy.text(sql))
+                        if result.returns_rows:
+                            server_results[category][key] = [
+                                dict(row._mapping) for row in result.fetchall()
+                            ]
+                        else:
+                            server_results[category][key] = []
+                except Exception as e:
+                    print(f"      [!] Query failed [{category} -> {key}]: {e}")
+                    server_results[category][key] = [{
+                        "error": str(e),
+                        "status": "FAILED",
+                    }]
 
     return server_results
 
@@ -424,127 +344,151 @@ def run_queries(engine, db_type: str, all_queries: dict) -> dict:
 # MAIN
 # ─────────────────────────────────────────────
 
-def main():
-    all_queries = json.load(open("queries.json"))
-    sqladmin    = discovery.build("sqladmin", "v1", cache_discovery=False)
-    mon_client  = monitoring_v3.QueryServiceClient()
-    report      = {}
 
-    # Report time window — last 24 hours
-    report_end   = datetime.now(timezone.utc)
+def main():
+    print("[START] Initializing Cloud SQL Health Check Script...")
+
+    try:
+        all_queries = json.load(open("queries.json"))
+        print(" -> Successfully loaded 'queries.json'")
+    except FileNotFoundError:
+        print(" [!] Error: 'queries.json' not found. Exiting.")
+        return
+
+    print(" -> Building Google Cloud APIs (SQL Admin & Monitoring)...")
+    sqladmin = discovery.build("sqladmin", "v1", cache_discovery=False)
+    mon_client = monitoring_v3.QueryServiceClient()
+    report = {}
+
+    report_end = datetime.now(timezone.utc)
     report_start = report_end - timedelta(hours=24)
     report_window = {
         "from": report_start.strftime("%d %b %Y, %I:%M %p UTC"),
-        "to":   report_end.strftime("%d %b %Y, %I:%M %p UTC"),
+        "to": report_end.strftime("%d %b %Y, %I:%M %p UTC"),
     }
 
     with Connector(refresh_strategy="LAZY") as connector:
-        with open("config.csv", newline="", encoding="utf-8") as csvfile:
-            reader = csv.DictReader(csvfile)
+        try:
+            with open("config.csv", newline="", encoding="utf-8") as csvfile:
+                reader = csv.DictReader(csvfile)
 
-            for row in reader:
-                project_id    = row.get("project_id", "").strip()
-                instance_name = row.get("instance_name", "").strip()
-                db_user       = row.get("db_user", "").strip()
-                db_pass       = row.get("db_pass", "").strip()
-                db_name_field = row.get("db_name", "ALL").strip()
+                print(" -> Reading 'config.csv' for instances to process...")
 
-                if not project_id or not instance_name:
-                    continue
+                for row in reader:
+                    project_id = row.get("project_id", "").strip()
+                    instance_name = row.get("instance_name", "").strip()
+                    db_user = row.get("db_user", "").strip()
+                    db_pass = row.get("db_pass", "").strip()
+                    auth_type = row.get("auth_type", "native").strip().lower()
 
-                print(f"\n🔍 Instance: {instance_name} (project: {project_id})")
+                    if not project_id or not instance_name:
+                        continue
 
-                report[instance_name] = {
-                    "report_window":        report_window,
-                    "provisioned_specs":    {},
-                    "resource_utilization": {},
-                    "health_checks":        {},
-                }
+                    print(f"\n[PROCESSING] Instance: {instance_name} (Project: {project_id})")
 
-                # Step 1 — Instance specs
-                specs, connection_name, db_type = get_instance_details(sqladmin, project_id, instance_name)
-                report[instance_name]["provisioned_specs"] = specs
+                    report[instance_name] = {
+                        "report_window": report_window,
+                        "provisioned_specs": {},
+                        "resource_utilization": {},
+                        "health_checks": {},
+                    }
 
-                if "Error" in specs or not connection_name:
-                    print(f"  ❌ Skipping: could not fetch instance details.")
-                    continue
-
-                print(f"  📋 Engine: {db_type} | Connection: {connection_name}")
-
-                # Step 2 — Monitoring metrics
-                print("  📊 Fetching Cloud Monitoring metrics...")
-                for m_key, m_type in METRIC_TYPES.items():
-                    report[instance_name]["resource_utilization"][m_key] = fetch_mql_metric(
-                        mon_client, project_id, instance_name, m_key, m_type
+                    # Step 1 — Instance specs
+                    print("   -> Fetching instance hardware and configuration details...")
+                    specs, connection_name, db_type, region, host, port = (
+                        get_instance_details(sqladmin, project_id, instance_name)
                     )
 
-                # Step 3 — Resolve databases
-                databases = resolve_databases(
-                    connector, connection_name, db_user, db_pass, db_type, db_name_field
-                )
+                    if isinstance(specs, dict) and "Error" in specs:
+                        report[instance_name]["provisioned_specs"] = specs
+                        print(f"   [!] Skipping {instance_name}: Could not fetch instance details.")
+                        continue
 
-                if not databases:
-                    print("  ⚠️  No user databases found.")
-                    continue
+                    report[instance_name]["provisioned_specs"] = specs
 
-                # Step 4 — Fetch uptime from first available database
-                try:
-                    if db_type == "postgresql":
-                        uptime_engine = connect_postgresql(connector, connection_name, db_user, db_pass, "postgres")
-                    else:
-                        uptime_engine = connect_mysql(connector, connection_name, db_user, db_pass, databases[0])
-                    uptime = fetch_uptime(uptime_engine, db_type)
-                    report[instance_name]["provisioned_specs"]["Uptime"] = uptime
-                except Exception:
-                    report[instance_name]["provisioned_specs"]["Uptime"] = "N/A"
+                    if not connection_name:
+                        print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
+                        continue
 
-                # Step 5 — Run health check queries per database
-                for db_name in databases:
-                    print(f"\n  🗄️  Checking database: {db_name}")
+                    print(f"   -> Engine identified as: {db_type.upper()}")
+
+                    # Step 2 — Fetch Engine-Specific Monitoring metrics
+                    print("   -> Fetching Cloud Monitoring metrics (24h window)...")
+                    engine_metrics = get_metrics_for_engine(db_type)
+                    for m_key, m_type in engine_metrics.items():
+                        report[instance_name]["resource_utilization"][m_key] = (
+                            fetch_mql_metric(
+                                mon_client, project_id, instance_name, m_key, m_type
+                            )
+                        )
+
+                    # Step 3 — Run health check queries
+                    print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
                     try:
-                        auth_type = row.get("auth_type", "").strip().lower()
-                        region    = row.get("region", "").strip()
-                        host      = row.get("host", "127.0.0.1").strip()
-                        port      = row.get("port", "").strip()
-
                         if auth_type == "iam":
-                            engine = get_iam_engine({
-                                "project_id": project_id,
-                                "region":     region or connection_name.split(":")[1],
-                                "instance":   instance_name,
-                                "user":       db_user,
-                                "database":   db_name,
-                                "db_type":    "postgres" if db_type == "postgresql" else "mysql",
-                            }, connector)
-
-                        elif auth_type == "native":
+                            engine = get_iam_engine(
+                                {
+                                    "project_id": project_id,
+                                    "region": region,
+                                    "instance": instance_name,
+                                    "user": db_user,
+                                    "database": "mysql" if db_type == "mysql" else "postgres",
+                                    "db_type": db_type,
+                                },
+                                connector,
+                            )
+                        else:
                             engine = get_native_engine({
-                                "db_type":  "postgres" if db_type == "postgresql" else "mysql",
-                                "user":     db_user,
+                                "db_type": db_type,
+                                "user": db_user,
                                 "password": db_pass,
-                                "host":     host,
-                                "port":     int(port) if port else (5432 if db_type == "postgresql" else 3306),
-                                "database": db_name,
+                                "host": host,
+                                "port": port,
+                                "database": "mysql" if db_type == "mysql" else "postgres",
                             })
 
-                        else:
-                            # Default — username + password via Cloud SQL Connector
-                            if db_type == "postgresql":
-                                engine = connect_postgresql(connector, connection_name, db_user, db_pass, db_name)
-                            else:
-                                engine = connect_mysql(connector, connection_name, db_user, db_pass, db_name)
+                        report[instance_name]["health_checks"] = run_queries(
+                            engine, db_type, all_queries
+                        )
 
-                        report[instance_name]["health_checks"][db_name] = run_queries(engine, db_type, all_queries)
-                        print(f"    ✅ Done.")
+                        # Fetch uptime and update provisioned specs
+                        try:
+                            with engine.connect() as conn:
+                                if db_type == "postgres":
+                                    result = conn.execute(sqlalchemy.text(
+                                        "SELECT EXTRACT(EPOCH FROM (NOW() - pg_postmaster_start_time()))::int"
+                                    ))
+                                    seconds = result.fetchone()[0]
+                                else:
+                                    result = conn.execute(sqlalchemy.text("SHOW STATUS LIKE 'Uptime'"))
+                                    seconds = int(result.fetchone()[1])
+                                days    = seconds // 86400
+                                hours   = (seconds % 86400) // 3600
+                                minutes = (seconds % 3600) // 60
+                                parts   = []
+                                if days:    parts.append(f"{days}d")
+                                if hours:   parts.append(f"{hours}h")
+                                if minutes: parts.append(f"{minutes}m")
+                                report[instance_name]["provisioned_specs"]["Uptime"] = " ".join(parts) if parts else "< 1m"
+                        except Exception:
+                            pass  # Uptime stays as "N/A" set in specs dict
+
+                        print(f"   -> Successfully executed health check queries for {instance_name}.")
 
                     except Exception as e:
-                        print(f"    ❌ Failed: {e}")
-                        report[instance_name]["health_checks"][db_name] = {"error": str(e)}
+                        print(f"   [!] Connection/Query execution failed: {e}")
+                        report[instance_name]["health_checks"] = {"error": str(e)}
 
+        except FileNotFoundError:
+            print("\n[!] Error: 'config.csv' not found. Exiting.")
+            return
+
+    # Final Save
+    print("\n[FINISHING] Compiling and saving final report...")
     with open("database_health_report.json", "w") as f:
         json.dump(report, f, indent=4, default=str)
 
-    print("\n📄 Report saved to database_health_report.json")
+    print("[DONE] Report successfully saved to 'database_health_report.json'.\n")
 
 
 if __name__ == "__main__":
