@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Health Check Report</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        /* Formal Corporate Font Stack */
+        body { 
+            font-family: Arial, Helvetica, 'Segoe UI', sans-serif; 
+            background: #f1f5f9; 
+            color: #1e293b; 
+        }
+        h1, .section-title, .category-title {
+            font-weight: 700;
+        }
+
+        /* -- FROZEN TOP BAR -- */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #0f172a; color: white;
+            padding: 12px 24px; display: flex; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #topbar h1 { font-size: 1.1em; color: white; white-space: nowrap; }
+        #topbar select {
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em; cursor: pointer;
+            min-width: 140px; font-family: inherit;
+        }
+        #topbar select:focus { outline: 2px solid #3b82f6; }
+        .topbar-timestamp { margin-left: auto; font-size: 0.85em; color: #94a3b8; white-space: nowrap; text-align: right; line-height: 1.5; }
+
+        /* -- MAIN CONTENT -- */
+        #content { margin-top: 70px; padding: 24px; }
+
+        /* -- PROVISIONED SPECS (FLEXBOX SINGLE LINE) -- */
+        .specs-grid {
+            display: flex;
+            flex-wrap: nowrap; /* Forces a single line */
+            overflow-x: auto; /* Adds a horizontal scrollbar only if screen is too small */
+            gap: 12px; 
+            margin-bottom: 16px;
+            padding-bottom: 8px; /* Room for scrollbar if triggered */
+        }
+        .spec-item {
+            flex: 1 1 auto; 
+            white-space: nowrap; /* Prevents text from breaking into multiple lines */
+            background: #f8fafc; border-radius: 6px; padding: 12px 16px;
+            border-left: 4px solid #2563eb;
+        }
+        .spec-label { font-size: 0.75em; color: #64748b; text-transform: uppercase; margin-bottom: 4px; font-weight: 600; }
+        .spec-value { 
+            font-size: 1em; font-weight: 700; color: #0f172a; 
+        }
+
+        /* -- MONITORING METRICS -- */
+        .metrics-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.9em; }
+        .metrics-table th { background: #1e40af; color: white; padding: 10px 12px; text-align: left; }
+        .metrics-table td { border: 1px solid #e2e8f0; padding: 10px 12px; }
+        .metrics-table tr:nth-child(even) td { background: #f8fafc; }
+
+        /* -- INSTANCE CARDS -- */
+        .instance-block { margin-bottom: 32px; }
+        .instance-title {
+            font-size: 1.2em; color: #0f172a;
+            padding: 12px 20px; background: #e2e8f0;
+            border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+        }
+        .section-card {
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 20px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .section-title {
+            font-size: 1.1em; color: #0f172a;
+            margin-bottom: 16px; padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* -- CATEGORY -- */
+        .category-title {
+            font-size: 1.05em; color: #2563eb;
+            margin-top: 16px; padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }
+        .category-title:hover { color: #1d4ed8; }
+        .metric-title { font-size: 0.95em; font-weight: 600; color: #334155; margin: 16px 0 8px; }
+
+        /* -- TABLES -- */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 12px; font-size: 0.85em; }
+        th { background: #334155; color: white; padding: 10px 12px; text-align: left; }
+        td { 
+            border: 1px solid #e2e8f0; 
+            padding: 8px 12px; 
+            word-break: normal;
+        }
+        tr:nth-child(even) td { background: #f8fafc; }
+        tr.row-critical td { background: #fee2e2 !important; }
+        tr.row-warning td { background: #fef9c3 !important; }
+        tr:hover td { background: #eff6ff !important; }
+
+        /* -- PAGINATION -- */
+        .pagination {
+            display: flex; align-items: center; gap: 12px;
+            padding: 8px 0; font-size: 0.9em; color: #334155; 
+        }
+        .pagination button {
+            padding: 6px 14px; border-radius: 4px; border: 1px solid #cbd5e1;
+            background: white; cursor: pointer; font-size: 0.9em; font-weight: 600;
+        }
+        .pagination button:hover { background: #e2e8f0; }
+
+        .alert-badge { font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .warn-badge  { font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .no-issues   { color: #16a34a; font-style: italic; font-size: 0.95em; padding: 8px 0; }
+        
+        /* Formatted Error Box */
+        .error-box { 
+            color: #7f1d1d; background: #fee2e2; border-left: 4px solid #b91c1c; 
+            padding: 12px 16px; border-radius: 4px; font-size: 0.9em; margin: 8px 0; 
+        }
+        .hidden      { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- FROZEN TOP BAR -->
+<div id="topbar">
+    <h1>Database Health Report</h1>
+    <select id="filter-dbtype" onchange="filterByType()">
+        <option value="ALL">All DB Types</option>
+        <option value="PostgreSQL">PostgreSQL</option>
+        <option value="MySQL">MySQL</option>
+    </select>
+    <select id="filter-server" onchange="filterByServer()">
+        <option value="ALL">All Servers</option>
+    </select>
+    <div class="topbar-timestamp">
+        Report Period:<br>
+        20 Sep 2026, 04:55 AM UTC
+        &rarr; 21 Sep 2026, 04:55 AM UTC
+    </div>
+</div>
+
+<div id="content">
+<div class="instance-block" data-server="chtp-g3-prod-au-6-db-1" data-dbtype="MySQL" id="srv-chtp-g3-prod-au-6-db-1"><div class="instance-title">Server: chtp-g3-prod-au-6-db-1 <small style="font-weight:400;font-size:0.85em;color:#64748b;">(MySQL)</small></div><div class="section-card"><div class="section-title">Provisioned Specifications</div><div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Engine</div>
+                    <div class="spec-value">MYSQL 8 0</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Edition</div>
+                    <div class="spec-value">ENTERPRISE</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">CPU</div>
+                    <div class="spec-value">6</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Memory</div>
+                    <div class="spec-value">8.0 GB</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Storage</div>
+                    <div class="spec-value">31 GB SSD</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Availability</div>
+                    <div class="spec-value">Regional</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Replicas</div>
+                    <div class="spec-value">0</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Last Backup</div>
+                    <div class="spec-value">No backups found</div>
+                </div></div><div class="section-title" style="margin-top:24px;">Resource Utilization (Last 24h)</div><table class="metrics-table">
+            <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td style="font-weight: 600;">CPU Utilization</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Memory Utilization</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Utilization</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Read Ops</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Write Ops</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Bytes Used</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Connections</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Indexes</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Unused Indexes</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Duplicate Indexes</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_indexes_duplicate_indexes_2"><table id="tbl-chtp-g3-prod-au-6-db-1_indexes_duplicate_indexes_2"><thead><tr><th>schema_name</th><th>table_name</th><th>duplicate_index_names</th><th>dominant_index</th><th>index_columns</th></tr></thead><tbody><tr class="page-row "><td>application</td><td>chat_group_members</td><td>fk_chat_group_members_chat_group_id_cg_id</td><td>chat_group_members_chat_group_id_user_id_profile_id_unique</td><td>chat_group_id</td></tr><tr class="page-row "><td>application</td><td>conversations_1</td><td>idx_cv_1_user_id</td><td>cv_1_user_id_profile_id</td><td>user_id</td></tr><tr class="page-row "><td>application</td><td>messages_1</td><td>idx_messages_1_user_id</td><td>idx_messages_user_id_profile_id</td><td>user_id</td></tr><tr class="page-row "><td>application</td><td>password_resets</td><td>password_resets_token_index</td><td>PRIMARY</td><td>token</td></tr><tr class="page-row "><td>application</td><td>photos_unlocked</td><td>user_id_index</td><td>user_id_profile_id_index</td><td>user_id</td></tr><tr class="page-row "><td>application</td><td>starred_conversations</td><td>fk_starred_conversations_user_id_users_id</td><td>starred_conversations_user_id_profile_id_unique</td><td>user_id</td></tr><tr class="page-row "><td>application</td><td>stored_events</td><td>stored_events_aggregate_uuid_index</td><td>stored_events_aggregate_uuid_aggregate_version_unique</td><td>aggregate_uuid</td></tr><tr class="page-row "><td>application</td><td>users</td><td>idx_users_email</td><td>users_email_deleted_at_unique</td><td>email</td></tr><tr class="page-row "><td>application</td><td>users_score</td><td>fk_users_score_user_id_users_id</td><td>users_score_user_id_unique</td><td>user_id</td></tr><tr class="page-row "><td>application</td><td>visitors</td><td>fk_visitors_user_id_users_id</td><td>user_id_profile_id_idx</td><td>user_id</td></tr></tbody></table></div><div class="metric-title">Queries High Full Table Scans</div><p class="no-issues">No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Performance</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Full Table Scans</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Temp Table Usage</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Buffer Pool Hit Ratio</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_performance_buffer_pool_hit_ratio_6"><table id="tbl-chtp-g3-prod-au-6-db-1_performance_buffer_pool_hit_ratio_6"><thead><tr><th>Total Memory Read Requests</th><th>Physical Disk Reads</th><th>Buffer Pool Hit Percentage</th></tr></thead><tbody><tr class="page-row "><td>22719413889</td><td>321657</td><td>100.0</td></tr></tbody></table></div><div class="metric-title">Dirty Pages</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_performance_dirty_pages_7"><table id="tbl-chtp-g3-prod-au-6-db-1_performance_dirty_pages_7"><thead><tr><th>Modified Pages Count</th><th>Total Pages Allocated</th><th>Dirty Pages Percentage</th></tr></thead><tbody><tr class="page-row "><td>0</td><td>278528</td><td>0.0</td></tr></tbody></table></div><div class="metric-title">Redo Log</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_performance_redo_log_8"><table id="tbl-chtp-g3-prod-au-6-db-1_performance_redo_log_8"><thead><tr><th>Redo Log Waits Count</th><th>Memory Write Requests</th><th>Physical Disk Writes</th><th>Total Disk Syncs</th></tr></thead><tbody><tr class="page-row "><td>0</td><td>125399279</td><td>21491295</td><td>13731298</td></tr></tbody></table></div><div class="metric-title">Top Queries By Execution Time</div><p class="no-issues">No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Locks</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Lock Waits</div><p class="no-issues">No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Connections</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Connections Metrics</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_connections_connections_metrics_11"><table id="tbl-chtp-g3-prod-au-6-db-1_connections_connections_metrics_11"><thead><tr><th>Peak Concurrent Connections</th><th>Allowed Max Connections</th><th>Connection Utilization Percentage</th></tr></thead><tbody><tr class="page-row "><td>210</td><td>4030</td><td>5.21</td></tr></tbody></table></div><div class="metric-title">Thread Metrics</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_connections_thread_metrics_12"><table id="tbl-chtp-g3-prod-au-6-db-1_connections_thread_metrics_12"><thead><tr><th>Reusable Cached Threads</th><th>Total New Threads Created</th><th>Thread Cache Miss Percentage</th></tr></thead><tbody><tr class="page-row "><td>24</td><td>1308</td><td>0.02</td></tr></tbody></table></div><div class="metric-title">Aborted Connections Metrics</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_connections_aborted_connections_metrics_13"><table id="tbl-chtp-g3-prod-au-6-db-1_connections_aborted_connections_metrics_13"><thead><tr><th>Auth Failures Count</th><th>Network Drops Count</th><th>Total Connection Attempts</th><th>Auth Failure Percentage</th><th>Network Drop Percentage</th></tr></thead><tbody><tr class="page-row "><td>5</td><td>1063</td><td>6318829</td><td>0.0</td><td>0.02</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Storage</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Table Fragmentation Status</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-6-db-1_storage_table_fragmentation_status_14"><table id="tbl-chtp-g3-prod-au-6-db-1_storage_table_fragmentation_status_14"><thead><tr><th>Database Name</th><th>Table Name</th><th>Actual Data Size (MB)</th><th>Index Size (MB)</th><th>Wasted Fragmented Space (MB)</th><th>Fragmentation Percentage</th></tr></thead><tbody><tr class="page-row "><td>application</td><td>audits</td><td>70.11</td><td>32.09</td><td>187.00</td><td>64.66</td></tr><tr class="page-row "><td>application</td><td>messages_1</td><td>971.02</td><td>1689.75</td><td>70.00</td><td>2.56</td></tr><tr class="page-row "><td>application</td><td>conversations_1</td><td>351.22</td><td>1343.78</td><td>68.00</td><td>3.86</td></tr><tr class="page-row "><td>application</td><td>emails_tracking</td><td>148.03</td><td>316.48</td><td>45.00</td><td>8.83</td></tr><tr class="page-row "><td>application</td><td>visitors</td><td>17.08</td><td>78.55</td><td>21.00</td><td>18.01</td></tr><tr class="page-row "><td>application</td><td>visits</td><td>0.02</td><td>0.00</td><td>11.00</td><td>99.86</td></tr><tr class="page-row "><td>application</td><td>autologin</td><td>18.08</td><td>30.20</td><td>10.00</td><td>17.16</td></tr><tr class="page-row "><td>application</td><td>email_sent</td><td>2.02</td><td>4.02</td><td>9.00</td><td>59.88</td></tr><tr class="page-row "><td>application</td><td>job_batches</td><td>0.48</td><td>0.00</td><td>8.00</td><td>94.29</td></tr><tr class="page-row "><td>application</td><td>profile_views</td><td>231.00</td><td>440.95</td><td>7.00</td><td>1.03</td></tr><tr class="page-row " style="display:none"><td>application</td><td>auto_replies_users_pivot</td><td>12.52</td><td>22.39</td><td>7.00</td><td>16.70</td></tr><tr class="page-row " style="display:none"><td>application</td><td>auto_reply_queue</td><td>1.02</td><td>4.06</td><td>7.00</td><td>57.96</td></tr><tr class="page-row " style="display:none"><td>application</td><td>transactions_1</td><td>45.66</td><td>42.78</td><td>7.00</td><td>7.33</td></tr><tr class="page-row " style="display:none"><td>application</td><td>failed_jobs</td><td>315.55</td><td>0.45</td><td>7.00</td><td>2.17</td></tr><tr class="page-row " style="display:none"><td>application</td><td>stored_events</td><td>14.52</td><td>7.55</td><td>7.00</td><td>24.09</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('chtp-g3-prod-au-6-db-1_storage_table_fragmentation_status_14', -1)">&lt; Prev</button>
+            <span id="page-info-chtp-g3-prod-au-6-db-1_storage_table_fragmentation_status_14">Page 1 of 2</span>
+            <button onclick="changePage('chtp-g3-prod-au-6-db-1_storage_table_fragmentation_status_14', 1)">Next &gt;</button>
+        </div></div></div></div><div class="instance-block" data-server="chtp-g3-prod-au-10-db-1" data-dbtype="PostgreSQL" id="srv-chtp-g3-prod-au-10-db-1"><div class="instance-title">Server: chtp-g3-prod-au-10-db-1 <small style="font-weight:400;font-size:0.85em;color:#64748b;">(PostgreSQL)</small></div><div class="section-card"><div class="section-title">Provisioned Specifications</div><div class="specs-grid">
+                <div class="spec-item">
+                    <div class="spec-label">Engine</div>
+                    <div class="spec-value">POSTGRES 18</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Edition</div>
+                    <div class="spec-value">ENTERPRISE</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">CPU</div>
+                    <div class="spec-value">4</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Memory</div>
+                    <div class="spec-value">4.0 GB</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Storage</div>
+                    <div class="spec-value">50 GB SSD</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Availability</div>
+                    <div class="spec-value">Regional</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Replicas</div>
+                    <div class="spec-value">0</div>
+                </div>
+                <div class="spec-item">
+                    <div class="spec-label">Last Backup</div>
+                    <div class="spec-value">No backups found</div>
+                </div></div><div class="section-title" style="margin-top:24px;">Resource Utilization (Last 24h)</div><table class="metrics-table">
+            <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td style="font-weight: 600;">CPU Utilization</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Memory Utilization</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Utilization</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Read Ops</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Write Ops</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Disk Bytes Used</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr><tr>
+                <td style="font-weight: 600;">Connections</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+                <td>N/A</td>
+            </tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Indexes</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Unused Indexes</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Duplicate Indexes</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_indexes_duplicate_indexes_16"><table id="tbl-chtp-g3-prod-au-10-db-1_indexes_duplicate_indexes_16"><thead><tr><th>error</th><th>status</th></tr></thead><tbody><tr class="page-row row-critical"><td>(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '42601', 'M': 'syntax error at or near "SEPARATOR"', 'P': '130', 'F': 'scan.l', 'L': '1263', 'R': 'scanner_yyerror'}
+[SQL: SELECT r.table_schema AS schema_name, r.table_name, GROUP_CONCAT(DISTINCT r.redundant_index_name ORDER BY r.redundant_index_name SEPARATOR ', ') AS duplicate_index_names, MAX(r.dominant_index_name) AS dominant_index, MAX(r.redundant_index_columns) AS index_columns FROM sys.schema_redundant_indexes r WHERE r.table_schema NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys') GROUP BY r.table_schema, r.table_name, r.redundant_index_columns ORDER BY r.table_schema, r.table_name;]
+(Background on this error at: https://sqlalche.me/e/20/4xp6)</td><td><span class="alert-badge">FAILED</span></td></tr></tbody></table></div><div class="metric-title">Queries High Full Table Scans</div><p class="no-issues">No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Performance</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Buffer Pool Hit Ratio</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Dirty Pages</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_performance_dirty_pages_19"><table id="tbl-chtp-g3-prod-au-10-db-1_performance_dirty_pages_19"><thead><tr><th>error</th><th>status</th></tr></thead><tbody><tr class="page-row row-critical"><td>(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '42P01', 'M': 'relation "pg_buffercache" does not exist', 'P': '266', 'F': 'parse_relation.c', 'L': '1469', 'R': 'parserOpenTable'}
+[SQL: SELECT c.relname AS "Table Name", pg_size_pretty(count(*) * 8192) AS "Formatted Dirty Data Size", count(*) AS "Dirty Pages Count", round(100.0 * count(*) / NULLIF((SELECT count(*) FROM pg_buffercache WHERE isdirty), 0), 2) AS "Percentage Of Total Dirty Pages" FROM pg_buffercache b JOIN pg_class c ON b.relfilenode = pg_relation_filenode(c.oid) JOIN pg_database d ON (b.reltablespace = d.dattablespace OR b.reltablespace = 0) AND d.datname = current_database() WHERE b.isdirty = true AND c.relkind IN ('r', 'm') GROUP BY c.relname ORDER BY "Dirty Pages Count" DESC;]
+(Background on this error at: https://sqlalche.me/e/20/4xp6)</td><td><span class="alert-badge">FAILED</span></td></tr></tbody></table></div><div class="metric-title">Redo Log</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_performance_redo_log_20"><table id="tbl-chtp-g3-prod-au-10-db-1_performance_redo_log_20"><thead><tr><th>error</th><th>status</th></tr></thead><tbody><tr class="page-row row-critical"><td>(pg8000.exceptions.DatabaseError) {'S': 'ERROR', 'V': 'ERROR', 'C': '42501', 'M': 'permission denied for function pg_ls_waldir', 'F': 'aclchk.c', 'L': '2798', 'R': 'aclcheck_error'}
+[SQL: SELECT pg_current_wal_lsn() AS "Current WAL Position", pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0') AS "Total WAL Bytes Written", pg_size_pretty(pg_wal_lsn_diff(pg_current_wal_lsn(), '0/0')) AS "Formatted Total WAL Size", (SELECT count(*) FROM pg_ls_waldir()) AS "WAL Files Count", pg_size_pretty((SELECT sum(size) FROM pg_ls_waldir())) AS "Formatted WAL Directory Size";]
+(Background on this error at: https://sqlalche.me/e/20/4xp6)</td><td><span class="alert-badge">FAILED</span></td></tr></tbody></table></div><div class="metric-title">Temp Table Usage</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_performance_temp_table_usage_21"><table id="tbl-chtp-g3-prod-au-10-db-1_performance_temp_table_usage_21"><thead><tr><th>Database Name</th><th>Temp Files Created Count</th><th>Formatted Temp Data Written</th><th>Deadlocks Count</th><th>Conflicts Count</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>0</td><td>0 bytes</td><td>0</td><td>0</td></tr></tbody></table></div><div class="metric-title">Top Queries By Execution Time</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_performance_top_queries_by_execution_time_22"><table id="tbl-chtp-g3-prod-au-10-db-1_performance_top_queries_by_execution_time_22"><thead><tr><th>SQL Query</th><th>Execution Count</th><th>Total Execution Time (ms)</th><th>Average Execution Time (ms)</th><th>Percentage Of Total DB Time</th><th>Total Rows Processed</th></tr></thead><tbody><tr class="page-row "><td><insufficient privilege></td><td>2131117</td><td>13156836.06</td><td>6.17</td><td>6.61</td><td>2131117</td></tr><tr class="page-row "><td><insufficient privilege></td><td>5700345</td><td>10378734.48</td><td>1.82</td><td>5.21</td><td>5700345</td></tr><tr class="page-row "><td><insufficient privilege></td><td>634085</td><td>9610515.41</td><td>15.16</td><td>4.83</td><td>3170425</td></tr><tr class="page-row "><td><insufficient privilege></td><td>1080939</td><td>8767006.15</td><td>8.11</td><td>4.40</td><td>91421248</td></tr><tr class="page-row "><td><insufficient privilege></td><td>537779</td><td>7652154.65</td><td>14.23</td><td>3.84</td><td>2674658</td></tr><tr class="page-row "><td><insufficient privilege></td><td>8251860</td><td>6198267.61</td><td>0.75</td><td>3.11</td><td>128775791</td></tr><tr class="page-row "><td><insufficient privilege></td><td>574372</td><td>5729993.08</td><td>9.98</td><td>2.88</td><td>574372</td></tr><tr class="page-row "><td><insufficient privilege></td><td>1471328</td><td>5182235.23</td><td>3.52</td><td>2.60</td><td>31719565</td></tr><tr class="page-row "><td><insufficient privilege></td><td>268873</td><td>3739783.24</td><td>13.91</td><td>1.88</td><td>26172665</td></tr><tr class="page-row "><td><insufficient privilege></td><td>3690629</td><td>3384303.32</td><td>0.92</td><td>1.70</td><td>3690629</td></tr><tr class="page-row " style="display:none"><td><insufficient privilege></td><td>89784</td><td>2906928.83</td><td>32.38</td><td>1.46</td><td>2135285</td></tr><tr class="page-row " style="display:none"><td><insufficient privilege></td><td>174106</td><td>2876557.29</td><td>16.52</td><td>1.44</td><td>174106</td></tr><tr class="page-row " style="display:none"><td><insufficient privilege></td><td>61352753</td><td>2480637.26</td><td>0.04</td><td>1.25</td><td>61352753</td></tr><tr class="page-row " style="display:none"><td><insufficient privilege></td><td>2327813</td><td>2468511.96</td><td>1.06</td><td>1.24</td><td>2327813</td></tr><tr class="page-row " style="display:none"><td><insufficient privilege></td><td>2823826</td><td>2414911.58</td><td>0.86</td><td>1.21</td><td>233113083</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('chtp-g3-prod-au-10-db-1_performance_top_queries_by_execution_time_22', -1)">&lt; Prev</button>
+            <span id="page-info-chtp-g3-prod-au-10-db-1_performance_top_queries_by_execution_time_22">Page 1 of 2</span>
+            <button onclick="changePage('chtp-g3-prod-au-10-db-1_performance_top_queries_by_execution_time_22', 1)">Next &gt;</button>
+        </div></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Locks</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Lock Waits</div><p class="no-issues">No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Connections</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Active Connections</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_connections_active_connections_24"><table id="tbl-chtp-g3-prod-au-10-db-1_connections_active_connections_24"><thead><tr><th>Connection State</th><th>Active Connections Count</th><th>Longest Connection Duration (Seconds)</th><th>Allowed Max Connections</th><th>Connection Utilization Percentage</th></tr></thead><tbody><tr class="page-row "><td>N/A</td><td>23</td><td>N/A</td><td>500</td><td>4.60</td></tr><tr class="page-row "><td>active</td><td>1</td><td>-6</td><td>500</td><td>0.20</td></tr></tbody></table></div><div class="metric-title">Aborted Connections</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_connections_aborted_connections_25"><table id="tbl-chtp-g3-prod-au-10-db-1_connections_aborted_connections_25"><thead><tr><th>Database Name</th><th>Dropped Due To Conflicts</th><th>Dropped Due To Deadlocks</th><th>Total Block Read Time (ms)</th><th>Total Block Write Time (ms)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>0</td><td>0</td><td>1043.197</td><td>2.062</td></tr></tbody></table></div><div class="metric-title">Thread Activity</div><div class="table-wrapper" id="wrapper-chtp-g3-prod-au-10-db-1_connections_thread_activity_26"><table id="tbl-chtp-g3-prod-au-10-db-1_connections_thread_activity_26"><thead><tr><th>Connection State</th><th>Wait Event Category</th><th>Specific Wait Event</th><th>Active Threads Count</th></tr></thead><tbody><tr class="page-row "><td>active</td><td>N/A</td><td>N/A</td><td>1</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Storage</span><span>&#9660;</span>
+                </div>
+                <div class="category-content"><div class="metric-title">Fragmentation</div><p class="no-issues">No issues or records flagged.</p></div></div>
+</div>
+
+<script>
+const navData = {"chtp-g3-prod-au-6-db-1": "MySQL", "chtp-g3-prod-au-10-db-1": "PostgreSQL"};
+
+// -- POPULATE SERVER DROPDOWN --
+const serverSel = document.getElementById('filter-server');
+Object.keys(navData).forEach(s => {
+    const o = document.createElement('option');
+    o.value = s; o.textContent = s;
+    serverSel.appendChild(o);
+});
+
+// -- FILTER BY DB TYPE --
+function filterByType() {
+    const type = document.getElementById('filter-dbtype').value;
+
+    // Rebuild server dropdown filtered by type
+    serverSel.innerHTML = '<option value="ALL">All Servers</option>';
+    Object.entries(navData).forEach(([srv, dbtype]) => {
+        if (type === 'ALL' || dbtype === type) {
+            const o = document.createElement('option');
+            o.value = srv; o.textContent = srv;
+            serverSel.appendChild(o);
+        }
+    });
+
+    filterByServer();
+}
+
+// -- FILTER BY SERVER --
+function filterByServer() {
+    const type = document.getElementById('filter-dbtype').value;
+    const srv  = serverSel.value;
+
+    document.querySelectorAll('.instance-block').forEach(block => {
+        const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
+        const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !(typeMatch && srvMatch));
+    });
+}
+
+// -- COLLAPSIBLE CATEGORIES --
+function toggleCategory(el) {
+    const content = el.nextElementSibling;
+    const arrow   = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
+}
+
+// -- PAGINATION --
+const pageState = {};
+
+function changePage(tableId, direction) {
+    const rows       = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
+    const totalPages = Math.ceil(rows.length / 10);
+
+    if (!pageState[tableId]) pageState[tableId] = 1;
+    pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
+
+    const currentPage = pageState[tableId];
+    const start        = (currentPage - 1) * 10;
+    const end          = start + 10;
+
+    rows.forEach((row, i) => {
+        row.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+
+    const info = document.getElementById(`page-info-${tableId}`);
+    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
+}
+</script>
+</body>
+</html>

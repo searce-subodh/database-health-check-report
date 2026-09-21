@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Database Health Check Report</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            color: #333;
+        }
+        h1, h2, h3, h4 {
+            color: #2c3e50;
+        }
+        .header-controls {
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+            border: 1px solid #ddd;
+        }
+        label {
+            font-weight: bold;
+            margin-right: 10px;
+        }
+        select {
+            padding: 5px;
+            font-size: 16px;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 30px;
+        }
+        th, td {
+            border: 1px solid #bdc3c7;
+            padding: 10px;
+            text-align: left;
+        }
+        th {
+            background-color: #ecf0f1;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background-color: #f9f9f9;
+        }
+        .section-container {
+            margin-bottom: 40px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="header-controls">
+        <h1 id="project-name">Project Name: DB Health Check</h1>
+        <label for="instance-select">Select Instance: </label>
+        <select id="instance-select"></select>
+    </div>
+
+    <!-- Section 1 -->
+    <div class="section-container">
+        <h3>Section 1: Provisioned Specs</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Engine</th>
+                    <th>Edition</th>
+                    <th>CPU</th>
+                    <th>Memory</th>
+                    <th>Storage</th>
+                    <th>Availability</th>
+                    <th>Read Replica Count</th>
+                    <th>Last Backup Time</th>
+                </tr>
+            </thead>
+            <tbody id="specs-body">
+                <!-- Dynamically populated -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Section 2 -->
+    <div class="section-container">
+        <h3>Section 2: Instance Monitoring Details</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Metric</th>
+                    <th>Mean</th>
+                    <th>P95</th>
+                    <th>P99</th>
+                    <th>Max</th>
+                </tr>
+            </thead>
+            <tbody id="monitoring-body">
+                <!-- Dynamically populated -->
+            </tbody>
+        </table>
+    </div>
+
+    <!-- Section 3 -->
+    <div class="section-container">
+        <h3>Section 3: Database Health & Performance</h3>
+
+        <h4>Full Table Scan Queries</h4>
+        <div id="fts-container"></div>
+
+        <h4>Top Fragmented Tables</h4>
+        <div id="fragmentation-container"></div>
+
+        <h4>Unused Indexes</h4>
+        <div id="unused-indexes-container"></div>
+    </div>
+
+    <script>
+        // Paste your JSON data here
+        const reportData = {
+            "csql-mysql-db": {
+                "provisioned_specs": {
+                    "Engine": "MYSQL 8 4",
+                    "Edition": "ENTERPRISE",
+                    "CPU": "1",
+                    "Memory": "3.75 GB",
+                    "Storage": "10 GB SSD",
+                    "Availability": "Zonal",
+                    "Read Replica count": 0,
+                    "Last Backup time": "2026-09-07T04:00:00Z"
+                },
+                "resource_utilization": {
+                    "cpu_utilization": { "mean": 8.17, "max": 8.17, "p95": 8.54, "p99": 8.55 },
+                    "memory_utilization": { "mean": 41.3, "max": 41.3, "p95": 42.71, "p99": 42.79 },
+                    "disk_utilization": { "mean": 12.6, "max": 12.6, "p95": 12.61, "p99": 12.64 },
+                    "disk_read_ops": { "mean": 5910.0, "max": 5910.0, "p95": 6076.36, "p99": 6087.96 },
+                    "disk_write_ops": { "mean": 584066.0, "max": 584066.0, "p95": 596262.49, "p99": 597400.94 },
+                    "disk_bytes_used": { "mean": 1318483301.0, "max": 1318483301.0, "p95": 374507255.5, "p99": 374507255.5 },
+                    "connections": { "mean": 8.0, "max": 8.0, "p95": 8.38, "p99": 8.39 },
+                    "queries": { "mean": 404389.0, "max": 404389.0, "p95": 403573.93, "p99": 404344.47 }
+                },
+                "health_checks": {
+                    "performance": {
+                        "full_table_scans": [
+                            {
+                                "database_name": "health_check_test",
+                                "query_pattern": "SHOW SCHEMAS",
+                                "total_executions": 2,
+                                "total_latency_sec": "0.00",
+                                "avg_latency_ms": "0.81",
+                                "full_table_scans": 2,
+                                "bad_index_scans": 0,
+                                "full_scan_pct": "100.00",
+                                "FIRST_SEEN": "2026-09-07 20:48:00.723261",
+                                "LAST_SEEN": "2026-09-07 20:50:59.885156"
+                            }
+                        ]
+                    },
+                    "indexes": {
+                        "unused_indexes": [
+                            { "database_name": "sbtest", "table_name": "sbtest1", "index_name": "k_1", "index_size_mb": "1.52" },
+                            { "database_name": "sbtest", "table_name": "sbtest3", "index_name": "k_3", "index_size_mb": "1.42" }
+                        ]
+                    },
+                    "storage_and_system": {
+                        "table_fragmentation_status": [
+                            { "database_name": "sbtest", "TABLE_NAME": "sbtest1", "data_size_mb": "21.27", "index_size_mb": "1.52", "fragmented_free_space_mb": "4.00", "fragmentation_pct": "14.94" },
+                            { "database_name": "sbtest", "TABLE_NAME": "sbtest2", "data_size_mb": "21.27", "index_size_mb": "1.41", "fragmented_free_space_mb": "4.00", "fragmentation_pct": "15.00" }
+                        ]
+                    }
+                }
+            },
+            "csql-psql-db": {
+                "provisioned_specs": {
+                    "Engine": "POSTGRES 18",
+                    "Edition": "ENTERPRISE",
+                    "CPU": "1",
+                    "Memory": "3.75 GB",
+                    "Storage": "109 GB SSD",
+                    "Availability": "Zonal",
+                    "Read Replica count": 0,
+                    "Last Backup time": "2026-09-07T21:00:00Z"
+                },
+                "resource_utilization": {
+                    "cpu_utilization": { "mean": 9.97, "max": 9.97, "p95": 10.38, "p99": 10.4 },
+                    "memory_utilization": { "mean": 28.0, "max": 28.0, "p95": 28.91, "p99": 28.96 },
+                    "disk_utilization": { "mean": 0.36, "max": 0.36, "p95": 0.95, "p99": 0.99 },
+                    "disk_read_ops": { "mean": 2164.0, "max": 2164.0, "p95": 2181.06, "p99": 2185.23 },
+                    "disk_write_ops": { "mean": 19953.0, "max": 19953.0, "p95": 20576.71, "p99": 20615.99 },
+                    "disk_bytes_used": { "mean": 417475584.0, "max": 417475584.0, "p95": 374507255.5, "p99": 374507255.5 },
+                    "connections": { "mean": null, "max": null, "p95": null, "p99": null },
+                    "queries": { "mean": null, "max": null, "p95": null, "p99": null }
+                },
+                "health_checks": {
+                    "performance": {
+                        "full_table_scans": [
+                            {
+                                "schema_name": "public",
+                                "table_name": "stress_test",
+                                "total_seq_scans": 20,
+                                "total_tuples_read": 330000,
+                                "total_idx_scans": 4,
+                                "seq_scan_pct": "83.33"
+                            }
+                        ]
+                    },
+                    "indexes": {
+                        "unused_indexes": [
+                            { "schema_name": "public", "table_name": "stress_test", "index_name": "idx_stress_status", "index_size_mb": "0.49", "total_scans": 0 }
+                        ]
+                    },
+                    "storage_and_system": {
+                        "table_fragmentation_status": [
+                            { "schema_name": "public", "table_name": "stress_test", "table_size_mb": "29.76", "live_rows": 30000, "dead_rows": 4, "dead_tuple_pct_bloat": "0.01" }
+                        ]
+                    }
+                }
+            }
+        };
+
+        const instanceSelect = document.getElementById("instance-select");
+
+        // Helper to handle Nulls
+        const fmt = (val) => val === null || val === undefined ? "N/A" : val;
+
+        // Initialize Dropdown
+        Object.keys(reportData).forEach(instance => {
+            const option = document.createElement("option");
+            option.value = instance;
+            option.textContent = instance;
+            instanceSelect.appendChild(option);
+        });
+
+        // Event Listener for Dropdown Change
+        instanceSelect.addEventListener("change", (e) => {
+            renderDashboard(e.target.value);
+        });
+
+        // Generic Table Builder Function
+        function buildDynamicTable(dataArray, containerId, emptyMessage) {
+            const container = document.getElementById(containerId);
+            container.innerHTML = ""; // Clear existing
+
+            if (!dataArray || dataArray.length === 0) {
+                container.innerHTML = `<p><em>${emptyMessage}</em></p>`;
+                return;
+            }
+
+            const table = document.createElement("table");
+            const thead = document.createElement("thead");
+            const tbody = document.createElement("tbody");
+
+            // Build headers based on the keys of the first object
+            const headers = Object.keys(dataArray[0]);
+            const trHead = document.createElement("tr");
+            headers.forEach(header => {
+                const th = document.createElement("th");
+                th.textContent = header.replace(/_/g, " ").toUpperCase();
+                trHead.appendChild(th);
+            });
+            thead.appendChild(trHead);
+
+            // Build rows
+            dataArray.forEach(row => {
+                const tr = document.createElement("tr");
+                headers.forEach(header => {
+                    const td = document.createElement("td");
+                    td.textContent = fmt(row[header]);
+                    tr.appendChild(td);
+                });
+                tbody.appendChild(tr);
+            });
+
+            table.appendChild(thead);
+            table.appendChild(tbody);
+            container.appendChild(table);
+        }
+
+        function renderDashboard(instanceName) {
+            const data = reportData[instanceName];
+
+            // 1. Populate Provisioned Specs
+            const specs = data.provisioned_specs;
+            const specsBody = document.getElementById("specs-body");
+            specsBody.innerHTML = `
+                <tr>
+                    <td>${fmt(specs.Engine)}</td>
+                    <td>${fmt(specs.Edition)}</td>
+                    <td>${fmt(specs.CPU)}</td>
+                    <td>${fmt(specs.Memory)}</td>
+                    <td>${fmt(specs.Storage)}</td>
+                    <td>${fmt(specs.Availability)}</td>
+                    <td>${fmt(specs["Read Replica count"])}</td>
+                    <td>${fmt(specs["Last Backup time"])}</td>
+                </tr>
+            `;
+
+            // 2. Populate Resource Utilization
+            const res = data.resource_utilization;
+            const resBody = document.getElementById("monitoring-body");
+            const metricsToMap = [
+                { title: "CPU Utilization (%)", key: "cpu_utilization" },
+                { title: "Memory Utilization (%)", key: "memory_utilization" },
+                { title: "Disk Read IO Ops", key: "disk_read_ops" },
+                { title: "Disk Write IO Ops", key: "disk_write_ops" },
+                { title: "Connections", key: "connections" },
+                { title: "Disk Utilization (%)", key: "disk_utilization" },
+                { title: "Disk Bytes Used / Throughput", key: "disk_bytes_used" }
+            ];
+
+            resBody.innerHTML = "";
+            metricsToMap.forEach(metric => {
+                const metricData = res[metric.key];
+                if(metricData) {
+                    resBody.innerHTML += `
+                        <tr>
+                            <td><strong>${metric.title}</strong></td>
+                            <td>${fmt(metricData.mean)}</td>
+                            <td>${fmt(metricData.p95)}</td>
+                            <td>${fmt(metricData.p99)}</td>
+                            <td>${fmt(metricData.max)}</td>
+                        </tr>
+                    `;
+                }
+            });
+
+            // 3. Database Health Section (Dynamic schema handling)
+            const health = data.health_checks;
+            
+            // Full Table Scans
+            const ftsData = health.performance?.full_table_scans || [];
+            buildDynamicTable(ftsData, "fts-container", "No full table scans detected.");
+
+            // Table Fragmentation (Sort by fragmentation/bloat percent if applicable)
+            let fragData = health.storage_and_system?.table_fragmentation_status || [];
+            buildDynamicTable(fragData, "fragmentation-container", "No fragmentation data available.");
+
+            // Unused Indexes
+            const idxData = health.indexes?.unused_indexes || [];
+            buildDynamicTable(idxData, "unused-indexes-container", "No unused indexes detected.");
+        }
+
+        // Initial render for the first instance
+        if (Object.keys(reportData).length > 0) {
+            renderDashboard(Object.keys(reportData)[0]);
+        }
+    </script>
+</body>
+</html>
