@@ -264,9 +264,9 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
             raw_p95 = extract_typed_value(point.values[1])
             raw_p99 = extract_typed_value(point.values[2])
             
-            result["mean"] = round(scale_value(raw_mean), 2)
-            result["p95"] = round(scale_value(raw_p95), 2)
-            result["p99"] = round(scale_value(raw_p99), 2)
+            result["Mean"] = round(scale_value(raw_mean), 2)
+            result["P95"] = round(scale_value(raw_p95), 2)
+            result["P99"] = round(scale_value(raw_p99), 2)
     except Exception as e:
         print(f"      [!] Aggregated metric query failed for '{metric_key}': {e}")
 

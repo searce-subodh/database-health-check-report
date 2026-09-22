@@ -51,6 +51,10 @@ def build_paginated_table(rows, table_id):
     if not rows or not isinstance(rows, list):
         return '<p class="no-issues">No issues or records flagged.</p>'
 
+    # If query failed — show empty table with no rows
+    if len(rows) > 0 and isinstance(rows[0], dict) and "error" in rows[0]:
+        return '<table><thead><tr><th>No Data Available</th></tr></thead><tbody></tbody></table>'
+
     headers = list(rows[0].keys())
     html  = f'<div class="table-wrapper" id="wrapper-{table_id}">'
     html += f'<table id="tbl-{table_id}"><thead><tr>'
@@ -336,9 +340,9 @@ for instance, data in report_data.items():
                 clean_category = format_clean_title(category)
                 html_content += f'''
                 <div class="category-title" onclick="toggleCategory(this)">
-                    <span>{clean_category}</span><span>&#9660;</span>
+                    <span>{clean_category}</span><span>&#9654;</span>
                 </div>
-                <div class="category-content">'''
+                <div class="category-content hidden">'''
 
                 for metric_name, rows in queries.items():
                     table_counter[0] += 1
@@ -346,12 +350,12 @@ for instance, data in report_data.items():
                     clean_metric = format_clean_title(metric_name)
                     html_content += f'<div class="metric-title">{clean_metric}</div>'
 
-                    if isinstance(rows, list):
+                    if isinstance(rows, list) and len(rows) > 0 and isinstance(rows[0], dict) and "error" in rows[0]:
+                        html_content += '<table><thead><tr><th>No Data Available</th></tr></thead><tbody></tbody></table>'
+                    elif isinstance(rows, list):
                         html_content += build_paginated_table(rows, tid)
                     elif isinstance(rows, dict) and "error" in rows:
-                        html_content += f'<div class="error-box"><strong>Query Failed:</strong><br>{rows["error"]}</div>'
-                    elif isinstance(rows, list) and len(rows) > 0 and isinstance(rows[0], dict) and "status" in rows[0]:
-                        html_content += f'<div class="error-box"><strong>Query Failed:</strong><br>{rows[0].get("error","")}</div>'
+                        html_content += '<table><thead><tr><th>No Data Available</th></tr></thead><tbody></tbody></table>'
 
                 html_content += '</div>'  # close category-content
 
@@ -374,9 +378,9 @@ for instance, data in report_data.items():
                 clean_category = format_clean_title(category)
                 html_content += f'''
                 <div class="category-title" onclick="toggleCategory(this)">
-                    <span>{clean_category}</span><span>&#9660;</span>
+                    <span>{clean_category}</span><span>&#9654;</span>
                 </div>
-                <div class="category-content">'''
+                <div class="category-content hidden">'''
 
                 for metric_name in metrics:
                     table_counter[0] += 1
@@ -385,7 +389,6 @@ for instance, data in report_data.items():
                     rows         = merge_db_results(health_checks, category, metric_name)
                     html_content += f'<div class="metric-title">{clean_metric}</div>'
                     html_content += build_paginated_table(rows, tid)
-
                 html_content += '</div>'  # close category-content
 
     html_content += '</div>'  # close instance-block
@@ -463,4 +466,4 @@ output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Database
 with open(output_path, "w") as f:
     f.write(html_content)
 
-print(f"[OK] Report saved to: {output_path}")
+print(f"✅ Report saved to: {output_path}")
