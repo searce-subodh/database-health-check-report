@@ -1,6 +1,14 @@
 from datetime import datetime
 import json
 import os
+import re
+
+# Load raw SQL queries for extracting header column names on failed queries
+try:
+    with open("queries.json", "r") as f:
+        queries_definitions = json.load(f)
+except Exception:
+    queries_definitions = {}
 
 with open("database_health_report.json", "r") as f:
     report_data = json.load(f)
@@ -47,14 +55,51 @@ def format_clean_title(key):
         .replace("Db",  "DB"))
 
 
-def build_paginated_table(rows, table_id):
+def get_sql_headers(sql_query):
+    """Extracts column header names/aliases from raw SQL string."""
+    try:
+        select_part = sql_query.split(" FROM ")[0].split(" from ")[0]
+        select_part = re.sub(r'(?i)^SELECT\s+', '', select_part)
+        columns = select_part.split(',')
+        headers = []
+        for col in columns:
+            col = col.strip()
+            if ' AS ' in col.upper():
+                alias = re.split(r'\s+AS\s+', col, flags=re.IGNORECASE)[-1]
+                alias = alias.strip(" `\"'")
+                headers.append(alias)
+            else:
+                col_name = col.split('.')[-1].strip(" `\"'")
+                headers.append(col_name)
+        return headers if headers else ["Metric Data"]
+    except Exception:
+        return ["Metric Data"]
+
+
+def build_paginated_table(rows, table_id, sql_query=""):
     if not rows or not isinstance(rows, list):
         return '<p class="no-issues">No issues or records flagged.</p>'
 
-    # If query failed — show empty table with no rows
-    if len(rows) > 0 and isinstance(rows[0], dict) and "error" in rows[0]:
-        return '<table><thead><tr><th>No Data Available</th></tr></thead><tbody></tbody></table>'
+    # ── CASE 1: 0 Records Returned (Handled in UI) ──
+    if len(rows) == 1 and isinstance(rows[0], dict):
+        first_row = rows[0]
+        if first_row.get("message") == "0 records returned":
+            return '<p class="no-issues">No issues or records flagged.</p>'
 
+    # ── CASE 2: Query Failed / Permission Error (Show Column Headers Only) ──
+    if len(rows) > 0 and isinstance(rows[0], dict):
+        first_row = rows[0]
+        if "error" in first_row or first_row.get("status") == "ERROR" or "Result unavailable" in str(first_row.get("message")):
+            headers = get_sql_headers(sql_query) if sql_query else ["Metric Data"]
+            html  = f'<div class="table-wrapper" id="wrapper-{table_id}">'
+            html += f'<table id="tbl-{table_id}"><thead><tr>'
+            html += "".join([f"<th>{h}</th>" for h in headers])
+            html += "</tr></thead><tbody>"
+            html += "<!-- Empty body due to execution failure or missing permissions -->"
+            html += "</tbody></table></div>"
+            return html
+
+    # ── CASE 3: Normal Data Table Rendering ──
     headers = list(rows[0].keys())
     html  = f'<div class="table-wrapper" id="wrapper-{table_id}">'
     html += f'<table id="tbl-{table_id}"><thead><tr>'
@@ -212,7 +257,7 @@ html_content = f"""<!DOCTYPE html>
         tr:nth-child(even) td {{ background: #f8fafc; }}
         tr.row-critical td {{ background: #fee2e2 !important; }}
         tr.row-warning  td {{ background: #fef9c3 !important; }}
-        tr:hover        td {{ background: #eff6ff !important; }}
+        tr:hover         td {{ background: #eff6ff !important; }}
 
         /* ── PAGINATION ── */
         .pagination {{
@@ -230,7 +275,7 @@ html_content = f"""<!DOCTYPE html>
 
         .alert-badge {{ font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
         .warn-badge  {{ font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }}
-        .no-issues   {{ color: #16a34a; font-style: italic; font-size: 0.9em; padding: 6px 0; }}
+        .no-issues   {{ color: #16a34a; font-style: italic; font-weight: 500; font-size: 0.95em; padding: 6px 0 12px 0; margin: 0; }}
         .error-box   {{ color: #7f1d1d; background: #fee2e2; border-left: 4px solid #b91c1c; padding: 12px 16px; border-radius: 4px; font-size: 0.88em; margin: 8px 0; }}
         .hidden      {{ display: none !important; }}
     </style>
@@ -263,7 +308,6 @@ html_content = f"""<!DOCTYPE html>
 
 table_counter = [0]
 
-# Rename map for provisioned specs display
 SPEC_RENAME = {
     "Read Replica count": "Replicas",
     "Last Backup time":   "Last Backup",
@@ -280,7 +324,7 @@ for instance, data in report_data.items():
     html_content += f'<div class="instance-title">Server: {instance} <small style="font-weight:400;font-size:0.8em;color:#64748b;">({db_type_label})</small></div>'
     html_content += '<div class="section-card">'
 
-    # ── Provisioned Specs — dynamic single row ──
+    # ── Provisioned Specs ──
     if specs and "Error" not in specs:
         html_content += '<div class="section-title">Provisioned Specifications</div>'
         html_content += '<div class="specs-grid">'
@@ -324,16 +368,13 @@ for instance, data in report_data.items():
         html_content += f'<div class="error-box"><strong>Error:</strong><br>{health_checks["error"]}</div>'
     elif isinstance(health_checks, dict):
 
-        # Detect structure:
-        # FLAT: health_checks = {category: {metric: [rows]}}
-        # NESTED: health_checks = {db_name: {category: {metric: [rows]}}}
         first_val = next(iter(health_checks.values()), {})
         is_flat = isinstance(first_val, dict) and any(
             isinstance(v, list) for v in first_val.values()
         )
 
         if is_flat:
-            # Flat structure — friend's script output
+            # Flat structure
             for category, queries in health_checks.items():
                 if not isinstance(queries, dict):
                     continue
@@ -350,17 +391,13 @@ for instance, data in report_data.items():
                     clean_metric = format_clean_title(metric_name)
                     html_content += f'<div class="metric-title">{clean_metric}</div>'
 
-                    if isinstance(rows, list) and len(rows) > 0 and isinstance(rows[0], dict) and "error" in rows[0]:
-                        html_content += '<table><thead><tr><th>No Data Available</th></tr></thead><tbody></tbody></table>'
-                    elif isinstance(rows, list):
-                        html_content += build_paginated_table(rows, tid)
-                    elif isinstance(rows, dict) and "error" in rows:
-                        html_content += '<table><thead><tr><th>No Data Available</th></tr></thead><tbody></tbody></table>'
+                    sql_query = queries_definitions.get(db_type_label.lower(), {}).get(category, {}).get(metric_name, "")
+                    html_content += build_paginated_table(rows, tid, sql_query=sql_query)
 
                 html_content += '</div>'  # close category-content
 
         else:
-            # Nested structure — our multi-db output
+            # Nested structure
             all_categories = {}
             for db_name, categories in health_checks.items():
                 if not isinstance(categories, dict):
@@ -388,7 +425,9 @@ for instance, data in report_data.items():
                     clean_metric = format_clean_title(metric_name)
                     rows         = merge_db_results(health_checks, category, metric_name)
                     html_content += f'<div class="metric-title">{clean_metric}</div>'
-                    html_content += build_paginated_table(rows, tid)
+
+                    sql_query = queries_definitions.get(db_type_label.lower(), {}).get(category, {}).get(metric_name, "")
+                    html_content += build_paginated_table(rows, tid, sql_query=sql_query)
                 html_content += '</div>'  # close category-content
 
     html_content += '</div>'  # close instance-block
@@ -430,7 +469,7 @@ function filterByServer() {{
     const srv  = serverSel.value;
     document.querySelectorAll('.instance-block').forEach(block => {{
         const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
-        const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
+        const srvMatch  = srv   === 'ALL' || block.dataset.server === srv;
         block.classList.toggle('hidden', !(typeMatch && srvMatch));
     }});
 }}
