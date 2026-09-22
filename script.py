@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta, timezone
 import json
 import re
-import csv
 import os
+import yaml
 import sqlalchemy
 from google.cloud import monitoring_v3
 from google.cloud.sql.connector import Connector, IPTypes
@@ -10,6 +10,7 @@ from googleapiclient import discovery
 import pg8000
 import pymysql
 import pymysql.cursors
+
 # ─────────────────────────────────────────────
 # TIGHTLY BOUND INTERNAL QUERIES
 # ─────────────────────────────────────────────
@@ -36,7 +37,7 @@ TIER_MAP = {
 # CLOUD MONITORING METRIC GROUPS
 # ─────────────────────────────────────────────
 
-# Metrics common to all Cloud SQL instances (MySQL & PostgreSQL)
+# Metrics common to all Cloud SQL instances
 COMMON_METRICS = {
     "cpu_utilization": "cloudsql.googleapis.com/database/cpu/utilization",
     "memory_utilization": "cloudsql.googleapis.com/database/memory/utilization",
@@ -46,7 +47,6 @@ COMMON_METRICS = {
     "disk_bytes_used": "cloudsql.googleapis.com/database/disk/bytes_used",
 }
 
-# Engine-specific metrics
 MYSQL_METRICS = {
     "connections": "cloudsql.googleapis.com/database/network/connections",
 }
@@ -55,15 +55,18 @@ POSTGRES_METRICS = {
     "connections": "cloudsql.googleapis.com/database/postgresql/num_backends",
 }
 
-
-def get_metrics_for_engine(db_type: str) -> dict:
-    metrics = COMMON_METRICS.copy()
-    if db_type == "mysql":
-        metrics.update(MYSQL_METRICS)
-    elif db_type == "postgres":
-        metrics.update(POSTGRES_METRICS)
+def get_metrics_for_engine(db_type: str, requested_metrics: list) -> dict:
+    """Returns the GCP metric paths for only the metrics requested in the YAML config."""
+    metrics = {}
+    for metric in requested_metrics:
+        if metric in COMMON_METRICS:
+            metrics[metric] = COMMON_METRICS[metric]
+        elif metric == "connections":
+            if db_type == "mysql":
+                metrics[metric] = MYSQL_METRICS["connections"]
+            elif db_type == "postgres":
+                metrics[metric] = POSTGRES_METRICS["connections"]
     return metrics
-
 
 # ─────────────────────────────────────────────
 # HELPER: FORMAT UPTIME
@@ -87,11 +90,9 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
         elif db_type_lower == "postgres":
             start_time = row.get("start_time")
             if start_time:
-                # Handle string timestamps
                 if isinstance(start_time, str):
                     start_time = datetime.fromisoformat(start_time.replace("Z", "+00:00"))
                 
-                # Compare against current timezone-aware UTC time
                 if getattr(start_time, "tzinfo", None):
                     now = datetime.now(timezone.utc)
                 else:
@@ -99,7 +100,6 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
                     
                 uptime_seconds = (now - start_time).total_seconds()
                 
-        # Convert validated seconds into readable output
         if uptime_seconds is not None and uptime_seconds >= 0:
             days = int(uptime_seconds // 86400)
             hours = int((uptime_seconds % 86400) // 3600)
@@ -122,7 +122,6 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
 
     return "N/A"
 
-
 # ─────────────────────────────────────────────
 # PARSE CPU/MEMORY FROM TIER STRING
 # ─────────────────────────────────────────────
@@ -139,11 +138,9 @@ def parse_compute_specs(tier: str) -> tuple:
     suffix_match = re.search(r"-(\d+)$", tier)
     return (suffix_match.group(1), "N/A") if suffix_match else ("N/A", "N/A")
 
-
 # ─────────────────────────────────────────────
 # FORMAT TIMESTAMP TO HUMAN READABLE
 # ─────────────────────────────────────────────
-
 
 def format_timestamp(ts: str) -> str:
     if not ts or ts == "No backups found":
@@ -154,11 +151,9 @@ def format_timestamp(ts: str) -> str:
     except Exception:
         return ts
 
-
 # ─────────────────────────────────────────────
 # FETCH INSTANCE DETAILS FROM CLOUD SQL ADMIN API
 # ─────────────────────────────────────────────
-
 
 def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
     try:
@@ -191,7 +186,6 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
     connection_name = inst.get("connectionName")
     region = inst.get("region")
 
-    # Extract IP address (Prefer PRIVATE IP, fallback to PRIMARY/Public)
     ip_addresses = inst.get("ipAddresses", [])
     host = ""
     for ip in ip_addresses:
@@ -201,7 +195,6 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
     if not host and ip_addresses:
         host = ip_addresses[0].get("ipAddress")
 
-    # Define port based on engine
     port = 5432 if db_type == "postgres" else 3306 if db_type == "mysql" else 1433
 
     last_backup_time = "No backups found"
@@ -232,11 +225,9 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
 
     return specs, connection_name, db_type, region, host, port
 
-
 # ─────────────────────────────────────────────
 # FETCH MONITORING METRICS (P95/P99/MEAN/MAX)
 # ─────────────────────────────────────────────
-
 
 def extract_typed_value(typed_value):
     val_type = typed_value._pb.WhichOneof("value")
@@ -251,7 +242,6 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     metric_suffix = metric_type.split("/")[-1]
     value_col = f"value.{metric_suffix}"
 
-    # Query 1 — Mean, P95, P99
     mql_aggregated = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
@@ -265,7 +255,6 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     | every 24h
     """
 
-    # Query 2 — True max via per-minute points
     mql_max = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
@@ -311,17 +300,13 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
         if true_max is not None:
             result["max"] = round(true_max, 2)
     except Exception as e:
-        # Replaced silent pass with explicit error logging
         print(f"      [!] Max metric query failed for '{metric_key}': {e}")
 
     return result
 
-
-
 # ─────────────────────────────────────────────
 # IAM AUTH ENGINE (service account based)
 # ─────────────────────────────────────────────
-
 
 def get_iam_engine(target, connector):
     db_type = target.get("db_type").lower()
@@ -349,11 +334,9 @@ def get_iam_engine(target, connector):
 
     return sqlalchemy.create_engine(dialect, creator=_getconn, pool_pre_ping=True)
 
-
 # ─────────────────────────────────────────────
 # NATIVE ENGINE (direct host/port connection)
 # ─────────────────────────────────────────────
-
 
 def get_native_engine(target):
     db_type = target.get("db_type", "").lower()
@@ -372,7 +355,6 @@ def get_native_engine(target):
 
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 
-
 # ─────────────────────────────────────────────
 # QUERY RUNNER
 # ─────────────────────────────────────────────
@@ -385,7 +367,6 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
     db_internal_queries = internal_queries.get(db_type, {})
 
     with engine.connect() as conn:
-        # 1. Execute Dynamic Checks from queries.json
         for category, category_queries in db_user_queries.items():
             health_checks[category] = {}
             for key, sql in category_queries.items():
@@ -398,22 +379,16 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
                         if result.returns_rows:
                             rows = result.fetchall()
                             if rows:
-                                # Successfully returned data
                                 health_checks[category][key] = [dict(row._mapping) for row in rows]
                             else:
-                                # Successfully executed but returned 0 rows
                                 health_checks[category][key] = [{"message": "0 records returned"}]
                         else:
-                            # Executed successfully, but query type does not return rows (e.g., DML)
                             health_checks[category][key] = [{"message": "Query executed successfully (no rows expected)"}]
                             
                 except Exception as e:
-                    # Print full error to console for debugging
                     print(f"    [!] Query failed [{category} -> {key}]: {e}")
-                    # Keep JSON clean with a placeholder value
                     health_checks[category][key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
 
-        # 2. Execute Hardcoded Internal Queries within the same connection block
         for key, sql in db_internal_queries.items():
             try:
                 with conn.begin_nested():
@@ -438,7 +413,6 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
 # MAIN
 # ─────────────────────────────────────────────
 
-
 def main():
     print("[START] Initializing Cloud SQL Health Check Script...")
     
@@ -447,6 +421,25 @@ def main():
         print(" -> Successfully loaded 'queries.json'")
     except FileNotFoundError:
         print(" [!] Error: 'queries.json' not found. Exiting.")
+        return
+
+    # Load from YAML instead of CSV
+    try:
+        with open("config.yaml", "r", encoding="utf-8") as yaml_file:
+            config_data = yaml.safe_load(yaml_file)
+            print(" -> Successfully loaded 'config.yaml'")
+    except FileNotFoundError:
+        print("\n[!] Error: 'config.yaml' not found. Exiting.")
+        return
+    except yaml.YAMLError as exc:
+        print(f"\n[!] Error parsing 'config.yaml': {exc}")
+        return
+
+    requested_metrics = config_data.get("monitoring_metrics", [])
+    instances = config_data.get("instances", [])
+
+    if not instances:
+        print(" [!] No instances found in config.yaml. Exiting.")
         return
 
     print(" -> Building Google Cloud APIs (SQL Admin & Monitoring)...")
@@ -462,108 +455,101 @@ def main():
     }
 
     with Connector(refresh_strategy="LAZY") as connector:
-        try:
-            with open("config.csv", newline="", encoding="utf-8") as csvfile:
-                reader = csv.DictReader(csvfile)
-                
-                print(" -> Reading 'config.csv' for instances to process...")
-                
-                for row in reader:
-                    project_id = row.get("project_id", "").strip()
-                    instance_name = row.get("instance_name", "").strip()
-                    db_user = row.get("db_user", "").strip()
-                    db_pass = row.get("db_pass", "").strip()
-                    auth_type = row.get("auth_type", "native").strip().lower()
+        print(" -> Processing instances from 'config.yaml'...")
+        
+        for row in instances:
+            project_id = row.get("project_id", "").strip()
+            instance_name = row.get("instance_name", "").strip()
+            db_user = row.get("db_user", "").strip()
+            db_pass = row.get("db_pass", "")
+            if isinstance(db_pass, str):
+                db_pass = db_pass.strip()
+            auth_type = row.get("auth_type", "native").strip().lower()
 
-                    if not project_id or not instance_name:
-                        continue
+            if not project_id or not instance_name:
+                continue
 
-                    print(f"\n[PROCESSING] Instance: {instance_name} (Project: {project_id})")
+            print(f"\n[PROCESSING] Instance: {instance_name} (Project: {project_id})")
 
-                    report[instance_name] = {
-                        "report_window": report_window,
-                        "provisioned_specs": {},
-                        "resource_utilization": {},
-                        "health_checks": {},
-                    }
+            report[instance_name] = {
+                "report_window": report_window,
+                "provisioned_specs": {},
+                "resource_utilization": {},
+                "health_checks": {},
+            }
 
-                    # Step 1 — Instance specs
-                    print("   -> Fetching instance hardware and configuration details...")
-                    specs, connection_name, db_type, region, host, port = (
-                        get_instance_details(sqladmin, project_id, instance_name)
+            # Step 1 — Instance specs
+            print("   -> Fetching instance hardware and configuration details...")
+            specs, connection_name, db_type, region, host, port = (
+                get_instance_details(sqladmin, project_id, instance_name)
+            )
+            
+            if isinstance(specs, dict) and "Error" in specs:
+                report[instance_name]["provisioned_specs"] = specs
+                print(f"   [!] Skipping {instance_name}: Could not fetch instance details.")
+                continue
+
+            report[instance_name]["provisioned_specs"] = specs
+
+            if not connection_name:
+                print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
+                continue
+            
+            print(f"   -> Engine identified as: {db_type.upper()}")
+
+            # Step 2 — Fetch Configured Engine-Specific Monitoring metrics
+            print("   -> Fetching requested Cloud Monitoring metrics (24h window)...")
+            engine_metrics = get_metrics_for_engine(db_type, requested_metrics)
+            
+            if not engine_metrics:
+                print("   [!] No valid monitoring metrics were found in 'config.yaml' for this engine.")
+            else:
+                for m_key, m_type in engine_metrics.items():
+                    report[instance_name]["resource_utilization"][m_key] = (
+                        fetch_mql_metric(
+                            mon_client, project_id, instance_name, m_key, m_type
+                        )
                     )
-                    
-                    if isinstance(specs, dict) and "Error" in specs:
-                        report[instance_name]["provisioned_specs"] = specs
-                        print(f"   [!] Skipping {instance_name}: Could not fetch instance details.")
-                        continue
 
-                    report[instance_name]["provisioned_specs"] = specs
+            # Step 3 — Run health check queries
+            print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
+            try:
+                if auth_type == "iam":
+                    engine = get_iam_engine(
+                        {
+                            "project_id": project_id,
+                            "region": region,
+                            "instance": instance_name,
+                            "user": db_user,
+                            "database": "mysql" if db_type == "mysql" else "postgres",
+                            "db_type": db_type,
+                        },
+                        connector,
+                    )
+                else:
+                    engine = get_native_engine({
+                        "db_type": db_type,
+                        "user": db_user,
+                        "password": db_pass,
+                        "host": host,
+                        "port": port,
+                        "database": "mysql" if db_type == "mysql" else "postgres",
+                    })
+                print("  Executing Database Audits & Internal Queries...")
+                
+                health_checks, internal_results = run_queries(
+                    engine, db_type, all_queries, INTERNAL_QUERIES
+                )
+                
+                report[instance_name]["health_checks"] = health_checks
+                report[instance_name]["provisioned_specs"]["Uptime"] = format_uptime(
+                    internal_results.get("uptime"), db_type
+                )
+                print(f"   -> Successfully executed health check queries for {instance_name}.")
 
-                    if not connection_name:
-                        print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
-                        continue
-                    report[instance_name]["provisioned_specs"] = specs
-                    print(f"   -> Engine identified as: {db_type.upper()}")
-
-                    # Step 2 — Fetch Engine-Specific Monitoring metrics
-                    print("   -> Fetching Cloud Monitoring metrics (24h window)...")
-                    engine_metrics = get_metrics_for_engine(db_type)
-                    for m_key, m_type in engine_metrics.items():
-                        report[instance_name]["resource_utilization"][m_key] = (
-                            fetch_mql_metric(
-                                mon_client, project_id, instance_name, m_key, m_type
-                            )
-                        )
-
-                    # Step 3 — Run health check queries
-                    print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
-                    try:
-                        auth_type = row.get("auth_type", "native").strip().lower()
-                        
-                        # Target Database defaults to "postgres" for Postgres engines, else "mysql"
-                        target_database = "postgres" if db_type == "postgres" else "mysql"
-                        
-                        if auth_type == "iam":
-                            engine = get_iam_engine(
-                                {
-                                    "project_id": project_id,
-                                    "region": region,
-                                    "instance": instance_name,
-                                    "user": db_user,
-                                    "database": "mysql" if db_type == "mysql" else "postgres",
-                                    "db_type": db_type,
-                                },
-                                connector,
-                            )
-                        else:
-                            engine = get_native_engine({
-                                "db_type": db_type,
-                                "user": db_user,
-                                "password": db_pass,
-                                "host": host,
-                                "port": port,
-                                "database": "mysql" if db_type == "mysql" else "postgres",
-                            })
-                        print("  Executing Database Audits & Internal Queries...")
-                        # Unpack tuple returned by unified query runner
-                        health_checks, internal_results = run_queries(
-                            engine, db_type, all_queries, INTERNAL_QUERIES
-                        )
-                        # Format and assign tightly-bound results
-                        report[instance_name]["health_checks"] = health_checks
-                        report[instance_name]["provisioned_specs"]["Uptime"] = format_uptime(
-                            internal_results.get("uptime"), db_type
-                        )
-                        print(f"   -> Successfully executed health check queries for {instance_name}.")
-
-                    except Exception as e:
-                        print(f"   [!] Connection/Query execution failed: {e}")
-                        report[instance_name]["health_checks"] = {"error": str(e)}
-
-        except FileNotFoundError:
-             print("\n[!] Error: 'config.csv' not found. Exiting.")
-             return
+            except Exception as e:
+                print(f"   [!] Connection/Query execution failed: {e}")
+                report[instance_name]["health_checks"] = {"error": str(e)}
 
     # Final Save
     print("\n[FINISHING] Compiling and saving final report...")
@@ -571,7 +557,6 @@ def main():
         json.dump(report, f, indent=4, default=str)
 
     print("[DONE] Report successfully saved to 'database_health_report.json'.\n")
-
 
 if __name__ == "__main__":
     main()

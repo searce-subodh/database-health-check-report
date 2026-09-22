@@ -1,0 +1,21 @@
+monitoring_metrics:
+  - cpu_utilization
+  - memory_utilization
+  - disk_utilization
+  - disk_read_ops
+  - disk_write_ops
+  - disk_bytes_used
+  - connections
+
+instances:
+  - project_id: "data-analyst-504209"
+    instance_name: "csql-mysql-db"
+    db_user: "318822345557-compute"
+    db_pass: ""
+    auth_type: "iam"
+  - project_id: "data-analyst-504209"
+    instance_name: "csql-psql-db"
+    db_user: "318822345557-compute@developer"
+    db_pass: ""
+    auth_type: "iam"
+
