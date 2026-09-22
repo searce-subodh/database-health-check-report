@@ -90,7 +90,7 @@ def build_paginated_table(rows, table_id, sql_query=""):
     if len(rows) > 0 and isinstance(rows[0], dict):
         first_row = rows[0]
         if "error" in first_row or first_row.get("status") == "ERROR" or "Result unavailable" in str(first_row.get("message")):
-            headers = get_sql_headers(sql_query) if sql_query else ["Metric Data"]
+            headers = get_sql_headers(sql_query) if sql_query else [""]
             html  = f'<div class="table-wrapper" id="wrapper-{table_id}">'
             html += f'<table id="tbl-{table_id}"><thead><tr>'
             html += "".join([f"<th>{h}</th>" for h in headers])
