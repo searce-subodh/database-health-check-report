@@ -54,17 +54,6 @@ POSTGRES_METRICS = {
     "connections": "cloudsql.googleapis.com/database/postgresql/num_backends",
 }
 
-# Mapping to human-readable names with units for the final output report
-METRIC_LABELS = {
-    "cpu_utilization": "CPU Utilization (%)",
-    "memory_utilization": "Memory Utilization (%)",
-    "disk_utilization": "Disk Utilization (%)",
-    "disk_read_ops": "Disk Read (IOPS)",
-    "disk_write_ops": "Disk Write (IOPS)",
-    "disk_bytes_used": "Disk Bytes Used (GB)",
-    "connections": "Connections (Count)",
-}
-
 
 def get_metrics_for_engine(db_type: str, requested_metrics: list) -> dict:
     metrics = {}
@@ -466,8 +455,7 @@ def main():
                 print("   [!] No valid monitoring metrics were found in 'config.yaml' for this engine.")
             else:
                 for m_key, m_type in engine_metrics.items():
-                    human_label = METRIC_LABELS.get(m_key, m_key)
-                    report[instance_name]["resource_utilization"][human_label] = fetch_mql_metric(
+                    report[instance_name]["resource_utilization"][m_key] = fetch_mql_metric(
                         mon_client, project_id, instance_name, m_key, m_type
                     )
 
