@@ -282,7 +282,7 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
                 if true_max is None or val > true_max:
                     true_max = val
         if true_max is not None:
-            result["Max"] = round(scale_value(true_max), 2)
+            result["max"] = round(scale_value(true_max), 2)
     except Exception as e:
         print(f"      [!] Max metric query failed for '{metric_key}': {e}")
 
