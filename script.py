@@ -11,6 +11,17 @@ import pg8000
 import pymysql
 import pymysql.cursors
 
+
+
+METRIC_LABELS = {
+    "cpu_utilization": "CPU Utilization (%)",
+    "memory_utilization": "Memory Utilization (%)",
+    "disk_utilization": "Disk Utilization (%)",
+    "disk_read_ops": "Disk Read (IOPS)",
+    "disk_write_ops": "Disk Write (IOPS)",
+    "disk_bytes_used": "Disk Bytes Used (GB)",
+    "connections": "Connections (Count)",
+}
 # ─────────────────────────────────────────────
 # TIGHTLY BOUND INTERNAL QUERIES
 # ─────────────────────────────────────────────
@@ -106,12 +117,12 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
             
             parts = []
             if days > 0:
-                parts.append(f"{days} days")
+                parts.append(f"{days}d")
             if hours > 0:
-                parts.append(f"{hours} hours")
-            parts.append(f"{minutes} mins")
+                parts.append(f"{hours}h")
+            parts.append(f"{minutes}m")
             
-            return ", ".join(parts) if parts else "0 mins"
+            return " ".join(parts) if parts else "0m"
                 
     except Exception as e:
         print(f"      [!] Uptime parse error: {e}")
@@ -454,9 +465,11 @@ def main():
                 print("   [!] No valid monitoring metrics were found in 'config.yaml' for this engine.")
             else:
                 for m_key, m_type in engine_metrics.items():
-                    report[instance_name]["resource_utilization"][m_key] = fetch_mql_metric(
+                    metric_data = fetch_mql_metric(
                         mon_client, project_id, instance_name, m_key, m_type
                     )
+                    metric_data["header-name"] = METRIC_LABELS.get(m_key, m_key)
+                    report[instance_name]["resource_utilization"][m_key] = metric_data
 
             print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
             try:
