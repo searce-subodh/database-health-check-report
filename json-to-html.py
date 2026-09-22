@@ -344,11 +344,12 @@ for instance, data in report_data.items():
         html_content += '<div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div>'
         html_content += '''<table class="metrics-table">
         <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody>'''
-
+        
         for metric_key, m in utilization.items():
+
             if not isinstance(m, dict):
                 continue
-            label = format_clean_title(metric_key)
+            label = m.get("header-name") or format_clean_title(metric_key)
             html_content += f'''<tr>
                 <td><strong>{label}</strong></td>
                 <td>{m.get("mean") if m.get("mean") is not None else "N/A"}</td>
