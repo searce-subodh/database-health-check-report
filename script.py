@@ -438,7 +438,11 @@ def main():
             if not project_id or not instance_name: continue
             print(f"\n[PROCESSING] Instance: {instance_name} (Project: {project_id})")
 
-            report[instance_name] = {
+            unique_key = f"{project_id}_{instance_name}"
+
+            report[unique_key] = {
+                "project_id": project_id,
+                "instance_name": instance_name,
                 "report_window": report_window,
                 "provisioned_specs": {},
                 "resource_utilization": {},
