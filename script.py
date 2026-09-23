@@ -389,7 +389,6 @@ def main():
     try:
         all_queries = json.load(open("queries.json"))
         print(" -> Successfully loaded 'queries.json'")
-
     except FileNotFoundError:
         print(" [!] Error: 'queries.json' not found. Exiting.")
         return
@@ -412,11 +411,14 @@ def main():
         print(" [!] No instances found in config.yaml. Exiting.")
         return
 
-    print(" -> Building Google Cloud APIs (SQL Admin & Monitoring)...")
+    # Create the reports directory if it doesn't exist
+    reports_dir = "reports"
+    os.makedirs(reports_dir, exist_ok=True)
+    print(f" -> Output directory '{reports_dir}/' is ready.")
 
+    print(" -> Building Google Cloud APIs (SQL Admin & Monitoring)...")
     sqladmin = discovery.build("sqladmin", "v1", cache_discovery=False)
     mon_client = monitoring_v3.QueryServiceClient()
-    report = {}
 
     report_end = datetime.now(timezone.utc)
     report_start = report_end - timedelta(hours=24)
@@ -438,7 +440,10 @@ def main():
             if not project_id or not instance_name: continue
             print(f"\n[PROCESSING] Instance: {instance_name} (Project: {project_id})")
 
-            report[instance_name] = {
+            # Initialize a localized dictionary for THIS instance only
+            instance_report = {
+                "project_id": project_id,
+                "instance_name": instance_name,
                 "report_window": report_window,
                 "provisioned_specs": {},
                 "resource_utilization": {},
@@ -449,11 +454,11 @@ def main():
             specs, connection_name, db_type, region, host, port = get_instance_details(sqladmin, project_id, instance_name)
             
             if isinstance(specs, dict) and "Error" in specs:
-                report[instance_name]["provisioned_specs"] = specs
+                instance_report["provisioned_specs"] = specs
                 print(f"   [!] Skipping {instance_name}: Could not fetch instance details.")
                 continue
 
-            report[instance_name]["provisioned_specs"] = specs
+            instance_report["provisioned_specs"] = specs
             if not connection_name:
                 print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
                 continue
@@ -471,7 +476,7 @@ def main():
                         mon_client, project_id, instance_name, m_key, m_type
                     )
                     metric_data["header-name"] = METRIC_LABELS.get(m_key, m_key)
-                    report[instance_name]["resource_utilization"][m_key] = metric_data
+                    instance_report["resource_utilization"][m_key] = metric_data
 
             print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
             try:
@@ -487,24 +492,31 @@ def main():
                         "db_type": db_type, "user": db_user, "password": db_pass,
                         "host": host, "port": port, "database": "mysql" if db_type == "mysql" else "postgres",
                     })
-                print("  Executing Database Audits & Internal Queries...")
                 
+                print("   Executing Database Audits & Internal Queries...")
                 health_checks, internal_results = run_queries(engine, db_type, all_queries, INTERNAL_QUERIES)
-                report[instance_name]["health_checks"] = health_checks
-                report[instance_name]["provisioned_specs"]["Uptime"] = format_uptime(internal_results.get("uptime"), db_type)
+                instance_report["health_checks"] = health_checks
+                instance_report["provisioned_specs"]["Uptime"] = format_uptime(internal_results.get("uptime"), db_type)
                 print(f"   -> Successfully executed health check queries for {instance_name}.")
 
             except Exception as e:
                 print(f"   [!] Connection/Query execution failed: {e}")
-                report[instance_name]["health_checks"] = {"error": str(e)}
+                instance_report["health_checks"] = {"error": str(e)}
             finally:
                 if 'engine' in locals():
-                    engine.dispose()
+                    engine.dispose() # Clean up connection pool
 
-    print("\n[FINISHING] Compiling and saving final report...")
-    with open("database_health_report.json", "w") as f:
-        json.dump(report, f, indent=4, default=str)
-    print("[DONE] Report successfully saved to 'database_health_report.json'.\n")
+            # ─────────────────────────────────────────────
+            # DUMP INDIVIDUAL JSON FILE
+            # ─────────────────────────────────────────────
+            filename = f"{project_id}_{instance_name}.json"
+            filepath = os.path.join(reports_dir, filename)
+            
+            with open(filepath, "w") as f:
+                json.dump(instance_report, f, indent=4, default=str)
+            print(f"   [SUCCESS] Saved report to '{filepath}'")
+
+    print("\n[DONE] All instances processed successfully.\n")
 
 if __name__ == "__main__":
     main()
