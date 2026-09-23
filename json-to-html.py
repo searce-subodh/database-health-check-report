@@ -248,7 +248,7 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── INSTANCE CARDS ── */
         .instance-block {{ margin-bottom: 32px; }}
-        
+
         .instance-title {{
             padding: 12px 20px; background: #e2e8f0;
             border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
@@ -321,12 +321,12 @@ html_content = f"""<!DOCTYPE html>
 <div id="topbar">
     <h1>Database Health Report</h1>
     <select id="filter-dbtype" onchange="filterByType()">
-        <option value="ALL">All DB Types</option>
+        <option value="ALL">All Database Engines</option>
         <option value="PostgreSQL">PostgreSQL</option>
         <option value="MySQL">MySQL</option>
     </select>
     <select id="filter-server" onchange="filterByServer()">
-        <option value="ALL">All Servers</option>
+        <option value="ALL">All Instances</option>
     </select>
     <div class="topbar-timestamp">
         Report Period<br>
