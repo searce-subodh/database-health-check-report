@@ -20,7 +20,7 @@ generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 # ─────────────────────────────────────────────
 
 nav_data = {}
-for instance, data in report_data.items():
+for unique_key, data in report_data.items():
     specs  = data.get("provisioned_specs", {})
     engine = specs.get("Engine", "")
     db_type = (
@@ -28,7 +28,18 @@ for instance, data in report_data.items():
         else "MySQL"  if "MYSQL"   in engine.upper()
         else "Unknown"
     )
-    nav_data[instance] = db_type
+    
+    # Extract new fields, fallback to unique_key if missing
+    instance_name = data.get("instance_name", unique_key)
+    project_id = data.get("project_id", "")
+    
+    # Create a clean display label for the dropdown
+    display_label = f"{instance_name} ({project_id})" if project_id else instance_name
+    
+    nav_data[unique_key] = {
+        "type": db_type,
+        "label": display_label
+    }
 
 
 # ─────────────────────────────────────────────
@@ -161,9 +172,22 @@ html_content = f"""<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Database Health Check Report</title>
+    <!-- Import Montserrat and Inter from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{ font-family: Arial, Helvetica, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; }}
+        body {{ 
+            font-family: 'Inter', Arial, Helvetica, sans-serif; 
+            font-variant-numeric: tabular-nums; 
+            background: #f1f5f9; 
+            color: #1e293b; 
+        }}
+
+        h1, .section-title, .category-title, .instance-title {{
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }}
 
         /* ── FROZEN TOP BAR ── */
         #topbar {{
@@ -173,7 +197,7 @@ html_content = f"""<!DOCTYPE html>
             gap: 16px; flex-wrap: wrap;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }}
-        #topbar h1 {{ font-size: 1.1em; font-weight: 700; color: white; white-space: nowrap; }}
+        #topbar h1 {{ font-size: 1.1em; color: white; white-space: nowrap; }}
         #topbar select {{
             padding: 6px 10px; border-radius: 6px; border: none;
             background: #1e293b; color: white; font-size: 0.85em;
@@ -215,14 +239,17 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── MONITORING METRICS ── */
         .metrics-table {{ width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.88em; }}
-        .metrics-table th {{ background: #1e40af; color: white; padding: 10px 12px; text-align: left; }}
+        .metrics-table th {{ 
+            background: #1e40af; color: white; padding: 10px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }}
         .metrics-table td {{ border: 1px solid #e2e8f0; padding: 9px 12px; }}
         .metrics-table tr:nth-child(even) td {{ background: #f8fafc; }}
 
         /* ── INSTANCE CARDS ── */
         .instance-block {{ margin-bottom: 32px; }}
         .instance-title {{
-            font-size: 1.15em; font-weight: 700; color: #0f172a;
+            font-size: 1.15em; color: #0f172a;
             padding: 12px 20px; background: #e2e8f0;
             border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
         }}
@@ -232,14 +259,14 @@ html_content = f"""<!DOCTYPE html>
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }}
         .section-title {{
-            font-size: 1.05em; font-weight: 700; color: #0f172a;
+            font-size: 1.05em; color: #0f172a;
             margin-bottom: 14px; padding-bottom: 8px;
             border-bottom: 2px solid #e2e8f0;
         }}
 
         /* ── CATEGORY ── */
         .category-title {{
-            font-size: 1em; font-weight: 700; color: #2563eb;
+            font-size: 1em; color: #2563eb;
             margin-top: 16px; padding: 8px 0;
             border-bottom: 1px solid #e2e8f0; cursor: pointer;
             display: flex; justify-content: space-between;
@@ -252,7 +279,10 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── TABLES ── */
         table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.83em; }}
-        th {{ background: #334155; color: white; padding: 9px 12px; text-align: left; }}
+        th {{ 
+            background: #334155; color: white; padding: 9px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }}
         td {{ border: 1px solid #e2e8f0; padding: 8px 12px; word-break: break-word; max-width: 400px; }}
         tr:nth-child(even) td {{ background: #f8fafc; }}
         tr.row-critical td {{ background: #fee2e2 !important; }}
@@ -313,15 +343,25 @@ SPEC_RENAME = {
     "Last Backup time":   "Last Backup",
 }
 
-for instance, data in report_data.items():
-    safe_instance = instance.replace(":", "-").replace(" ", "_")
+for unique_key, data in report_data.items():
+    safe_instance = unique_key.replace(":", "-").replace(" ", "_")
+    
+    # Extract instance data
+    instance_name = data.get("instance_name", unique_key)
+    project_id    = data.get("project_id", "")
     specs         = data.get("provisioned_specs", {})
     utilization   = data.get("resource_utilization", {})
     health_checks = data.get("health_checks", {})
-    db_type_label = nav_data.get(instance, "Unknown")
+    
+    # Fetch mapped type from nav_data
+    db_type_label = nav_data.get(unique_key, {}).get("type", "Unknown")
 
-    html_content += f'<div class="instance-block" data-server="{instance}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
-    html_content += f'<div class="instance-title">Server: {instance} <small style="font-weight:400;font-size:0.8em;color:#64748b;">({db_type_label})</small></div>'
+    html_content += f'<div class="instance-block" data-server="{unique_key}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
+    
+    # Instance Title with embedded Project ID for better context
+    project_str = f"Project: {project_id} | " if project_id else ""
+    html_content += f'<div class="instance-title">Server: {instance_name} <small style="font-weight:400;font-size:0.8em;color:#64748b;font-family:\'Inter\', sans-serif;">({project_str}{db_type_label})</small></div>'
+    
     html_content += '<div class="section-card">'
 
     # ── Provisioned Specs ──
@@ -446,19 +486,24 @@ html_content += f"""
 const navData = {nav_json};
 
 const serverSel = document.getElementById('filter-server');
-Object.keys(navData).forEach(s => {{
+
+// Populate initial Server Dropdown
+Object.entries(navData).forEach(([key, info]) => {{
     const o = document.createElement('option');
-    o.value = s; o.textContent = s;
+    o.value = key; 
+    o.textContent = info.label; // Display User Friendly Label
     serverSel.appendChild(o);
 }});
 
 function filterByType() {{
     const type = document.getElementById('filter-dbtype').value;
     serverSel.innerHTML = '<option value="ALL">All Servers</option>';
-    Object.entries(navData).forEach(([srv, dbtype]) => {{
-        if (type === 'ALL' || dbtype === type) {{
+    
+    Object.entries(navData).forEach(([key, info]) => {{
+        if (type === 'ALL' || info.type === type) {{
             const o = document.createElement('option');
-            o.value = srv; o.textContent = srv;
+            o.value = key; 
+            o.textContent = info.label;
             serverSel.appendChild(o);
         }}
     }});
@@ -468,6 +513,7 @@ function filterByType() {{
 function filterByServer() {{
     const type = document.getElementById('filter-dbtype').value;
     const srv  = serverSel.value;
+    
     document.querySelectorAll('.instance-block').forEach(block => {{
         const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
         const srvMatch  = srv   === 'ALL' || block.dataset.server === srv;
@@ -506,4 +552,4 @@ output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Database
 with open(output_path, "w") as f:
     f.write(html_content)
 
-print(f"✅ Report saved to: {output_path}")
+print(f"[OK] Report saved to: {output_path}")
