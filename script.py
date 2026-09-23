@@ -453,11 +453,11 @@ def main():
             specs, connection_name, db_type, region, host, port = get_instance_details(sqladmin, project_id, instance_name)
             
             if isinstance(specs, dict) and "Error" in specs:
-                report[instance_name]["provisioned_specs"] = specs
+                report[unique_key]["provisioned_specs"] = specs
                 print(f"   [!] Skipping {instance_name}: Could not fetch instance details.")
                 continue
 
-            report[instance_name]["provisioned_specs"] = specs
+            report[unique_key]["provisioned_specs"] = specs
             if not connection_name:
                 print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
                 continue
@@ -475,7 +475,7 @@ def main():
                         mon_client, project_id, instance_name, m_key, m_type
                     )
                     metric_data["header-name"] = METRIC_LABELS.get(m_key, m_key)
-                    report[instance_name]["resource_utilization"][m_key] = metric_data
+                    report[unique_key]["resource_utilization"][m_key] = metric_data
 
             print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
             try:
@@ -494,13 +494,13 @@ def main():
                 print("  Executing Database Audits & Internal Queries...")
                 
                 health_checks, internal_results = run_queries(engine, db_type, all_queries, INTERNAL_QUERIES)
-                report[instance_name]["health_checks"] = health_checks
-                report[instance_name]["provisioned_specs"]["Uptime"] = format_uptime(internal_results.get("uptime"), db_type)
+                report[unique_key]["health_checks"] = health_checks
+                report[unique_key]["provisioned_specs"]["Uptime"] = format_uptime(internal_results.get("uptime"), db_type)
                 print(f"   -> Successfully executed health check queries for {instance_name}.")
 
             except Exception as e:
                 print(f"   [!] Connection/Query execution failed: {e}")
-                report[instance_name]["health_checks"] = {"error": str(e)}
+                report[unique_key]["health_checks"] = {"error": str(e)}
             finally:
                 if 'engine' in locals():
                     engine.dispose()
