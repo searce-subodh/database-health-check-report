@@ -248,6 +248,7 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── INSTANCE CARDS ── */
         .instance-block {{ margin-bottom: 32px; }}
+        
         .instance-title {{
             padding: 12px 20px; background: #e2e8f0;
             border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
