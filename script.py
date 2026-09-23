@@ -4,6 +4,7 @@ import re
 import os
 import yaml
 import sqlalchemy
+from sqlalchemy.engine import URL
 from google.cloud import monitoring_v3
 from google.cloud.sql.connector import Connector, IPTypes
 from googleapiclient import discovery
@@ -106,7 +107,8 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
                 if getattr(start_time, "tzinfo", None):
                     now = datetime.now(timezone.utc)
                 else:
-                    now = datetime.now()
+                    start_time = start_time.replace(tzinfo=timezone.utc)
+                    now = datetime.now(timezone.utc)
                     
                 uptime_seconds = (now - start_time).total_seconds()
                 
@@ -270,9 +272,9 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
                 continue
             point = series_data.point_data[0]
             
-            raw_mean = extract_typed_value(point.values[0])
-            raw_p95 = extract_typed_value(point.values[1])
-            raw_p99 = extract_typed_value(point.values[2])
+            raw_mean = extract_typed_value(point.values[0]) if len(point.values) > 0 else 0.0
+            raw_p95 = extract_typed_value(point.values[1]) if len(point.values) > 0 else 0.0
+            raw_p99 = extract_typed_value(point.values[2]) if len(point.values) > 0 else 0.0
             
             result["mean"] = round(scale_value(raw_mean), 2)
             result["p95"] = round(scale_value(raw_p95), 2)
@@ -324,16 +326,16 @@ def get_iam_engine(target, connector):
 
 def get_native_engine(target):
     db_type = target.get("db_type", "").lower()
-    user, password = target.get("user", ""), target.get("password", "")
-    host, port, database = target.get("host", ""), target.get("port"), target.get("database")
-
-    if db_type == "postgres":
-        url = f"postgresql+pg8000://{user}:{password}@{host}:{port}/{database}"
-    elif db_type == "mysql":
-        url = f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
-    else:
-        raise ValueError(f"Unsupported db_type: {db_type}")
-
+    drivername = "postgresql+pg8000" if db_type == "postgres" else "mysql+pymysql"
+    
+    url = URL.create(
+        drivername=drivername,
+        username=target.get("user", ""),
+        password=target.get("password", ""),
+        host=target.get("host", ""),
+        port=target.get("port"),
+        database=target.get("database")
+    )
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 
 
@@ -495,6 +497,9 @@ def main():
             except Exception as e:
                 print(f"   [!] Connection/Query execution failed: {e}")
                 report[instance_name]["health_checks"] = {"error": str(e)}
+            finally:
+                if 'engine' in locals():
+                    engine.dispose()
 
     print("\n[FINISHING] Compiling and saving final report...")
     with open("database_health_report.json", "w") as f:
