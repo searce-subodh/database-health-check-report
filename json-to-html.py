@@ -173,7 +173,7 @@ html_content = f"""<!DOCTYPE html>
     <meta charset="UTF-8">
     <title>Database Health Check Report</title>
     <!-- Import Montserrat and Inter from Google Fonts -->
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
         body {{ 
@@ -246,18 +246,27 @@ html_content = f"""<!DOCTYPE html>
         .metrics-table td {{ border: 1px solid #e2e8f0; padding: 9px 12px; }}
         .metrics-table tr:nth-child(even) td {{ background: #f8fafc; }}
 
-        
         /* ── INSTANCE CARDS ── */
-        .instance-block { margin-bottom: 32px; }
-        
-        .instance-title {
+        .instance-block {{ margin-bottom: 32px; }}
+        .instance-title {{
             padding: 12px 20px; background: #e2e8f0;
             border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
             font-family: 'Montserrat', sans-serif; font-size: 1.15em;
-        }
-        .breadcrumb-project { font-weight: 500; color: #64748b; }
-        .breadcrumb-separator { margin: 0 8px; color: #94a3b8; font-weight: 400; }
-        .breadcrumb-instance { font-weight: 700; color: #0f172a; }      
+        }}
+        .breadcrumb-project {{ font-weight: 500; color: #64748b; }}
+        .breadcrumb-separator {{ margin: 0 8px; color: #94a3b8; font-weight: 400; }}
+        .breadcrumb-instance {{ font-weight: 700; color: #0f172a; }}
+
+        .section-card {{
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 20px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }}
+        .section-title {{
+            font-size: 1.05em; color: #0f172a;
+            margin-bottom: 14px; padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }}
 
         /* ── CATEGORY ── */
         .category-title {{
@@ -353,14 +362,14 @@ for unique_key, data in report_data.items():
 
     html_content += f'<div class="instance-block" data-server="{unique_key}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
     
-    # Instance Title with embedded Project ID for better context
-    project_str = f"Project: {project_id} | " if project_id else ""
+    # Instance Title using Cloud Breadcrumb Navigation
     html_content += '<div class="instance-title">'
     if project_id:
         html_content += f'<span class="breadcrumb-project">{project_id}</span>'
         html_content += '<span class="breadcrumb-separator">/</span>'
     html_content += f'<span class="breadcrumb-instance">{instance_name}</span>'
     html_content += '</div>'
+    
     html_content += '<div class="section-card">'
 
     # ── Provisioned Specs ──
