@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Health Check Report</title>
+    <!-- Import Montserrat and Inter from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', Arial, Helvetica, sans-serif; 
+            font-variant-numeric: tabular-nums; 
+            background: #f1f5f9; 
+            color: #1e293b; 
+        }
+
+        h1, .section-title, .category-title, .instance-title {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* ── FROZEN TOP BAR ── */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #0f172a; color: white;
+            padding: 12px 24px; display: flex; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #topbar h1 { font-size: 1.1em; color: white; white-space: nowrap; }
+        #topbar select {
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em;
+            cursor: pointer; min-width: 160px; font-family: inherit;
+        }
+        #topbar select:focus { outline: 2px solid #3b82f6; }
+        .topbar-timestamp {
+            margin-left: auto; font-size: 0.8em; color: #94a3b8;
+            white-space: nowrap; text-align: right; line-height: 1.6;
+        }
+
+        /* ── MAIN CONTENT ── */
+        #content { margin-top: 72px; padding: 24px; }
+
+        /* ── PROVISIONED SPECS — single dynamic row ── */
+        .specs-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 6px;
+        }
+        .spec-item {
+            flex: 1 1 auto;
+            min-width: 100px;
+            white-space: nowrap;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 10px 14px;
+            border-left: 4px solid #2563eb;
+        }
+        .spec-label {
+            font-size: 0.68em; color: #64748b;
+            text-transform: uppercase; letter-spacing: 0.04em;
+            margin-bottom: 4px; font-weight: 600;
+        }
+        .spec-value { font-size: 0.95em; font-weight: 700; color: #0f172a; }
+
+        /* ── MONITORING METRICS ── */
+        .metrics-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.88em; }
+        .metrics-table th { 
+            background: #1e40af; color: white; padding: 10px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }
+        .metrics-table td { border: 1px solid #e2e8f0; padding: 9px 12px; }
+        .metrics-table tr:nth-child(even) td { background: #f8fafc; }
+
+        /* ── INSTANCE CARDS ── */
+        .instance-block { margin-bottom: 32px; }
+
+        .instance-title {
+            padding: 12px 20px; background: #e2e8f0;
+            border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+            font-family: 'Montserrat', sans-serif; font-size: 1.15em;
+        }
+        .breadcrumb-project { font-weight: 500; color: #64748b; }
+        .breadcrumb-separator { margin: 0 8px; color: #94a3b8; font-weight: 400; }
+        .breadcrumb-instance { font-weight: 700; color: #0f172a; }
+
+        .section-card {
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 20px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .section-title {
+            font-size: 1.05em; color: #0f172a;
+            margin-bottom: 14px; padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* ── CATEGORY ── */
+        .category-title {
+            font-size: 1em; color: #2563eb;
+            margin-top: 16px; padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }
+        .category-title:hover { color: #1d4ed8; }
+        .metric-title {
+            font-size: 0.9em; font-weight: 600; color: #334155;
+            margin: 14px 0 6px;
+        }
+
+        /* ── TABLES ── */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.83em; }
+        th { 
+            background: #334155; color: white; padding: 9px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }
+        td { border: 1px solid #e2e8f0; padding: 8px 12px; word-break: break-word; max-width: 400px; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        tr.row-critical td { background: #fee2e2 !important; }
+        tr.row-warning  td { background: #fef9c3 !important; }
+        tr:hover         td { background: #eff6ff !important; }
+
+        /* ── PAGINATION ── */
+        .pagination {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 0; font-size: 0.72em; color: #64748b;
+        }
+        .pagination button {
+            padding: 3px 10px; border-radius: 4px;
+            border: 1px solid #cbd5e1; background: white;
+            cursor: pointer; font-size: 0.95em; font-weight: 600;
+            color: #334155;
+        }
+        .pagination button:hover { background: #e2e8f0; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+        .alert-badge { font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .warn-badge  { font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .no-issues   { color: #16a34a; font-style: italic; font-weight: 500; font-size: 0.95em; padding: 6px 0 12px 0; margin: 0; }
+        .error-box   { color: #7f1d1d; background: #fee2e2; border-left: 4px solid #b91c1c; padding: 12px 16px; border-radius: 4px; font-size: 0.88em; margin: 8px 0; }
+        .hidden      { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- FROZEN TOP BAR -->
+<div id="topbar">
+    <h1>Database Health Report</h1>
+    <select id="filter-dbtype" onchange="filterByType()">
+        <option value="ALL">All Database Engines</option>
+        <option value="PostgreSQL">PostgreSQL</option>
+        <option value="MySQL">MySQL</option>
+    </select>
+    <select id="filter-server" onchange="filterByServer()">
+        <option value="ALL">All Instances</option>
+    </select>
+    <div class="topbar-timestamp">
+        Report Period<br>
+        22 Sep 2026, 07:12 AM UTC &rarr; 23 Sep 2026, 07:12 AM UTC
+    </div>
+</div>
+
+<div id="content">
+<div class="instance-block" data-server="data-analyst-504209_csql-mysql-db" data-dbtype="MySQL" id="srv-data-analyst-504209_csql-mysql-db"><div class="instance-title"><span class="breadcrumb-project">data-analyst-504209</span><span class="breadcrumb-separator">/</span><span class="breadcrumb-instance">csql-mysql-db</span></div><div class="section-card"><div class="section-title">Provisioned Specifications</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">MYSQL 8 4</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">1</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">3.75 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">20 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Replicas</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup</div>
+                <div class="spec-value">23 Sep 2026, 04:00 AM UTC</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Uptime</div>
+                <div class="spec-value">2d 1h 33m</div>
+            </div></div><div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>9.36</td>
+                <td>9.41</td>
+                <td>9.43</td>
+                <td>81.77</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>61.81</td>
+                <td>63.1</td>
+                <td>63.22</td>
+                <td>71.34</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>14.47</td>
+                <td>14.6</td>
+                <td>14.63</td>
+                <td>17.42</td>
+            </tr><tr>
+                <td><strong>Disk Read (IOPS)</strong></td>
+                <td>143.63</td>
+                <td>149.63</td>
+                <td>149.91</td>
+                <td>48.13</td>
+            </tr><tr>
+                <td><strong>Disk Write (IOPS)</strong></td>
+                <td>13852.63</td>
+                <td>13983.35</td>
+                <td>14010.05</td>
+                <td>1304.32</td>
+            </tr><tr>
+                <td><strong>Disk Bytes Used (GB)</strong></td>
+                <td>2.83</td>
+                <td>0.35</td>
+                <td>0.35</td>
+                <td>3.41</td>
+            </tr><tr>
+                <td><strong>Connections (Count)</strong></td>
+                <td>8.0</td>
+                <td>8.38</td>
+                <td>8.39</td>
+                <td>11.0</td>
+            </tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Indexes</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Unused Indexes</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_indexes_unused_indexes_1"><table id="tbl-data-analyst-504209_csql-mysql-db_indexes_unused_indexes_1"><thead><tr><th>Database</th><th>Table</th><th>Index Name</th><th>Index Size</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>orders</td><td>idx_unused_notes</td><td>69.77</td></tr><tr class="page-row "><td>boost_test</td><td>orders</td><td>idx_unused_created_status</td><td>28.56</td></tr><tr class="page-row "><td>boost_test</td><td>orders</td><td>idx_cust_1</td><td>16.55</td></tr><tr class="page-row "><td>boost_test</td><td>orders</td><td>idx_cust_2</td><td>16.55</td></tr></tbody></table></div><div class="metric-title">Duplicate Indexes</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_indexes_duplicate_indexes_2"><table id="tbl-data-analyst-504209_csql-mysql-db_indexes_duplicate_indexes_2"><thead><tr><th>Database</th><th>Table</th><th>Duplicate Indexes</th><th>Dominant Index</th><th>Index Columns</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>orders</td><td>idx_cust_1, idx_cust_2</td><td>idx_cust_status</td><td>customer_id</td></tr></tbody></table></div><div class="metric-title">Queries High Full Table Scans</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_indexes_queries_high_full_table_scans_3"><table id="tbl-data-analyst-504209_csql-mysql-db_indexes_queries_high_full_table_scans_3"><thead><tr><th>Database</th><th>Query</th><th>Total Executions</th><th>Total Latency (ms)</th><th>Avg Latency (ms)</th><th>Full Table Scans</th><th>Full Scan (%)</th><th>First Seen</th><th>Last Seen</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>SHOW SCHEMAS</td><td>2</td><td>3.39</td><td>1.69</td><td>2</td><td>100.00</td><td>2026-09-22 13:47:31.108102</td><td>2026-09-22 13:52:58.411368</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT COUNT ( * ) , AVG ( `amount` ) FROM `orders` WHERE `notes` LIKE ? AND STATUS = ?</td><td>1</td><td>920.54</td><td>920.54</td><td>1</td><td>100.00</td><td>2026-09-22 13:50:49.720921</td><td>2026-09-22 13:50:49.720921</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT STATUS , SUM ( `amount` ) FROM `orders` WHERE `created_at` > NOW ( ) - INTERVAL ? SQL_TSI_DAY</td><td>1</td><td>534.79</td><td>534.79</td><td>1</td><td>100.00</td><td>2026-09-22 13:50:56.255276</td><td>2026-09-22 13:50:56.255276</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT `notes` , COUNT ( * ) , SUM ( `amount` ) FROM `orders` GROUP BY `notes` HAVING COUNT ( * ) > </td><td>1</td><td>6645.44</td><td>6645.44</td><td>1</td><td>100.00</td><td>2026-09-22 13:51:14.304958</td><td>2026-09-22 13:51:14.304958</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT DISTINCTROW STATUS , `notes` FROM `orders` ORDER BY `notes` DESC LIMIT ?</td><td>1</td><td>6288.66</td><td>6288.66</td><td>1</td><td>100.00</td><td>2026-09-22 13:51:23.266673</td><td>2026-09-22 13:51:23.266673</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT STRAIGHT_JOIN COUNT ( * ) , AVG ( `o1` . `amount` ) FROM `orders` `o1` JOIN `orders` `o2` ON </td><td>1</td><td>46147.77</td><td>46147.77</td><td>1</td><td>100.00</td><td>2026-09-22 13:52:26.229200</td><td>2026-09-22 13:52:26.229200</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Performance</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Buffer Pool Hit Ratio</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_performance_buffer_pool_hit_ratio_4"><table id="tbl-data-analyst-504209_csql-mysql-db_performance_buffer_pool_hit_ratio_4"><thead><tr><th>Database</th><th>Total Read Requests</th><th>Disk Reads</th><th>Buffer Hit Ratio (%)</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>29575763</td><td>2644</td><td>99.99</td></tr></tbody></table></div><div class="metric-title">Dirty Pages</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_performance_dirty_pages_5"><table id="tbl-data-analyst-504209_csql-mysql-db_performance_dirty_pages_5"><thead><tr><th>Database</th><th>Dirty Pages</th><th>Total Pages</th><th>Dirty Page (%)</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>0</td><td>90112</td><td>0.0</td></tr></tbody></table></div><div class="metric-title">Redo Log</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_performance_redo_log_6"><table id="tbl-data-analyst-504209_csql-mysql-db_performance_redo_log_6"><thead><tr><th>Database</th><th>Log Buffer Waits</th><th>Write Requests</th><th>Physical Writes</th><th>Total Fsyncs</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>0</td><td>6720702</td><td>382778</td><td>214207</td></tr></tbody></table></div><div class="metric-title">Temp Table Usage</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_performance_temp_table_usage_7"><table id="tbl-data-analyst-504209_csql-mysql-db_performance_temp_table_usage_7"><thead><tr><th>Database</th><th>Query</th><th>Total Executions</th><th>Temp Tables Created</th><th>Temp Tables on Disk</th><th>Disk Spill %</th><th>Avg Latency (ms)</th><th>Last Seen</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>INSERT INTO `generator` SELECT ? FROM `generator` `g1` , `generator` `g2` , `generator` `g3`</td><td>1</td><td>1</td><td>0</td><td>0.00</td><td>13.07</td><td>2026-09-22 13:47:37.317471</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT STATUS , SUM ( `amount` ) FROM `orders` WHERE `created_at` > NOW ( ) - INTERVAL ? SQL_TSI_DAY</td><td>1</td><td>1</td><td>0</td><td>0.00</td><td>534.79</td><td>2026-09-22 13:50:56.255276</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT `notes` , COUNT ( * ) , SUM ( `amount` ) FROM `orders` GROUP BY `notes` HAVING COUNT ( * ) > </td><td>1</td><td>1</td><td>0</td><td>0.00</td><td>6645.44</td><td>2026-09-22 13:51:14.304958</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT DISTINCTROW STATUS , `notes` FROM `orders` ORDER BY `notes` DESC LIMIT ?</td><td>1</td><td>1</td><td>0</td><td>0.00</td><td>6288.66</td><td>2026-09-22 13:51:23.266673</td></tr></tbody></table></div><div class="metric-title">Top Queries By Execution Time</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_performance_top_queries_by_execution_time_8"><table id="tbl-data-analyst-504209_csql-mysql-db_performance_top_queries_by_execution_time_8"><thead><tr><th>Database</th><th>Query</th><th>Executions</th><th>Total Time (ms)</th><th>Avg Time (ms)</th><th>Total Time (%)</th><th>Rows Sent</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>SELECT STRAIGHT_JOIN COUNT ( * ) , AVG ( `o1` . `amount` ) FROM `orders` `o1` JOIN `orders` `o2` ON `o1` . `customer_id` = `o2` . `customer_id` WHERE `o1` . `status` = ? AND `o2` . `status` = ?</td><td>1</td><td>46147.77</td><td>46147.77</td><td>25.10</td><td>1</td></tr><tr class="page-row "><td>boost_test</td><td>INSERT INTO `fragmented_table` ( `data_payload` , `created_at` ) SELECT REPEAT (...) , NOW ( ) FROM `generator` `g1` , `generator` `g2`</td><td>1</td><td>27018.80</td><td>27018.80</td><td>14.69</td><td>0</td></tr><tr class="page-row "><td>boost_test</td><td>INSERT INTO `orders` ( `customer_id` , STATUS , `amount` , `created_at` , `notes` ) SELECT `FLOOR` ( ? + `RAND` ( ) * ? ) , CASE `FLOOR` ( ? + `RAND` ( ) * ? ) WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? ELSE ? END , `ROUND` ( `RAND` ( ) * ?, ... ) , NOW ( ) - INTERVAL `FLOOR` ( `RAND` ( ) * ? ) SQL_TSI_DAY , REPEAT (...) FROM `generator` `g1` , `generator` `g2`</td><td>1</td><td>26007.07</td><td>26007.07</td><td>14.14</td><td>0</td></tr><tr class="page-row "><td>boost_test</td><td>CREATE INDEX `idx_unused_notes` ON `orders` ( `notes` (?) )</td><td>1</td><td>20416.66</td><td>20416.66</td><td>11.10</td><td>0</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT * FROM `orders` WHERE `order_id` = ?</td><td>2</td><td>18700.63</td><td>9350.32</td><td>10.17</td><td>2</td></tr><tr class="page-row "><td>boost_test</td><td>DELETE FROM `fragmented_table` WHERE `id` % ? = ?</td><td>2</td><td>9506.50</td><td>4753.25</td><td>5.17</td><td>0</td></tr><tr class="page-row "><td>boost_test</td><td>CREATE INDEX `idx_unused_created_status` ON `orders` ( `created_at` , STATUS )</td><td>1</td><td>7540.01</td><td>7540.01</td><td>4.10</td><td>0</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT `notes` , COUNT ( * ) , SUM ( `amount` ) FROM `orders` GROUP BY `notes` HAVING COUNT ( * ) > ? ORDER BY SUM ( `amount` ) DESC LIMIT ?</td><td>1</td><td>6645.44</td><td>6645.44</td><td>3.61</td><td>1</td></tr><tr class="page-row "><td>boost_test</td><td>CREATE INDEX `idx_cust_status` ON `orders` ( `customer_id` , STATUS )</td><td>1</td><td>6378.31</td><td>6378.31</td><td>3.47</td><td>0</td></tr><tr class="page-row "><td>boost_test</td><td>SELECT DISTINCTROW STATUS , `notes` FROM `orders` ORDER BY `notes` DESC LIMIT ?</td><td>1</td><td>6288.66</td><td>6288.66</td><td>3.42</td><td>4</td></tr><tr class="page-row " style="display:none"><td>boost_test</td><td>CREATE INDEX `idx_cust_2` ON `orders` ( `customer_id` )</td><td>1</td><td>3663.74</td><td>3663.74</td><td>1.99</td><td>0</td></tr><tr class="page-row " style="display:none"><td>boost_test</td><td>CREATE INDEX `idx_cust_1` ON `orders` ( `customer_id` )</td><td>1</td><td>3622.65</td><td>3622.65</td><td>1.97</td><td>0</td></tr><tr class="page-row " style="display:none"><td>boost_test</td><td>SELECT COUNT ( * ) , AVG ( `amount` ) FROM `orders` WHERE `notes` LIKE ? AND STATUS = ?</td><td>1</td><td>920.54</td><td>920.54</td><td>0.50</td><td>1</td></tr><tr class="page-row " style="display:none"><td>boost_test</td><td>SELECT STATUS , SUM ( `amount` ) FROM `orders` WHERE `created_at` > NOW ( ) - INTERVAL ? SQL_TSI_DAY GROUP BY STATUS</td><td>1</td><td>534.79</td><td>534.79</td><td>0.29</td><td>4</td></tr><tr class="page-row " style="display:none"><td>boost_test</td><td>ANALYZE TABLE `fragmented_table`</td><td>1</td><td>359.33</td><td>359.33</td><td>0.20</td><td>0</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('data-analyst-504209_csql-mysql-db_performance_top_queries_by_execution_time_8', -1)">&lt; Prev</button>
+            <span id="page-info-data-analyst-504209_csql-mysql-db_performance_top_queries_by_execution_time_8">Page 1 of 2</span>
+            <button onclick="changePage('data-analyst-504209_csql-mysql-db_performance_top_queries_by_execution_time_8', 1)">Next &gt;</button>
+        </div></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Locks</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Lock Waits</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_locks_lock_waits_9"><table id="tbl-data-analyst-504209_csql-mysql-db_locks_lock_waits_9"><thead><tr><th>Database</th><th>Table</th><th>Total Lock Waits</th><th>Total Wait Time (ms)</th><th>Avg Wait Time (ms)</th><th>Max Wait Time (ms)</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>orders</td><td>16</td><td>0.03</td><td>0.00</td><td>0.00</td></tr><tr class="page-row "><td>boost_test</td><td>fragmented_table</td><td>4</td><td>0.01</td><td>0.00</td><td>0.00</td></tr><tr class="page-row "><td>boost_test</td><td>generator</td><td>9</td><td>0.01</td><td>0.00</td><td>0.00</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Connections</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Active Connections</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_connections_active_connections_10"><table id="tbl-data-analyst-504209_csql-mysql-db_connections_active_connections_10"><thead><tr><th>Database</th><th>Current Connections</th><th>Peak Connections</th><th>Max Allowed</th><th>Peak Usage (%)</th><th>Longest Connection (sec)</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>10</td><td>14</td><td>4030</td><td>0.35</td><td>N/A</td></tr></tbody></table></div><div class="metric-title">Aborted Connections</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_connections_aborted_connections_11"><table id="tbl-data-analyst-504209_csql-mysql-db_connections_aborted_connections_11"><thead><tr><th>Database</th><th>Aborted (Auth Failures)</th><th>Aborted (Network Issues)</th><th>Total Connection Attempts</th><th>Auth Failure %</th><th>Network Abort %</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>0</td><td>16</td><td>137511</td><td>0.0</td><td>0.01</td></tr></tbody></table></div><div class="metric-title">Thread Activity</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_connections_thread_activity_12"><table id="tbl-data-analyst-504209_csql-mysql-db_connections_thread_activity_12"><thead><tr><th>Database</th><th>Thread State</th><th>Thread Count</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>waiting for handler commit</td><td>1</td></tr><tr class="page-row "><td>mysql</td><td>Waiting on empty queue</td><td>1</td></tr><tr class="page-row "><td>mysql</td><td>Suspending</td><td>1</td></tr><tr class="page-row "><td>mysql</td><td>executing</td><td>1</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Storage</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Fragmentation</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-mysql-db_storage_fragmentation_13"><table id="tbl-data-analyst-504209_csql-mysql-db_storage_fragmentation_13"><thead><tr><th>Database</th><th>Table</th><th>Live Rows</th><th>Data Size (MB)</th><th>Dead Rows (MB)</th><th>Fragmentation (%)</th></tr></thead><tbody><tr class="page-row "><td>boost_test</td><td>fragmented_table</td><td>322418</td><td>514.56</td><td>4.00</td><td>0.77</td></tr><tr class="page-row "><td>sbtest</td><td>sbtest1</td><td>49045</td><td>21.27</td><td>4.00</td><td>14.94</td></tr><tr class="page-row "><td>sbtest</td><td>sbtest2</td><td>49464</td><td>21.27</td><td>4.00</td><td>15.00</td></tr><tr class="page-row "><td>sbtest</td><td>sbtest3</td><td>49464</td><td>21.27</td><td>4.00</td><td>14.99</td></tr><tr class="page-row "><td>sbtest</td><td>sbtest4</td><td>49464</td><td>21.27</td><td>4.00</td><td>15.02</td></tr><tr class="page-row "><td>boost_test</td><td>orders</td><td>971535</td><td>362.86</td><td>2.00</td><td>0.55</td></tr></tbody></table></div></div></div><div class="instance-block" data-server="data-analyst-504209_csql-psql-db" data-dbtype="PostgreSQL" id="srv-data-analyst-504209_csql-psql-db"><div class="instance-title"><span class="breadcrumb-project">data-analyst-504209</span><span class="breadcrumb-separator">/</span><span class="breadcrumb-instance">csql-psql-db</span></div><div class="section-card"><div class="section-title">Provisioned Specifications</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">POSTGRES 18</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">1</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">3.75 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">109 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Replicas</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup</div>
+                <div class="spec-value">22 Sep 2026, 09:00 PM UTC</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Uptime</div>
+                <div class="spec-value">2d 1h 33m</div>
+            </div></div><div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>11.5</td>
+                <td>12.01</td>
+                <td>12.04</td>
+                <td>15.3</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>29.53</td>
+                <td>30.35</td>
+                <td>30.41</td>
+                <td>31.36</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>0.43</td>
+                <td>0.95</td>
+                <td>0.99</td>
+                <td>0.44</td>
+            </tr><tr>
+                <td><strong>Disk Read (IOPS)</strong></td>
+                <td>2.7</td>
+                <td>2.74</td>
+                <td>2.74</td>
+                <td>0.58</td>
+            </tr><tr>
+                <td><strong>Disk Write (IOPS)</strong></td>
+                <td>4822.37</td>
+                <td>5019.22</td>
+                <td>5028.8</td>
+                <td>7.12</td>
+            </tr><tr>
+                <td><strong>Disk Bytes Used (GB)</strong></td>
+                <td>0.47</td>
+                <td>0.35</td>
+                <td>0.35</td>
+                <td>0.48</td>
+            </tr><tr>
+                <td><strong>Connections (Count)</strong></td>
+                <td>0.29</td>
+                <td>2.01</td>
+                <td>2.03</td>
+                <td>3.0</td>
+            </tr></tbody></table></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Indexes</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Unused Indexes</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_indexes_unused_indexes_14"><table id="tbl-data-analyst-504209_csql-psql-db_indexes_unused_indexes_14"><thead><tr><th>Database</th><th>Schema</th><th>Table</th><th>Index Name</th><th>Index Size</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>stress_test</td><td>idx_stress_status</td><td>1336 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_unused_notes</td><td>1144 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_cust_1</td><td>712 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_cust_2</td><td>712 kB</td></tr></tbody></table></div><div class="metric-title">Duplicate Indexes</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_indexes_duplicate_indexes_15"><table id="tbl-data-analyst-504209_csql-psql-db_indexes_duplicate_indexes_15"><thead><tr><th>Database</th><th>Schema</th><th>Table</th><th>Duplicate Indexes</th><th>Dominant Index</th><th>Index Columns</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_cust_1, idx_cust_2</td><td>idx_cust_1</td><td>customer_id</td></tr></tbody></table></div><div class="metric-title">Queries High Full Table Scans</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_indexes_queries_high_full_table_scans_16"><table id="tbl-data-analyst-504209_csql-psql-db_indexes_queries_high_full_table_scans_16"><thead><tr><th>Database</th><th>Schema</th><th>Table</th><th>Full Scans</th><th>Rows Read via Scan</th><th>Avg Rows per Scan</th><th>Index Scans</th><th>Table Size</th><th>Sample Query</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>stress_test</td><td>45</td><td>1880000</td><td>41778</td><td>7</td><td>71 MB</td><td>CREATE OR REPLACE PROCEDURE generate_healthcheck_traffic()
+LANGUAGE plpgsql
+AS $$
+BEGIN
+    -- -----</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>15</td><td>700000</td><td>46667</td><td>1009</td><td>45 MB</td><td>UPDATE orders SET amount = $1 WHERE order_id = $2</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>fragmented_table</td><td>3</td><td>30000</td><td>10000</td><td>0</td><td>10 MB</td><td>INSERT INTO fragmented_table (data_payload, created_at)
+SELECT REPEAT($1, $2), NOW()
+FROM generate_s</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>users</td><td>1</td><td>0</td><td>0</td><td>0</td><td>8192 bytes</td><td>create table users(id int, name char, PRIMARY KEY(id))</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Performance</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Buffer Pool Hit Ratio</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_performance_buffer_pool_hit_ratio_17"><table id="tbl-data-analyst-504209_csql-psql-db_performance_buffer_pool_hit_ratio_17"><thead><tr><th>Database</th><th>Total Read Requests</th><th>Disk Reads</th><th>Buffer Hit Ratio (%)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>11113</td><td>1456996</td><td>99.24</td></tr></tbody></table></div><div class="metric-title">Dirty Pages</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_performance_dirty_pages_18"><table id="tbl-data-analyst-504209_csql-psql-db_performance_dirty_pages_18"><thead><tr><th></th></tr></thead><tbody><!-- Empty body due to execution failure or missing permissions --></tbody></table></div><div class="metric-title">Redo Log</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_performance_redo_log_19"><table id="tbl-data-analyst-504209_csql-psql-db_performance_redo_log_19"><thead><tr><th>Database</th><th>WAL Files</th><th>WAL Directory Size</th><th>Total WAL Bytes Written</th><th>Current WAL Position</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>4</td><td>192 MB</td><td>361716788112</td><td>54/38002B90</td></tr></tbody></table></div><div class="metric-title">Temp Table Usage</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_performance_temp_table_usage_20"><table id="tbl-data-analyst-504209_csql-psql-db_performance_temp_table_usage_20"><thead><tr><th>Database</th><th>Temp Files Spilled to Disk</th><th>Temp Data Size</th><th>Deadlocks</th><th>Conflicts</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>23</td><td>182 MB</td><td>0</td><td>0</td></tr></tbody></table></div><div class="metric-title">Top Queries By Execution Time</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_performance_top_queries_by_execution_time_21"><table id="tbl-data-analyst-504209_csql-psql-db_performance_top_queries_by_execution_time_21"><thead><tr><th>Database</th><th>Query</th><th>Executions</th><th>Total Time (ms)</th><th>Avg Time (ms)</th><th>Total Time (%)</th><th>Rows Sent</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>UPDATE orders SET amount = $1 WHERE order_id = $2</td><td>1</td><td>12799.71</td><td>12799.71</td><td>38.18</td><td>1</td></tr><tr class="page-row "><td>postgres</td><td>CALL generate_healthcheck_traffic()</td><td>8</td><td>6885.82</td><td>860.73</td><td>20.54</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>select pg_logical_emit_message($1, $2, $3)</td><td>4047</td><td>2431.02</td><td>0.60</td><td>7.25</td><td>4047</td></tr><tr class="page-row "><td>postgres</td><td>SELECT app_name, query_count, pg_postmaster_start_time() as reset FROM public.google_app_stats_get_a</td><td>53587</td><td>1476.85</td><td>0.03</td><td>4.41</td><td>107174</td></tr><tr class="page-row "><td>postgres</td><td>SELECT captured, consolidated, qps_exceeded, cool_off, queue_full, sent_succ, sent_fail, stats_reset</td><td>53616</td><td>1369.77</td><td>0.03</td><td>4.09</td><td>53616</td></tr><tr class="page-row "><td>postgres</td><td>INSERT INTO orders (customer_id, status, amount, created_at, notes)
+SELECT 
+    FLOOR(RANDOM() * $1 </td><td>1</td><td>885.43</td><td>885.43</td><td>2.64</td><td>100000</td></tr><tr class="page-row "><td>postgres</td><td>BEGIN</td><td>48787</td><td>599.91</td><td>0.01</td><td>1.79</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>CREATE DATABASE application</td><td>1</td><td>548.07</td><td>548.07</td><td>1.63</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>SET application_name = $1</td><td>12261</td><td>547.51</td><td>0.04</td><td>1.63</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>SELECT $1</td><td>48766</td><td>441.47</td><td>0.01</td><td>1.32</td><td>48766</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>INSERT INTO sbtest4(k, c, pad) VALUES($1, $2, $3),($4, $5, $6),($7, $8, $9),($10, $11, $12),($13, $1</td><td>37</td><td>416.15</td><td>11.25</td><td>1.24</td><td>99974</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>INSERT INTO sbtest3(k, c, pad) VALUES($1, $2, $3),($4, $5, $6),($7, $8, $9),($10, $11, $12),($13, $1</td><td>37</td><td>402.47</td><td>10.88</td><td>1.20</td><td>99974</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>INSERT INTO sbtest1(k, c, pad) VALUES($1, $2, $3),($4, $5, $6),($7, $8, $9),($10, $11, $12),($13, $1</td><td>37</td><td>375.93</td><td>10.16</td><td>1.12</td><td>99974</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>COMMIT</td><td>48779</td><td>361.17</td><td>0.01</td><td>1.08</td><td>0</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>INSERT INTO sbtest2(k, c, pad) VALUES($1, $2, $3),($4, $5, $6),($7, $8, $9),($10, $11, $12),($13, $1</td><td>37</td><td>344.35</td><td>9.31</td><td>1.03</td><td>99974</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('data-analyst-504209_csql-psql-db_performance_top_queries_by_execution_time_21', -1)">&lt; Prev</button>
+            <span id="page-info-data-analyst-504209_csql-psql-db_performance_top_queries_by_execution_time_21">Page 1 of 2</span>
+            <button onclick="changePage('data-analyst-504209_csql-psql-db_performance_top_queries_by_execution_time_21', 1)">Next &gt;</button>
+        </div></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Locks</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Lock Waits</div><p class="no-issues">No issues or records flagged.</p></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Connections</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Active Connections</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_connections_active_connections_23"><table id="tbl-data-analyst-504209_csql-psql-db_connections_active_connections_23"><thead><tr><th>Database</th><th>Connection State</th><th>Current Connections</th><th>Max Allowed</th><th>Peak Usage %</th><th>Longest Connection (sec)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>N/A</td><td>10</td><td>100</td><td>10.00</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>idle</td><td>2</td><td>100</td><td>2.00</td><td>10</td></tr><tr class="page-row "><td>postgres</td><td>active</td><td>1</td><td>100</td><td>1.00</td><td>0</td></tr></tbody></table></div><div class="metric-title">Aborted Connections</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_connections_aborted_connections_24"><table id="tbl-data-analyst-504209_csql-psql-db_connections_aborted_connections_24"><thead><tr><th>Database</th><th>Aborted (Replication Conflicts)</th><th>Aborted (Deadlocks)</th><th>Block Read Time (ms)</th><th>Block Write Time (ms)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>0</td><td>0</td><td>4902.092</td><td>296.564</td></tr></tbody></table></div><div class="metric-title">Thread Activity</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_connections_thread_activity_25"><table id="tbl-data-analyst-504209_csql-psql-db_connections_thread_activity_25"><thead><tr><th>Database</th><th>Thread State</th><th>Wait Event Type</th><th>Wait Event</th><th>Thread Count</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>idle</td><td>Client</td><td>ClientRead</td><td>2</td></tr><tr class="page-row "><td>postgres</td><td>active</td><td>N/A</td><td>N/A</td><td>1</td></tr></tbody></table></div></div>
+                <div class="category-title" onclick="toggleCategory(this)">
+                    <span>Storage</span><span>&#9654;</span>
+                </div>
+                <div class="category-content hidden"><div class="metric-title">Fragmentation</div><div class="table-wrapper" id="wrapper-data-analyst-504209_csql-psql-db_storage_fragmentation_26"><table id="tbl-data-analyst-504209_csql-psql-db_storage_fragmentation_26"><thead><tr><th>Database</th><th>Table</th><th>Live Rows</th><th>Total Size</th><th>Dead Rows (MB)</th><th>Fragmentation (%)</th><th>Last Vacuum</th><th>Last Auto Vacuum</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>orders</td><td>100000</td><td>45 MB</td><td>1</td><td>0.00</td><td>N/A</td><td>2026-09-22 13:55:51.816322+00:00</td></tr><tr class="page-row "><td>postgres</td><td>fragmented_table</td><td>6667</td><td>10 MB</td><td>0</td><td>0.00</td><td>N/A</td><td>2026-09-22 13:57:51.744331+00:00</td></tr><tr class="page-row "><td>postgres</td><td>stress_test</td><td>80000</td><td>71 MB</td><td>0</td><td>0.00</td><td>N/A</td><td>2026-09-17 12:16:21.757913+00:00</td></tr></tbody></table></div></div></div>
+</div>
+
+<script>
+const navData = {"data-analyst-504209_csql-mysql-db": {"type": "MySQL", "label": "csql-mysql-db (data-analyst-504209)"}, "data-analyst-504209_csql-psql-db": {"type": "PostgreSQL", "label": "csql-psql-db (data-analyst-504209)"}};
+
+const serverSel = document.getElementById('filter-server');
+
+// Populate initial Server Dropdown
+Object.entries(navData).forEach(([key, info]) => {
+    const o = document.createElement('option');
+    o.value = key; 
+    o.textContent = info.label; // Display User Friendly Label
+    serverSel.appendChild(o);
+});
+
+function filterByType() {
+    const type = document.getElementById('filter-dbtype').value;
+    serverSel.innerHTML = '<option value="ALL">All Servers</option>';
+    
+    Object.entries(navData).forEach(([key, info]) => {
+        if (type === 'ALL' || info.type === type) {
+            const o = document.createElement('option');
+            o.value = key; 
+            o.textContent = info.label;
+            serverSel.appendChild(o);
+        }
+    });
+    filterByServer();
+}
+
+function filterByServer() {
+    const type = document.getElementById('filter-dbtype').value;
+    const srv  = serverSel.value;
+    
+    document.querySelectorAll('.instance-block').forEach(block => {
+        const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
+        const srvMatch  = srv   === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !(typeMatch && srvMatch));
+    });
+}
+
+function toggleCategory(el) {
+    const content  = el.nextElementSibling;
+    const arrow    = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
+}
+
+const pageState = {};
+
+function changePage(tableId, direction) {
+    const rows       = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
+    const totalPages = Math.ceil(rows.length / 10);
+    if (!pageState[tableId]) pageState[tableId] = 1;
+    pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
+    const currentPage = pageState[tableId];
+    const start       = (currentPage - 1) * 10;
+    const end         = start + 10;
+    rows.forEach((row, i) => {
+        row.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+    const info = document.getElementById(`page-info-${tableId}`);
+    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
+}
+</script>
+</body>
+</html>
