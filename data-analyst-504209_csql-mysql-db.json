@@ -1,0 +1,507 @@
+{
+    "project_id": "data-analyst-504209",
+    "instance_name": "csql-mysql-db",
+    "report_window": {
+        "from": "22 Sep 2026, 07:02 AM UTC",
+        "to": "23 Sep 2026, 07:02 AM UTC"
+    },
+    "provisioned_specs": {
+        "Engine": "MYSQL 8 4",
+        "Edition": "ENTERPRISE",
+        "CPU": "1",
+        "Memory": "3.75 GB",
+        "Storage": "20 GB SSD",
+        "Availability": "Zonal",
+        "Read Replica count": 0,
+        "Last Backup time": "23 Sep 2026, 04:00 AM UTC",
+        "Uptime": "2d 1h 23m"
+    },
+    "resource_utilization": {
+        "cpu_utilization": {
+            "mean": 9.36,
+            "p95": 9.41,
+            "p99": 9.43,
+            "max": 81.77,
+            "header-name": "CPU Utilization (%)"
+        },
+        "memory_utilization": {
+            "mean": 61.61,
+            "p95": 63.1,
+            "p99": 63.22,
+            "max": 71.34,
+            "header-name": "Memory Utilization (%)"
+        },
+        "disk_utilization": {
+            "mean": 14.4,
+            "p95": 14.6,
+            "p99": 14.63,
+            "max": 17.42,
+            "header-name": "Disk Utilization (%)"
+        },
+        "disk_read_ops": {
+            "mean": 143.63,
+            "p95": 149.63,
+            "p99": 149.91,
+            "max": 46.9,
+            "header-name": "Disk Read (IOPS)"
+        },
+        "disk_write_ops": {
+            "mean": 13853.87,
+            "p95": 13983.35,
+            "p99": 14010.05,
+            "max": 1206.77,
+            "header-name": "Disk Write (IOPS)"
+        },
+        "disk_bytes_used": {
+            "mean": 2.82,
+            "p95": 0.35,
+            "p99": 0.35,
+            "max": 3.41,
+            "header-name": "Disk Bytes Used (GB)"
+        },
+        "connections": {
+            "mean": 8.0,
+            "p95": 8.38,
+            "p99": 8.39,
+            "max": 11.0,
+            "header-name": "Connections (Count)"
+        }
+    },
+    "health_checks": {
+        "indexes": {
+            "unused_indexes": [
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Index Name": "idx_unused_notes",
+                    "Index Size": "69.77"
+                },
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Index Name": "idx_unused_created_status",
+                    "Index Size": "28.56"
+                },
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Index Name": "idx_cust_1",
+                    "Index Size": "16.55"
+                },
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Index Name": "idx_cust_2",
+                    "Index Size": "16.55"
+                }
+            ],
+            "duplicate_indexes": [
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Duplicate Indexes": "idx_cust_1, idx_cust_2",
+                    "Dominant Index": "idx_cust_status",
+                    "Index Columns": "customer_id"
+                }
+            ],
+            "queries_high_full_table_scans": [
+                {
+                    "Database": "boost_test",
+                    "Query": "SHOW SCHEMAS",
+                    "Total Executions": 2,
+                    "Total Latency (ms)": "3.39",
+                    "Avg Latency (ms)": "1.69",
+                    "Full Table Scans": 2,
+                    "Full Scan (%)": "100.00",
+                    "First Seen": "2026-09-22 13:47:31.108102",
+                    "Last Seen": "2026-09-22 13:52:58.411368"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT COUNT ( * ) , AVG ( `amount` ) FROM `orders` WHERE `notes` LIKE ? AND STATUS = ?",
+                    "Total Executions": 1,
+                    "Total Latency (ms)": "920.54",
+                    "Avg Latency (ms)": "920.54",
+                    "Full Table Scans": 1,
+                    "Full Scan (%)": "100.00",
+                    "First Seen": "2026-09-22 13:50:49.720921",
+                    "Last Seen": "2026-09-22 13:50:49.720921"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT STATUS , SUM ( `amount` ) FROM `orders` WHERE `created_at` > NOW ( ) - INTERVAL ? SQL_TSI_DAY",
+                    "Total Executions": 1,
+                    "Total Latency (ms)": "534.79",
+                    "Avg Latency (ms)": "534.79",
+                    "Full Table Scans": 1,
+                    "Full Scan (%)": "100.00",
+                    "First Seen": "2026-09-22 13:50:56.255276",
+                    "Last Seen": "2026-09-22 13:50:56.255276"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT `notes` , COUNT ( * ) , SUM ( `amount` ) FROM `orders` GROUP BY `notes` HAVING COUNT ( * ) > ",
+                    "Total Executions": 1,
+                    "Total Latency (ms)": "6645.44",
+                    "Avg Latency (ms)": "6645.44",
+                    "Full Table Scans": 1,
+                    "Full Scan (%)": "100.00",
+                    "First Seen": "2026-09-22 13:51:14.304958",
+                    "Last Seen": "2026-09-22 13:51:14.304958"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT DISTINCTROW STATUS , `notes` FROM `orders` ORDER BY `notes` DESC LIMIT ?",
+                    "Total Executions": 1,
+                    "Total Latency (ms)": "6288.66",
+                    "Avg Latency (ms)": "6288.66",
+                    "Full Table Scans": 1,
+                    "Full Scan (%)": "100.00",
+                    "First Seen": "2026-09-22 13:51:23.266673",
+                    "Last Seen": "2026-09-22 13:51:23.266673"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT STRAIGHT_JOIN COUNT ( * ) , AVG ( `o1` . `amount` ) FROM `orders` `o1` JOIN `orders` `o2` ON ",
+                    "Total Executions": 1,
+                    "Total Latency (ms)": "46147.77",
+                    "Avg Latency (ms)": "46147.77",
+                    "Full Table Scans": 1,
+                    "Full Scan (%)": "100.00",
+                    "First Seen": "2026-09-22 13:52:26.229200",
+                    "Last Seen": "2026-09-22 13:52:26.229200"
+                }
+            ]
+        },
+        "performance": {
+            "buffer_pool_hit_ratio": [
+                {
+                    "Database": "mysql",
+                    "Total Read Requests": "29548900",
+                    "Disk Reads": "2644",
+                    "Buffer Hit Ratio (%)": 99.99
+                }
+            ],
+            "dirty_pages": [
+                {
+                    "Database": "mysql",
+                    "Dirty Pages": "0",
+                    "Total Pages": "90112",
+                    "Dirty Page (%)": 0.0
+                }
+            ],
+            "redo_log": [
+                {
+                    "Database": "mysql",
+                    "Log Buffer Waits": "0",
+                    "Write Requests": "6719248",
+                    "Physical Writes": "382381",
+                    "Total Fsyncs": "213662"
+                }
+            ],
+            "temp_table_usage": [
+                {
+                    "Database": "boost_test",
+                    "Query": "INSERT INTO `generator` SELECT ? FROM `generator` `g1` , `generator` `g2` , `generator` `g3`",
+                    "Total Executions": 1,
+                    "Temp Tables Created": 1,
+                    "Temp Tables on Disk": 0,
+                    "Disk Spill %": "0.00",
+                    "Avg Latency (ms)": "13.07",
+                    "Last Seen": "2026-09-22 13:47:37.317471"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT STATUS , SUM ( `amount` ) FROM `orders` WHERE `created_at` > NOW ( ) - INTERVAL ? SQL_TSI_DAY",
+                    "Total Executions": 1,
+                    "Temp Tables Created": 1,
+                    "Temp Tables on Disk": 0,
+                    "Disk Spill %": "0.00",
+                    "Avg Latency (ms)": "534.79",
+                    "Last Seen": "2026-09-22 13:50:56.255276"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT `notes` , COUNT ( * ) , SUM ( `amount` ) FROM `orders` GROUP BY `notes` HAVING COUNT ( * ) > ",
+                    "Total Executions": 1,
+                    "Temp Tables Created": 1,
+                    "Temp Tables on Disk": 0,
+                    "Disk Spill %": "0.00",
+                    "Avg Latency (ms)": "6645.44",
+                    "Last Seen": "2026-09-22 13:51:14.304958"
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT DISTINCTROW STATUS , `notes` FROM `orders` ORDER BY `notes` DESC LIMIT ?",
+                    "Total Executions": 1,
+                    "Temp Tables Created": 1,
+                    "Temp Tables on Disk": 0,
+                    "Disk Spill %": "0.00",
+                    "Avg Latency (ms)": "6288.66",
+                    "Last Seen": "2026-09-22 13:51:23.266673"
+                }
+            ],
+            "top_queries_by_execution_time": [
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT STRAIGHT_JOIN COUNT ( * ) , AVG ( `o1` . `amount` ) FROM `orders` `o1` JOIN `orders` `o2` ON `o1` . `customer_id` = `o2` . `customer_id` WHERE `o1` . `status` = ? AND `o2` . `status` = ?",
+                    "Executions": 1,
+                    "Total Time (ms)": "46147.77",
+                    "Avg Time (ms)": "46147.77",
+                    "Total Time (%)": "25.10",
+                    "Rows Sent": 1
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "INSERT INTO `fragmented_table` ( `data_payload` , `created_at` ) SELECT REPEAT (...) , NOW ( ) FROM `generator` `g1` , `generator` `g2`",
+                    "Executions": 1,
+                    "Total Time (ms)": "27018.80",
+                    "Avg Time (ms)": "27018.80",
+                    "Total Time (%)": "14.69",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "INSERT INTO `orders` ( `customer_id` , STATUS , `amount` , `created_at` , `notes` ) SELECT `FLOOR` ( ? + `RAND` ( ) * ? ) , CASE `FLOOR` ( ? + `RAND` ( ) * ? ) WHEN ? THEN ? WHEN ? THEN ? WHEN ? THEN ? ELSE ? END , `ROUND` ( `RAND` ( ) * ?, ... ) , NOW ( ) - INTERVAL `FLOOR` ( `RAND` ( ) * ? ) SQL_TSI_DAY , REPEAT (...) FROM `generator` `g1` , `generator` `g2`",
+                    "Executions": 1,
+                    "Total Time (ms)": "26007.07",
+                    "Avg Time (ms)": "26007.07",
+                    "Total Time (%)": "14.14",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "CREATE INDEX `idx_unused_notes` ON `orders` ( `notes` (?) )",
+                    "Executions": 1,
+                    "Total Time (ms)": "20416.66",
+                    "Avg Time (ms)": "20416.66",
+                    "Total Time (%)": "11.10",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT * FROM `orders` WHERE `order_id` = ?",
+                    "Executions": 2,
+                    "Total Time (ms)": "18700.63",
+                    "Avg Time (ms)": "9350.32",
+                    "Total Time (%)": "10.17",
+                    "Rows Sent": 2
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "DELETE FROM `fragmented_table` WHERE `id` % ? = ?",
+                    "Executions": 2,
+                    "Total Time (ms)": "9506.50",
+                    "Avg Time (ms)": "4753.25",
+                    "Total Time (%)": "5.17",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "CREATE INDEX `idx_unused_created_status` ON `orders` ( `created_at` , STATUS )",
+                    "Executions": 1,
+                    "Total Time (ms)": "7540.01",
+                    "Avg Time (ms)": "7540.01",
+                    "Total Time (%)": "4.10",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT `notes` , COUNT ( * ) , SUM ( `amount` ) FROM `orders` GROUP BY `notes` HAVING COUNT ( * ) > ? ORDER BY SUM ( `amount` ) DESC LIMIT ?",
+                    "Executions": 1,
+                    "Total Time (ms)": "6645.44",
+                    "Avg Time (ms)": "6645.44",
+                    "Total Time (%)": "3.61",
+                    "Rows Sent": 1
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "CREATE INDEX `idx_cust_status` ON `orders` ( `customer_id` , STATUS )",
+                    "Executions": 1,
+                    "Total Time (ms)": "6378.31",
+                    "Avg Time (ms)": "6378.31",
+                    "Total Time (%)": "3.47",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT DISTINCTROW STATUS , `notes` FROM `orders` ORDER BY `notes` DESC LIMIT ?",
+                    "Executions": 1,
+                    "Total Time (ms)": "6288.66",
+                    "Avg Time (ms)": "6288.66",
+                    "Total Time (%)": "3.42",
+                    "Rows Sent": 4
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "CREATE INDEX `idx_cust_2` ON `orders` ( `customer_id` )",
+                    "Executions": 1,
+                    "Total Time (ms)": "3663.74",
+                    "Avg Time (ms)": "3663.74",
+                    "Total Time (%)": "1.99",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "CREATE INDEX `idx_cust_1` ON `orders` ( `customer_id` )",
+                    "Executions": 1,
+                    "Total Time (ms)": "3622.65",
+                    "Avg Time (ms)": "3622.65",
+                    "Total Time (%)": "1.97",
+                    "Rows Sent": 0
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT COUNT ( * ) , AVG ( `amount` ) FROM `orders` WHERE `notes` LIKE ? AND STATUS = ?",
+                    "Executions": 1,
+                    "Total Time (ms)": "920.54",
+                    "Avg Time (ms)": "920.54",
+                    "Total Time (%)": "0.50",
+                    "Rows Sent": 1
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "SELECT STATUS , SUM ( `amount` ) FROM `orders` WHERE `created_at` > NOW ( ) - INTERVAL ? SQL_TSI_DAY GROUP BY STATUS",
+                    "Executions": 1,
+                    "Total Time (ms)": "534.79",
+                    "Avg Time (ms)": "534.79",
+                    "Total Time (%)": "0.29",
+                    "Rows Sent": 4
+                },
+                {
+                    "Database": "boost_test",
+                    "Query": "ANALYZE TABLE `fragmented_table`",
+                    "Executions": 1,
+                    "Total Time (ms)": "359.33",
+                    "Avg Time (ms)": "359.33",
+                    "Total Time (%)": "0.20",
+                    "Rows Sent": 0
+                }
+            ]
+        },
+        "locks": {
+            "lock_waits": [
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Total Lock Waits": 16,
+                    "Total Wait Time (ms)": "0.03",
+                    "Avg Wait Time (ms)": "0.00",
+                    "Max Wait Time (ms)": "0.00"
+                },
+                {
+                    "Database": "boost_test",
+                    "Table": "fragmented_table",
+                    "Total Lock Waits": 4,
+                    "Total Wait Time (ms)": "0.01",
+                    "Avg Wait Time (ms)": "0.00",
+                    "Max Wait Time (ms)": "0.00"
+                },
+                {
+                    "Database": "boost_test",
+                    "Table": "generator",
+                    "Total Lock Waits": 9,
+                    "Total Wait Time (ms)": "0.01",
+                    "Avg Wait Time (ms)": "0.00",
+                    "Max Wait Time (ms)": "0.00"
+                }
+            ]
+        },
+        "connections": {
+            "active_connections": [
+                {
+                    "Database": "mysql",
+                    "Current Connections": "9",
+                    "Peak Connections": "14",
+                    "Max Allowed": "4030",
+                    "Peak Usage (%)": 0.35,
+                    "Longest Connection (sec)": null
+                }
+            ],
+            "aborted_connections": [
+                {
+                    "Database": "mysql",
+                    "Aborted (Auth Failures)": "0",
+                    "Aborted (Network Issues)": "16",
+                    "Total Connection Attempts": "137029",
+                    "Auth Failure %": 0.0,
+                    "Network Abort %": 0.01
+                }
+            ],
+            "thread_activity": [
+                {
+                    "Database": "mysql",
+                    "Thread State": "waiting for handler commit",
+                    "Thread Count": 1
+                },
+                {
+                    "Database": "mysql",
+                    "Thread State": "Waiting on empty queue",
+                    "Thread Count": 1
+                },
+                {
+                    "Database": "mysql",
+                    "Thread State": "Suspending",
+                    "Thread Count": 1
+                },
+                {
+                    "Database": "mysql",
+                    "Thread State": "executing",
+                    "Thread Count": 1
+                }
+            ]
+        },
+        "storage": {
+            "fragmentation": [
+                {
+                    "Database": "boost_test",
+                    "Table": "fragmented_table",
+                    "Live Rows": 322418,
+                    "Data Size (MB)": "514.56",
+                    "Dead Rows (MB)": "4.00",
+                    "Fragmentation (%)": "0.77"
+                },
+                {
+                    "Database": "sbtest",
+                    "Table": "sbtest1",
+                    "Live Rows": 49045,
+                    "Data Size (MB)": "21.27",
+                    "Dead Rows (MB)": "4.00",
+                    "Fragmentation (%)": "14.94"
+                },
+                {
+                    "Database": "sbtest",
+                    "Table": "sbtest2",
+                    "Live Rows": 49464,
+                    "Data Size (MB)": "21.27",
+                    "Dead Rows (MB)": "4.00",
+                    "Fragmentation (%)": "15.00"
+                },
+                {
+                    "Database": "sbtest",
+                    "Table": "sbtest3",
+                    "Live Rows": 49464,
+                    "Data Size (MB)": "21.27",
+                    "Dead Rows (MB)": "4.00",
+                    "Fragmentation (%)": "14.99"
+                },
+                {
+                    "Database": "sbtest",
+                    "Table": "sbtest4",
+                    "Live Rows": 49464,
+                    "Data Size (MB)": "21.27",
+                    "Dead Rows (MB)": "4.00",
+                    "Fragmentation (%)": "15.02"
+                },
+                {
+                    "Database": "boost_test",
+                    "Table": "orders",
+                    "Live Rows": 971535,
+                    "Data Size (MB)": "362.86",
+                    "Dead Rows (MB)": "2.00",
+                    "Fragmentation (%)": "0.55"
+                }
+            ]
+        }
+    }
+}
