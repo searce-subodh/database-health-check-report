@@ -2,6 +2,56 @@ from datetime import datetime
 import json
 import os
 import re
+import sys
+
+# ─────────────────────────────────────────────
+# LOAD INPUT JSON FILES (VIA COMMAND LINE)
+# ─────────────────────────────────────────────
+
+if len(sys.argv) < 2:
+    print("❌ Usage Error!")
+    print("Please provide JSON file paths or a directory containing JSON files:")
+    print("  python3 json-to-html.py reports/data-analyst-504209_csql-mysql-db.json")
+    print("  python3 json-to-html.py ./reports/")
+    sys.exit(1)
+
+report_data = {}
+
+def load_json_file(filepath):
+    """Parses individual per-instance JSON files and merges them by instance key."""
+    try:
+        with open(filepath, "r") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                # Handles new single-instance JSON output from script.py
+                if "instance_name" in data:
+                    inst_name = data["instance_name"]
+                    project_id = data.get("project_id", "")
+                    # Unique key to ensure no collision across projects
+                    unique_key = f"{project_id}:{inst_name}" if project_id else inst_name
+                    report_data[unique_key] = data
+                else:
+                    # Fallback for old multi-instance root structure
+                    for k, v in data.items():
+                        if isinstance(v, dict) and "health_checks" in v:
+                            report_data[k] = v
+    except Exception as e:
+        print(f"⚠️ Warning: Failed to load '{filepath}': {e}")
+
+# Process command-line inputs
+for arg in sys.argv[1:]:
+    if os.path.isdir(arg):
+        for filename in sorted(os.listdir(arg)):
+            if filename.endswith(".json") and filename != "queries.json":
+                load_json_file(os.path.join(arg, filename))
+    elif os.path.isfile(arg):
+        load_json_file(arg)
+
+if not report_data:
+    print("❌ Error: No valid database report JSON data found in the provided inputs.")
+    sys.exit(1)
+
+print(f"✅ Loaded {len(report_data)} instance(s) into report generator.")
 
 # Load raw SQL queries for extracting header column names on failed queries
 try:
@@ -10,9 +60,6 @@ try:
 except Exception:
     queries_definitions = {}
 
-with open("database_health_report.json", "r") as f:
-    report_data = json.load(f)
-
 generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
 # ─────────────────────────────────────────────
@@ -20,7 +67,7 @@ generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 # ─────────────────────────────────────────────
 
 nav_data = {}
-for instance, data in report_data.items():
+for unique_key, data in report_data.items():
     specs  = data.get("provisioned_specs", {})
     engine = specs.get("Engine", "")
     db_type = (
@@ -28,7 +75,16 @@ for instance, data in report_data.items():
         else "MySQL"  if "MYSQL"   in engine.upper()
         else "Unknown"
     )
-    nav_data[instance] = db_type
+    
+    instance_name = data.get("instance_name", unique_key)
+    project_id    = data.get("project_id", "")
+    
+    display_label = f"{instance_name} ({project_id})" if project_id else instance_name
+    
+    nav_data[unique_key] = {
+        "type": db_type,
+        "label": display_label
+    }
 
 
 # ─────────────────────────────────────────────
@@ -80,13 +136,13 @@ def build_paginated_table(rows, table_id, sql_query=""):
     if not rows or not isinstance(rows, list):
         return '<p class="no-issues">No issues or records flagged.</p>'
 
-    # ── CASE 1: 0 Records Returned (Handled in UI) ──
+    # ── CASE 1: 0 Records Returned ──
     if len(rows) == 1 and isinstance(rows[0], dict):
         first_row = rows[0]
         if first_row.get("message") == "0 records returned":
             return '<p class="no-issues">No issues or records flagged.</p>'
 
-    # ── CASE 2: Query Failed / Permission Error (Show Column Headers Only) ──
+    # ── CASE 2: Query Failed / Permission Error (Headers Only, Empty tbody) ──
     if len(rows) > 0 and isinstance(rows[0], dict):
         first_row = rows[0]
         if "error" in first_row or first_row.get("status") == "ERROR" or "Result unavailable" in str(first_row.get("message")):
@@ -134,25 +190,12 @@ def build_paginated_table(rows, table_id, sql_query=""):
     return html
 
 
-def merge_db_results(health_checks, category, metric):
-    merged = []
-    for db_name, categories in health_checks.items():
-        if not isinstance(categories, dict):
-            continue
-        rows = categories.get(category, {}).get(metric, [])
-        if isinstance(rows, list):
-            for row in rows:
-                r = {"db_name": db_name}
-                r.update(row)
-                merged.append(r)
-    return merged
-
-
 # ─────────────────────────────────────────────
 # HTML HEAD + STYLES
 # ─────────────────────────────────────────────
 
-report_window = list(report_data.values())[0].get("report_window", {})
+first_instance_data = list(report_data.values())[0] if report_data else {}
+report_window = first_instance_data.get("report_window", {})
 period_from   = report_window.get("from", generated_at)
 period_to     = report_window.get("to",   generated_at)
 
@@ -161,9 +204,22 @@ html_content = f"""<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Database Health Check Report</title>
+    <!-- Import Montserrat and Inter from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-        body {{ font-family: Arial, Helvetica, 'Segoe UI', sans-serif; background: #f1f5f9; color: #1e293b; }}
+        body {{ 
+            font-family: 'Inter', Arial, Helvetica, sans-serif; 
+            font-variant-numeric: tabular-nums; 
+            background: #f1f5f9; 
+            color: #1e293b; 
+        }}
+
+        h1, .section-title, .category-title, .instance-title {{
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }}
 
         /* ── FROZEN TOP BAR ── */
         #topbar {{
@@ -173,7 +229,7 @@ html_content = f"""<!DOCTYPE html>
             gap: 16px; flex-wrap: wrap;
             box-shadow: 0 2px 8px rgba(0,0,0,0.3);
         }}
-        #topbar h1 {{ font-size: 1.1em; font-weight: 700; color: white; white-space: nowrap; }}
+        #topbar h1 {{ font-size: 1.1em; color: white; white-space: nowrap; }}
         #topbar select {{
             padding: 6px 10px; border-radius: 6px; border: none;
             background: #1e293b; color: white; font-size: 0.85em;
@@ -215,31 +271,39 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── MONITORING METRICS ── */
         .metrics-table {{ width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.88em; }}
-        .metrics-table th {{ background: #1e40af; color: white; padding: 10px 12px; text-align: left; }}
+        .metrics-table th {{ 
+            background: #1e40af; color: white; padding: 10px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }}
         .metrics-table td {{ border: 1px solid #e2e8f0; padding: 9px 12px; }}
         .metrics-table tr:nth-child(even) td {{ background: #f8fafc; }}
 
         /* ── INSTANCE CARDS ── */
         .instance-block {{ margin-bottom: 32px; }}
+
         .instance-title {{
-            font-size: 1.15em; font-weight: 700; color: #0f172a;
             padding: 12px 20px; background: #e2e8f0;
             border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+            font-family: 'Montserrat', sans-serif; font-size: 1.15em;
         }}
+        .breadcrumb-project {{ font-weight: 500; color: #64748b; }}
+        .breadcrumb-separator {{ margin: 0 8px; color: #94a3b8; font-weight: 400; }}
+        .breadcrumb-instance {{ font-weight: 700; color: #0f172a; }}
+
         .section-card {{
             background: white; border-radius: 0 0 8px 8px;
             padding: 20px; margin-bottom: 16px;
             box-shadow: 0 1px 3px rgba(0,0,0,0.08);
         }}
         .section-title {{
-            font-size: 1.05em; font-weight: 700; color: #0f172a;
+            font-size: 1.05em; color: #0f172a;
             margin-bottom: 14px; padding-bottom: 8px;
             border-bottom: 2px solid #e2e8f0;
         }}
 
         /* ── CATEGORY ── */
         .category-title {{
-            font-size: 1em; font-weight: 700; color: #2563eb;
+            font-size: 1em; color: #2563eb;
             margin-top: 16px; padding: 8px 0;
             border-bottom: 1px solid #e2e8f0; cursor: pointer;
             display: flex; justify-content: space-between;
@@ -252,7 +316,10 @@ html_content = f"""<!DOCTYPE html>
 
         /* ── TABLES ── */
         table {{ width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.83em; }}
-        th {{ background: #334155; color: white; padding: 9px 12px; text-align: left; }}
+        th {{ 
+            background: #334155; color: white; padding: 9px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }}
         td {{ border: 1px solid #e2e8f0; padding: 8px 12px; word-break: break-word; max-width: 400px; }}
         tr:nth-child(even) td {{ background: #f8fafc; }}
         tr.row-critical td {{ background: #fee2e2 !important; }}
@@ -286,12 +353,12 @@ html_content = f"""<!DOCTYPE html>
 <div id="topbar">
     <h1>Database Health Report</h1>
     <select id="filter-dbtype" onchange="filterByType()">
-        <option value="ALL">All DB Types</option>
+        <option value="ALL">All Database Engines</option>
         <option value="PostgreSQL">PostgreSQL</option>
         <option value="MySQL">MySQL</option>
     </select>
     <select id="filter-server" onchange="filterByServer()">
-        <option value="ALL">All Servers</option>
+        <option value="ALL">All Instances</option>
     </select>
     <div class="topbar-timestamp">
         Report Period<br>
@@ -313,15 +380,27 @@ SPEC_RENAME = {
     "Last Backup time":   "Last Backup",
 }
 
-for instance, data in report_data.items():
-    safe_instance = instance.replace(":", "-").replace(" ", "_")
+for unique_key, data in report_data.items():
+    safe_instance = unique_key.replace(":", "-").replace(" ", "_")
+    
+    instance_name = data.get("instance_name", unique_key)
+    project_id    = data.get("project_id", "")
     specs         = data.get("provisioned_specs", {})
     utilization   = data.get("resource_utilization", {})
     health_checks = data.get("health_checks", {})
-    db_type_label = nav_data.get(instance, "Unknown")
+    
+    db_type_label = nav_data.get(unique_key, {}).get("type", "Unknown")
 
-    html_content += f'<div class="instance-block" data-server="{instance}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
-    html_content += f'<div class="instance-title">Server: {instance} <small style="font-weight:400;font-size:0.8em;color:#64748b;">({db_type_label})</small></div>'
+    html_content += f'<div class="instance-block" data-server="{unique_key}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
+    
+    # Instance Header with Cloud Breadcrumb Styling
+    html_content += '<div class="instance-title">'
+    if project_id:
+        html_content += f'<span class="breadcrumb-project">{project_id}</span>'
+        html_content += '<span class="breadcrumb-separator">/</span>'
+    html_content += f'<span class="breadcrumb-instance">{instance_name}</span>'
+    html_content += '</div>'
+    
     html_content += '<div class="section-card">'
 
     # ── Provisioned Specs ──
@@ -339,14 +418,13 @@ for instance, data in report_data.items():
     elif "Error" in specs:
         html_content += f'<div class="error-box"><strong>Configuration Error:</strong><br>{specs["Error"]}</div>'
 
-    # ── Resource Utilization ──
+    # ── Resource Utilization (Uses 'header-name' key from new JSON structure) ──
     if utilization:
         html_content += '<div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div>'
         html_content += '''<table class="metrics-table">
         <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody>'''
         
         for metric_key, m in utilization.items():
-
             if not isinstance(m, dict):
                 continue
             label = m.get("header-name") or format_clean_title(metric_key)
@@ -369,67 +447,26 @@ for instance, data in report_data.items():
         html_content += f'<div class="error-box"><strong>Error:</strong><br>{health_checks["error"]}</div>'
     elif isinstance(health_checks, dict):
 
-        first_val = next(iter(health_checks.values()), {})
-        is_flat = isinstance(first_val, dict) and any(
-            isinstance(v, list) for v in first_val.values()
-        )
+        for category, queries in health_checks.items():
+            if not isinstance(queries, dict):
+                continue
+            clean_category = format_clean_title(category)
+            html_content += f'''
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>{clean_category}</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden">'''
 
-        if is_flat:
-            # Flat structure
-            for category, queries in health_checks.items():
-                if not isinstance(queries, dict):
-                    continue
-                clean_category = format_clean_title(category)
-                html_content += f'''
-                <div class="category-title" onclick="toggleCategory(this)">
-                    <span>{clean_category}</span><span>&#9654;</span>
-                </div>
-                <div class="category-content hidden">'''
+            for metric_name, rows in queries.items():
+                table_counter[0] += 1
+                tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
+                clean_metric = format_clean_title(metric_name)
+                html_content += f'<div class="metric-title">{clean_metric}</div>'
 
-                for metric_name, rows in queries.items():
-                    table_counter[0] += 1
-                    tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
-                    clean_metric = format_clean_title(metric_name)
-                    html_content += f'<div class="metric-title">{clean_metric}</div>'
+                sql_query = queries_definitions.get(db_type_label.lower(), {}).get(category, {}).get(metric_name, "")
+                html_content += build_paginated_table(rows, tid, sql_query=sql_query)
 
-                    sql_query = queries_definitions.get(db_type_label.lower(), {}).get(category, {}).get(metric_name, "")
-                    html_content += build_paginated_table(rows, tid, sql_query=sql_query)
-
-                html_content += '</div>'  # close category-content
-
-        else:
-            # Nested structure
-            all_categories = {}
-            for db_name, categories in health_checks.items():
-                if not isinstance(categories, dict):
-                    continue
-                for category, queries in categories.items():
-                    if not isinstance(queries, dict):
-                        continue
-                    if category not in all_categories:
-                        all_categories[category] = []
-                    for metric in queries.keys():
-                        if metric not in all_categories[category]:
-                            all_categories[category].append(metric)
-
-            for category, metrics in all_categories.items():
-                clean_category = format_clean_title(category)
-                html_content += f'''
-                <div class="category-title" onclick="toggleCategory(this)">
-                    <span>{clean_category}</span><span>&#9654;</span>
-                </div>
-                <div class="category-content hidden">'''
-
-                for metric_name in metrics:
-                    table_counter[0] += 1
-                    tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
-                    clean_metric = format_clean_title(metric_name)
-                    rows         = merge_db_results(health_checks, category, metric_name)
-                    html_content += f'<div class="metric-title">{clean_metric}</div>'
-
-                    sql_query = queries_definitions.get(db_type_label.lower(), {}).get(category, {}).get(metric_name, "")
-                    html_content += build_paginated_table(rows, tid, sql_query=sql_query)
-                html_content += '</div>'  # close category-content
+            html_content += '</div>'  # close category-content
 
     html_content += '</div>'  # close instance-block
 
@@ -446,19 +483,24 @@ html_content += f"""
 const navData = {nav_json};
 
 const serverSel = document.getElementById('filter-server');
-Object.keys(navData).forEach(s => {{
+
+// Populate initial Server Dropdown
+Object.entries(navData).forEach(([key, info]) => {{
     const o = document.createElement('option');
-    o.value = s; o.textContent = s;
+    o.value = key; 
+    o.textContent = info.label;
     serverSel.appendChild(o);
 }});
 
 function filterByType() {{
     const type = document.getElementById('filter-dbtype').value;
-    serverSel.innerHTML = '<option value="ALL">All Servers</option>';
-    Object.entries(navData).forEach(([srv, dbtype]) => {{
-        if (type === 'ALL' || dbtype === type) {{
+    serverSel.innerHTML = '<option value="ALL">All Instances</option>';
+    
+    Object.entries(navData).forEach(([key, info]) => {{
+        if (type === 'ALL' || info.type === type) {{
             const o = document.createElement('option');
-            o.value = srv; o.textContent = srv;
+            o.value = key; 
+            o.textContent = info.label;
             serverSel.appendChild(o);
         }}
     }});
@@ -468,6 +510,7 @@ function filterByType() {{
 function filterByServer() {{
     const type = document.getElementById('filter-dbtype').value;
     const srv  = serverSel.value;
+    
     document.querySelectorAll('.instance-block').forEach(block => {{
         const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
         const srvMatch  = srv   === 'ALL' || block.dataset.server === srv;
@@ -506,4 +549,4 @@ output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Database
 with open(output_path, "w") as f:
     f.write(html_content)
 
-print(f"✅ Report saved to: {output_path}")
+print(f"[OK] Report saved to: {output_path}")
