@@ -201,8 +201,8 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
         "Memory": memory,
         "Storage": f"{settings.get('dataDiskSizeGb', 'N/A')} GB {disk_type}".strip(),
         "Availability": settings.get("availabilityType", "N/A").title(),
-        "Read Replica count": len(inst.get("replicaNames", [])),
-        "Last Backup time": last_backup_time,
+        "Replicas": len(inst.get("replicaNames", [])),
+        "Last Backup": last_backup_time,
     }
 
     return specs, connection_name, db_type, region, host, port
