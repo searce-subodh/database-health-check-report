@@ -8,7 +8,7 @@ import sys
 # ─────────────────────────────────────────────
 
 if len(sys.argv) < 2:
-    print("❌ Usage Error!")
+    print("Usage Error!")
     print("Please provide JSON file paths or a directory containing JSON files:")
     sys.exit(1)
 
