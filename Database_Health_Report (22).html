@@ -1,0 +1,462 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Database Health Check Report</title>
+    <!-- Import Montserrat and Inter from Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { 
+            font-family: 'Inter', Arial, Helvetica, sans-serif; 
+            font-variant-numeric: tabular-nums; 
+            background: #f1f5f9; 
+            color: #1e293b; 
+        }
+
+        h1, .section-title, .category-title, .instance-title {
+            font-family: 'Montserrat', sans-serif;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+        }
+
+        /* ── FROZEN TOP BAR ── */
+        #topbar {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 1000;
+            background: #0f172a; color: white;
+            padding: 12px 24px; display: flex; align-items: center;
+            gap: 16px; flex-wrap: wrap;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+        }
+        #topbar h1 { font-size: 1.1em; color: white; white-space: nowrap; }
+        #topbar select {
+            padding: 6px 10px; border-radius: 6px; border: none;
+            background: #1e293b; color: white; font-size: 0.85em;
+            cursor: pointer; min-width: 160px; font-family: inherit;
+        }
+        #topbar select:focus { outline: 2px solid #3b82f6; }
+        .topbar-timestamp {
+            margin-left: auto; font-size: 0.8em; color: #94a3b8;
+            white-space: nowrap; text-align: right; line-height: 1.6;
+        }
+
+        /* ── MAIN CONTENT ── */
+        #content { margin-top: 72px; padding: 24px; }
+
+        /* ── PROVISIONED SPECS — single dynamic row ── */
+        .specs-grid {
+            display: flex;
+            flex-wrap: nowrap;
+            overflow-x: auto;
+            gap: 10px;
+            margin-bottom: 16px;
+            padding-bottom: 6px;
+        }
+        .spec-item {
+            flex: 1 1 auto;
+            min-width: 100px;
+            white-space: nowrap;
+            background: #f8fafc;
+            border-radius: 6px;
+            padding: 10px 14px;
+            border-left: 4px solid #2563eb;
+        }
+        .spec-label {
+            font-size: 0.68em; color: #64748b;
+            text-transform: uppercase; letter-spacing: 0.04em;
+            margin-bottom: 4px; font-weight: 600;
+        }
+        .spec-value { font-size: 0.95em; font-weight: 700; color: #0f172a; }
+
+        /* ── MONITORING METRICS ── */
+        .metrics-table { width: 100%; border-collapse: collapse; margin-bottom: 16px; font-size: 0.88em; }
+        .metrics-table th { 
+            background: #1e40af; color: white; padding: 10px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }
+        .metrics-table td { border: 1px solid #e2e8f0; padding: 9px 12px; }
+        .metrics-table tr:nth-child(even) td { background: #f8fafc; }
+
+        /* ── INSTANCE CARDS ── */
+        .instance-block { margin-bottom: 32px; }
+
+        .instance-title {
+            padding: 12px 20px; background: #e2e8f0;
+            border-radius: 8px 8px 0 0; border-left: 5px solid #2563eb;
+            font-family: 'Montserrat', sans-serif; font-size: 1.15em;
+        }
+        .breadcrumb-project { font-weight: 500; color: #64748b; }
+        .breadcrumb-separator { margin: 0 8px; color: #94a3b8; font-weight: 400; }
+        .breadcrumb-instance { font-weight: 700; color: #0f172a; }
+
+        .section-card {
+            background: white; border-radius: 0 0 8px 8px;
+            padding: 20px; margin-bottom: 16px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+        }
+        .section-title {
+            font-size: 1.05em; color: #0f172a;
+            margin-bottom: 14px; padding-bottom: 8px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        /* ── CATEGORY ── */
+        .category-title {
+            font-size: 1em; color: #2563eb;
+            margin-top: 16px; padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0; cursor: pointer;
+            display: flex; justify-content: space-between;
+        }
+        .category-title:hover { color: #1d4ed8; }
+        .metric-title {
+            font-size: 0.9em; font-weight: 600; color: #334155;
+            margin: 14px 0 6px;
+        }
+
+        /* ── TABLES ── */
+        table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.83em; }
+        th { 
+            background: #334155; color: white; padding: 9px 12px; text-align: left; 
+            font-family: 'Montserrat', sans-serif; font-weight: 600;
+        }
+        td { border: 1px solid #e2e8f0; padding: 8px 12px; word-break: break-word; max-width: 400px; }
+        tr:nth-child(even) td { background: #f8fafc; }
+        tr.row-critical td { background: #fee2e2 !important; }
+        tr.row-warning  td { background: #fef9c3 !important; }
+        tr:hover         td { background: #eff6ff !important; }
+
+        /* ── PAGINATION ── */
+        .pagination {
+            display: flex; align-items: center; gap: 10px;
+            padding: 6px 0; font-size: 0.72em; color: #64748b;
+        }
+        .pagination button {
+            padding: 3px 10px; border-radius: 4px;
+            border: 1px solid #cbd5e1; background: white;
+            cursor: pointer; font-size: 0.95em; font-weight: 600;
+            color: #334155;
+        }
+        .pagination button:hover { background: #e2e8f0; }
+        .pagination button:disabled { opacity: 0.4; cursor: default; }
+
+        .alert-badge { font-weight: 700; color: #991b1b; background: #fca5a5; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .warn-badge  { font-weight: 700; color: #854d0e; background: #fde047; padding: 2px 6px; border-radius: 4px; font-size: 0.85em; }
+        .no-issues   { color: #16a34a; font-style: italic; font-weight: 500; font-size: 0.95em; padding: 6px 0 12px 0; margin: 0; }
+        .error-box   { color: #7f1d1d; background: #fee2e2; border-left: 4px solid #b91c1c; padding: 12px 16px; border-radius: 4px; font-size: 0.88em; margin: 8px 0; }
+        .hidden      { display: none !important; }
+    </style>
+</head>
+<body>
+
+<!-- FROZEN TOP BAR -->
+<div id="topbar">
+    <h1>Database Health Report</h1>
+    <select id="filter-dbtype" onchange="filterByType()">
+        <option value="ALL">All Database Engines</option>
+        <option value="PostgreSQL">PostgreSQL</option>
+        <option value="MySQL">MySQL</option>
+    </select>
+    <select id="filter-server" onchange="filterByServer()">
+        <option value="ALL">All Instances</option>
+    </select>
+    <div class="topbar-timestamp">
+        Report Period<br>
+        23 Sep 2026, 04:55 AM UTC &rarr; 24 Sep 2026, 04:55 AM UTC
+    </div>
+</div>
+
+<div id="content">
+<div class="instance-block" data-server="bhakti-test:bhakti-health-report-test" data-dbtype="PostgreSQL" id="srv-bhakti-test-bhakti-health-report-test"><div class="instance-title"><span class="breadcrumb-project">bhakti-test</span><span class="breadcrumb-separator">/</span><span class="breadcrumb-instance">bhakti-health-report-test</span></div><div class="section-card"><div class="section-title">Provisioned Specifications</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">POSTGRES 17</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">2</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">8.0 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">10 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Replicas</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup</div>
+                <div class="spec-value">23 Sep 2026, 07:00 PM UTC</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Uptime</div>
+                <div class="spec-value">1d 21h 32m</div>
+            </div></div><div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>5.94</td>
+                <td>6.07</td>
+                <td>6.08</td>
+                <td>8.43</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>47.85</td>
+                <td>49.44</td>
+                <td>49.54</td>
+                <td>48.64</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>2.35</td>
+                <td>2.4</td>
+                <td>2.41</td>
+                <td>2.36</td>
+            </tr><tr>
+                <td><strong>Disk Read (IOPS)</strong></td>
+                <td>0.0</td>
+                <td>0.0</td>
+                <td>0.0</td>
+                <td>0.0</td>
+            </tr><tr>
+                <td><strong>Connections (Count)</strong></td>
+                <td>0.5</td>
+                <td>2.02</td>
+                <td>2.04</td>
+                <td>3.0</td>
+            </tr></tbody></table></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Indexes</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Unused Indexes</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_indexes_unused_indexes_1"><table id="tbl-bhakti-test-bhakti-health-report-test_indexes_unused_indexes_1"><thead><tr><th>Database</th><th>Schema</th><th>Table</th><th>Index Name</th><th>Index Size</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>idx_customers_country</td><td>136 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>payments</td><td>idx_payments_status</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock_unused</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_orders_customer_duplicate</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>order_items</td><td>idx_items_product</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>payments</td><td>idx_payments_order</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>order_items</td><td>idx_items_order</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_orders_customer</td><td>16 kB</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>idx_orders_status</td><td>16 kB</td></tr></tbody></table></div><div class="metric-title">Duplicate Indexes</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_indexes_duplicate_indexes_2"><table id="tbl-bhakti-test-bhakti-health-report-test_indexes_duplicate_indexes_2"><thead><tr><th>Database</th><th>Schema</th><th>Table</th><th>Duplicate Indexes</th><th>Dominant Index</th><th>Index Columns</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>idx_customers_country, idx_customers_country_lowsel</td><td>idx_customers_country_lowsel</td><td>country</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>idx_products_stock, idx_products_stock_unused</td><td>idx_products_stock</td><td>stock</td></tr></tbody></table></div><div class="metric-title">Queries High Full Table Scans</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_indexes_queries_high_full_table_scans_3"><table id="tbl-bhakti-test-bhakti-health-report-test_indexes_queries_high_full_table_scans_3"><thead><tr><th>Database</th><th>Schema</th><th>Table</th><th>Full Scans</th><th>Rows Read via Scan</th><th>Avg Rows per Scan</th><th>Index Scans</th><th>Table Size</th><th>Sample Query</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>public</td><td>customers</td><td>8</td><td>60120</td><td>7515</td><td>17</td><td>3216 kB</td><td>-- Now run a query with no index on the 'name' column — forces full table scan
+SELECT * FROM customers WHERE name = $1</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>orders</td><td>5</td><td>60</td><td>12</td><td>36</td><td>72 kB</td><td>-- Orders
+CREATE TABLE orders (
+    order_id    SERIAL PRIMARY KEY,
+    customer_id INTEGER REFERENCES customers(customer_id),
+    status      VARCHAR(30) DEFAULT 'pending',
+    total       NUMERIC(10, 2),
+    created_at  TIMESTAMP DEFAULT NOW()
+)</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>products</td><td>4</td><td>45</td><td>11</td><td>21</td><td>56 kB</td><td>-- Products
+CREATE TABLE products (
+    product_id   SERIAL PRIMARY KEY,
+    name         VARCHAR(150) NOT NULL,
+    category     VARCHAR(80),
+    price        NUMERIC(10, 2),
+    stock        INTEGER DEFAULT 0
+)</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>payments</td><td>4</td><td>45</td><td>11</td><td>0</td><td>56 kB</td><td>-- Payments
+CREATE TABLE payments (
+    payment_id  SERIAL PRIMARY KEY,
+    order_id    INTEGER REFERENCES orders(order_id),
+    method      VARCHAR(50),
+    status      VARCHAR(30),
+    paid_at     TIMESTAMP DEFAULT NOW()
+)</td></tr><tr class="page-row "><td>postgres</td><td>public</td><td>order_items</td><td>4</td><td>63</td><td>16</td><td>0</td><td>56 kB</td><td>-- Order Items
+CREATE TABLE order_items (
+    item_id    SERIAL PRIMARY KEY,
+    order_id   INTEGER REFERENCES orders(order_id),
+    product_id INTEGER REFERENCES products(product_id),
+    quantity   INTEGER,
+    unit_price NUMERIC(10, 2)
+)</td></tr></tbody></table></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Performance</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Buffer Pool Hit Ratio</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_performance_buffer_pool_hit_ratio_4"><table id="tbl-bhakti-test-bhakti-health-report-test_performance_buffer_pool_hit_ratio_4"><thead><tr><th>Database</th><th>Total Read Requests</th><th>Disk Reads</th><th>Buffer Hit Ratio (%)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>647</td><td>20379</td><td>96.92</td></tr></tbody></table></div><div class="metric-title">Dirty Pages</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_performance_dirty_pages_5"><table id="tbl-bhakti-test-bhakti-health-report-test_performance_dirty_pages_5"><thead><tr><th>Database</th><th>Table</th><th>Dirty Pages</th><th>Dirty Data Size</th><th>Dirty Page %</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>pg_class</td><td>1</td><td>8192 bytes</td><td>14.29</td></tr><tr class="page-row "><td>postgres</td><td>pg_statistic</td><td>1</td><td>8192 bytes</td><td>14.29</td></tr></tbody></table></div><div class="metric-title">Redo Log</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_performance_redo_log_6"><table id="tbl-bhakti-test-bhakti-health-report-test_performance_redo_log_6"><thead><tr><th>Database</th><th>WAL Files</th><th>WAL Directory Size</th><th>Total WAL Bytes Written</th><th>Current WAL Position</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>4</td><td>192 MB</td><td>146297337184</td><td>22/10003560</td></tr></tbody></table></div><div class="metric-title">Temp Table Usage</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_performance_temp_table_usage_7"><table id="tbl-bhakti-test-bhakti-health-report-test_performance_temp_table_usage_7"><thead><tr><th>Database</th><th>Temp Files Spilled to Disk</th><th>Temp Data Size</th><th>Deadlocks</th><th>Conflicts</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>72</td><td>515 MB</td><td>0</td><td>0</td></tr></tbody></table></div><div class="metric-title">Top Queries By Execution Time</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_performance_top_queries_by_execution_time_8"><table id="tbl-bhakti-test-bhakti-health-report-test_performance_top_queries_by_execution_time_8"><thead><tr><th>Database</th><th>Query</th><th>Executions</th><th>Total Time (ms)</th><th>Avg Time (ms)</th><th>Total Time (%)</th><th>Rows Sent</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>SELECT app_name, query_count, pg_postmaster_start_time() as reset FROM public.google_app_stats_get_all_app_query_counts()</td><td>21632</td><td>322.77</td><td>0.01</td><td>30.20</td><td>43264</td></tr><tr class="page-row "><td>postgres</td><td>SELECT captured, consolidated, qps_exceeded, cool_off, queue_full, sent_succ, sent_fail, stats_reset FROM public.get_live_sync_stats()</td><td>21658</td><td>318.11</td><td>0.01</td><td>29.76</td><td>21658</td></tr><tr class="page-row "><td>postgres</td><td>CREATE ROLE "bhakti.bhatt@searce.com" WITH  INHERIT LOGIN IN ROLE "cloudsqliamuser" PASSWORD 'SCRAM-SHA-256$4096:GYU5L/gFe83Jo6M+OXIx5a0n8GPWuo70NEKyqUcBfC4=$roQ5UkKHev32Sdi3KrxjmUjmu83Dm506dnsspf6rIq8=:udKkVW8KBO6bGHnaJl2OZj38DcruIGFBcNXHmIcy0BM='</td><td>1</td><td>187.39</td><td>187.39</td><td>17.53</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>SELECT public.passwords_for_reuse_check($1)</td><td>1</td><td>52.44</td><td>52.44</td><td>4.91</td><td>1</td></tr><tr class="page-row "><td>postgres</td><td>CREATE EXTENSION IF NOT EXISTS "google_sql_validation" SCHEMA "public"</td><td>1</td><td>37.12</td><td>37.12</td><td>3.47</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>-- Dataplex
+CREATE UNIQUE INDEX IF NOT EXISTS idx_resource_lookup
+ON public.resource_timestamps (database_oid, resource_type, resource_oid)</td><td>6</td><td>27.37</td><td>4.56</td><td>2.56</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>DO $$
+BEGIN
+  IF CAST(current_setting('server_version_num') AS INTEGER) >= 150000 THEN
+    GRANT pg_checkpoint TO cloudsqlsuperuser WITH ADMIN OPTION;
+  END IF;
+END $$</td><td>12</td><td>19.36</td><td>1.61</td><td>1.81</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>-- Dataplex
+INSERT INTO public.resource_timestamps (database_oid, resource_oid, resource_type, create_time, update_time)
+VALUES ($1, $2, $3, NOW() AT TIME ZONE $4, NOW() AT TIME ZONE $5)
+ON CONFLICT (database_oid, resource_type, resource_oid) DO NOTHING</td><td>6</td><td>17.78</td><td>2.96</td><td>1.66</td><td>1</td></tr><tr class="page-row "><td>postgres</td><td>-- Dataplex
+CREATE TABLE IF NOT EXISTS public.resource_timestamps (
+    database_oid BIGINT NOT NULL,
+    resource_oid BIGINT NOT NULL,
+    resource_type CHAR(1) NOT NULL,
+    create_time TIMESTAMP(6) WITHOUT TIME ZONE NOT NULL,
+    update_time TIMESTAMP(6) WITHOUT TIME ZONE NOT NULL
+)</td><td>6</td><td>10.90</td><td>1.82</td><td>1.02</td><td>0</td></tr><tr class="page-row "><td>postgres</td><td>INSERT INTO cloudsqluserpolicy_table (oid, password_policy) VALUES($1, $2) ON CONFLICT (oid) DO UPDATE SET password_policy = $3</td><td>2</td><td>10.71</td><td>5.36</td><td>1.00</td><td>2</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>ALTER SYSTEM SET google_app_stats.enabled=on</td><td>2</td><td>8.65</td><td>4.33</td><td>0.81</td><td>0</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>ALTER SYSTEM SET google_dataplex.enable=on</td><td>1</td><td>5.33</td><td>5.33</td><td>0.50</td><td>0</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>SELECT stmt_location, stmt_len FROM parse_statements($1)</td><td>63</td><td>5.13</td><td>0.08</td><td>0.48</td><td>94</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>-- Now run a query with no index on the 'name' column — forces full table scan
+SELECT * FROM customers WHERE name = $1</td><td>3</td><td>2.91</td><td>0.97</td><td>0.27</td><td>3</td></tr><tr class="page-row " style="display:none"><td>postgres</td><td>CREATE EXTENSION IF NOT EXISTS google_dataplex</td><td>1</td><td>2.37</td><td>2.37</td><td>0.22</td><td>0</td></tr></tbody></table>
+        <div class="pagination">
+            <button onclick="changePage('bhakti-test-bhakti-health-report-test_performance_top_queries_by_execution_time_8', -1)">&lt; Prev</button>
+            <span id="page-info-bhakti-test-bhakti-health-report-test_performance_top_queries_by_execution_time_8">Page 1 of 2</span>
+            <button onclick="changePage('bhakti-test-bhakti-health-report-test_performance_top_queries_by_execution_time_8', 1)">Next &gt;</button>
+        </div></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Locks</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Lock Waits</div><p class="no-issues">No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Connections</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Active Connections</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_connections_active_connections_10"><table id="tbl-bhakti-test-bhakti-health-report-test_connections_active_connections_10"><thead><tr><th>Database</th><th>Connection State</th><th>Current Connections</th><th>Max Allowed</th><th>Peak Usage %</th><th>Longest Connection (sec)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>N/A</td><td>7</td><td>400</td><td>1.75</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>idle</td><td>2</td><td>400</td><td>0.50</td><td>1</td></tr><tr class="page-row "><td>postgres</td><td>active</td><td>1</td><td>400</td><td>0.25</td><td>0</td></tr></tbody></table></div><div class="metric-title">Aborted Connections</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_connections_aborted_connections_11"><table id="tbl-bhakti-test-bhakti-health-report-test_connections_aborted_connections_11"><thead><tr><th>Database</th><th>Aborted (Replication Conflicts)</th><th>Aborted (Deadlocks)</th><th>Block Read Time (ms)</th><th>Block Write Time (ms)</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>0</td><td>0</td><td>2335.81</td><td>6.324</td></tr></tbody></table></div><div class="metric-title">Thread Activity</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_connections_thread_activity_12"><table id="tbl-bhakti-test-bhakti-health-report-test_connections_thread_activity_12"><thead><tr><th>Database</th><th>Thread State</th><th>Wait Event Type</th><th>Wait Event</th><th>Thread Count</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>idle</td><td>Client</td><td>ClientRead</td><td>2</td></tr><tr class="page-row "><td>postgres</td><td>active</td><td>N/A</td><td>N/A</td><td>1</td></tr></tbody></table></div></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Storage</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Fragmentation</div><div class="table-wrapper" id="wrapper-bhakti-test-bhakti-health-report-test_storage_fragmentation_13"><table id="tbl-bhakti-test-bhakti-health-report-test_storage_fragmentation_13"><thead><tr><th>Database</th><th>Table</th><th>Live Rows</th><th>Total Size</th><th>Dead Rows (MB)</th><th>Fragmentation (%)</th><th>Last Vacuum</th><th>Last Auto Vacuum</th></tr></thead><tbody><tr class="page-row "><td>postgres</td><td>products</td><td>15</td><td>56 kB</td><td>0</td><td>0.00</td><td>N/A</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>orders</td><td>15</td><td>72 kB</td><td>0</td><td>0.00</td><td>N/A</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>payments</td><td>15</td><td>56 kB</td><td>0</td><td>0.00</td><td>N/A</td><td>N/A</td></tr><tr class="page-row "><td>postgres</td><td>customers</td><td>15020</td><td>3216 kB</td><td>0</td><td>0.00</td><td>N/A</td><td>2026-09-02 06:47:53.707935+00:00</td></tr><tr class="page-row "><td>postgres</td><td>order_items</td><td>21</td><td>56 kB</td><td>0</td><td>0.00</td><td>N/A</td><td>N/A</td></tr></tbody></table></div></div></div><div class="instance-block" data-server="bhakti-test:inventory-db" data-dbtype="MySQL" id="srv-bhakti-test-inventory-db"><div class="instance-title"><span class="breadcrumb-project">bhakti-test</span><span class="breadcrumb-separator">/</span><span class="breadcrumb-instance">inventory-db</span></div><div class="section-card"><div class="section-title">Provisioned Specifications</div><div class="specs-grid">
+            <div class="spec-item">
+                <div class="spec-label">Engine</div>
+                <div class="spec-value">MYSQL 8 4</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Edition</div>
+                <div class="spec-value">ENTERPRISE</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">CPU</div>
+                <div class="spec-value">1</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Memory</div>
+                <div class="spec-value">1.7 GB</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Storage</div>
+                <div class="spec-value">10 GB SSD</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Availability</div>
+                <div class="spec-value">Zonal</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Replicas</div>
+                <div class="spec-value">0</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Last Backup</div>
+                <div class="spec-value">24 Sep 2026, 12:00 AM UTC</div>
+            </div>
+            <div class="spec-item">
+                <div class="spec-label">Uptime</div>
+                <div class="spec-value">1d 21h 29m</div>
+            </div></div><div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div><table class="metrics-table">
+        <thead><tr><th>Metric</th><th>Mean</th><th>P95</th><th>P99</th><th>Max</th></tr></thead><tbody><tr>
+                <td><strong>CPU Utilization (%)</strong></td>
+                <td>7.48</td>
+                <td>7.74</td>
+                <td>7.76</td>
+                <td>18.83</td>
+            </tr><tr>
+                <td><strong>Memory Utilization (%)</strong></td>
+                <td>60.44</td>
+                <td>63.1</td>
+                <td>63.22</td>
+                <td>62.82</td>
+            </tr><tr>
+                <td><strong>Disk Utilization (%)</strong></td>
+                <td>11.45</td>
+                <td>11.44</td>
+                <td>11.46</td>
+                <td>11.45</td>
+            </tr><tr>
+                <td><strong>Disk Read (IOPS)</strong></td>
+                <td>0.15</td>
+                <td>0.15</td>
+                <td>0.15</td>
+                <td>0.05</td>
+            </tr><tr>
+                <td><strong>Connections (Count)</strong></td>
+                <td>6.0</td>
+                <td>6.25</td>
+                <td>6.26</td>
+                <td>8.0</td>
+            </tr></tbody></table></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Indexes</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Unused Indexes</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Duplicate Indexes</div><div class="table-wrapper" id="wrapper-bhakti-test-inventory-db_indexes_duplicate_indexes_15"><table id="tbl-bhakti-test-inventory-db_indexes_duplicate_indexes_15"><thead><tr><th>Database</th><th>Table</th><th>Duplicate Indexes</th><th>Dominant Index</th><th>Index Columns</th></tr></thead><tbody><tr class="page-row "><td>hr_db</td><td>employees</td><td>idx_emp_dept_v2</td><td>idx_emp_dept</td><td>dept_id</td></tr></tbody></table></div><div class="metric-title">Queries High Full Table Scans</div><p class="no-issues">No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Performance</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Buffer Pool Hit Ratio</div><div class="table-wrapper" id="wrapper-bhakti-test-inventory-db_performance_buffer_pool_hit_ratio_17"><table id="tbl-bhakti-test-inventory-db_performance_buffer_pool_hit_ratio_17"><thead><tr><th>Database</th><th>Total Read Requests</th><th>Disk Reads</th><th>Buffer Hit Ratio (%)</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>5604155</td><td>1444</td><td>99.97</td></tr></tbody></table></div><div class="metric-title">Dirty Pages</div><div class="table-wrapper" id="wrapper-bhakti-test-inventory-db_performance_dirty_pages_18"><table id="tbl-bhakti-test-inventory-db_performance_dirty_pages_18"><thead><tr><th>Database</th><th>Dirty Pages</th><th>Total Pages</th><th>Dirty Page (%)</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>6</td><td>40960</td><td>0.01</td></tr></tbody></table></div><div class="metric-title">Redo Log</div><div class="table-wrapper" id="wrapper-bhakti-test-inventory-db_performance_redo_log_19"><table id="tbl-bhakti-test-inventory-db_performance_redo_log_19"><thead><tr><th>Database</th><th>Log Buffer Waits</th><th>Write Requests</th><th>Physical Writes</th><th>Total Fsyncs</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>0</td><td>511608</td><td>115269</td><td>146979</td></tr></tbody></table></div><div class="metric-title">Temp Table Usage</div><p class="no-issues">No issues or records flagged.</p><div class="metric-title">Top Queries By Execution Time</div><p class="no-issues">No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Locks</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Lock Waits</div><p class="no-issues">No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Connections</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Active Connections</div><div class="table-wrapper" id="wrapper-bhakti-test-inventory-db_connections_active_connections_23"><table id="tbl-bhakti-test-inventory-db_connections_active_connections_23"><thead><tr><th>Database</th><th>Current Connections</th><th>Peak Connections</th><th>Max Allowed</th><th>Peak Usage (%)</th><th>Longest Connection (sec)</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>8</td><td>9</td><td>1030</td><td>0.87</td><td>N/A</td></tr></tbody></table></div><div class="metric-title">Aborted Connections</div><div class="table-wrapper" id="wrapper-bhakti-test-inventory-db_connections_aborted_connections_24"><table id="tbl-bhakti-test-inventory-db_connections_aborted_connections_24"><thead><tr><th>Database</th><th>Aborted (Auth Failures)</th><th>Aborted (Network Issues)</th><th>Total Connection Attempts</th><th>Auth Failure %</th><th>Network Abort %</th></tr></thead><tbody><tr class="page-row "><td>mysql</td><td>0</td><td>7</td><td>76746</td><td>0.0</td><td>0.01</td></tr></tbody></table></div><div class="metric-title">Thread Activity</div><p class="no-issues">No issues or records flagged.</p></div>
+            <div class="category-title" onclick="toggleCategory(this)">
+                <span>Storage</span><span>&#9654;</span>
+            </div>
+            <div class="category-content hidden"><div class="metric-title">Fragmentation</div><p class="no-issues">No issues or records flagged.</p></div></div>
+</div>
+
+<script>
+const navData = {"bhakti-test:bhakti-health-report-test": {"type": "PostgreSQL", "label": "bhakti-health-report-test (bhakti-test)"}, "bhakti-test:inventory-db": {"type": "MySQL", "label": "inventory-db (bhakti-test)"}};
+
+const serverSel = document.getElementById('filter-server');
+
+// Populate initial Server Dropdown
+Object.entries(navData).forEach(([key, info]) => {
+    const o = document.createElement('option');
+    o.value = key; 
+    o.textContent = info.label;
+    serverSel.appendChild(o);
+});
+
+function filterByType() {
+    const type = document.getElementById('filter-dbtype').value;
+    serverSel.innerHTML = '<option value="ALL">All Instances</option>';
+    
+    Object.entries(navData).forEach(([key, info]) => {
+        if (type === 'ALL' || info.type === type) {
+            const o = document.createElement('option');
+            o.value = key; 
+            o.textContent = info.label;
+            serverSel.appendChild(o);
+        }
+    });
+    filterByServer();
+}
+
+function filterByServer() {
+    const type = document.getElementById('filter-dbtype').value;
+    const srv  = serverSel.value;
+    
+    document.querySelectorAll('.instance-block').forEach(block => {
+        const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
+        const srvMatch  = srv   === 'ALL' || block.dataset.server === srv;
+        block.classList.toggle('hidden', !(typeMatch && srvMatch));
+    });
+}
+
+function toggleCategory(el) {
+    const content  = el.nextElementSibling;
+    const arrow    = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
+}
+
+const pageState = {};
+
+function changePage(tableId, direction) {
+    const rows       = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
+    const totalPages = Math.ceil(rows.length / 10);
+    if (!pageState[tableId]) pageState[tableId] = 1;
+    pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
+    const currentPage = pageState[tableId];
+    const start       = (currentPage - 1) * 10;
+    const end         = start + 10;
+    rows.forEach((row, i) => {
+        row.style.display = (i >= start && i < end) ? '' : 'none';
+    });
+    const info = document.getElementById(`page-info-${tableId}`);
+    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
+}
+</script>
+</body>
+</html>
