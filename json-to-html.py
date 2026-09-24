@@ -26,7 +26,7 @@ def load_json_file(filepath):
                     inst_name = data["instance_name"]
                     project_id = data.get("project_id", "")
                     # Unique key to ensure no collision across projects
-                    unique_key = f"{project_id}:{inst_name}" if project_id else inst_name
+                    unique_key = f"{project_id}_{inst_name}" if project_id else inst_name
                     report_data[unique_key] = data
                 else:
                     # Fallback for old multi-instance root structure
