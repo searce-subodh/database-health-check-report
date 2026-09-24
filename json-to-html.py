@@ -10,8 +10,6 @@ import sys
 if len(sys.argv) < 2:
     print("❌ Usage Error!")
     print("Please provide JSON file paths or a directory containing JSON files:")
-    print("  python3 json-to-html.py reports/data-analyst-504209_csql-mysql-db.json")
-    print("  python3 json-to-html.py ./reports/")
     sys.exit(1)
 
 report_data = {}
@@ -34,7 +32,7 @@ def load_json_file(filepath):
                         if isinstance(v, dict) and "health_checks" in v:
                             report_data[k] = v
     except Exception as e:
-        print(f"⚠️ Warning: Failed to load '{filepath}': {e}")
+        print(f" Warning: Failed to load '{filepath}': {e}")
 
 # Process command-line inputs
 for arg in sys.argv[1:]:
@@ -46,10 +44,10 @@ for arg in sys.argv[1:]:
         load_json_file(arg)
 
 if not report_data:
-    print("❌ Error: No valid database report JSON data found in the provided inputs.")
+    print("Error: No valid database report JSON data found in the provided inputs.")
     sys.exit(1)
 
-print(f"✅ Loaded {len(report_data)} instance(s) into report generator.")
+print(f"Loaded {len(report_data)} instance(s) into report generator.")
 
 generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
@@ -344,11 +342,6 @@ html_content = f"""<!DOCTYPE html>
 # ─────────────────────────────────────────────
 
 table_counter = [0]
-
-SPEC_RENAME = {
-    "Read Replica count": "Replicas",
-    "Last Backup time":   "Last Backup",
-}
 
 for unique_key, data in report_data.items():
     safe_instance = unique_key.replace(":", "-").replace(" ", "_")
