@@ -1,7 +1,6 @@
 from datetime import datetime
 import json
 import os
-import re
 import sys
 
 # ─────────────────────────────────────────────
@@ -9,8 +8,10 @@ import sys
 # ─────────────────────────────────────────────
 
 if len(sys.argv) < 2:
-    print("Usage Error!")
+    print("❌ Usage Error!")
     print("Please provide JSON file paths or a directory containing JSON files:")
+    print("  python3 json-to-html.py reports/data-analyst-504209_csql-mysql-db.json")
+    print("  python3 json-to-html.py ./reports/")
     sys.exit(1)
 
 report_data = {}
@@ -21,42 +22,34 @@ def load_json_file(filepath):
         with open(filepath, "r") as f:
             data = json.load(f)
             if isinstance(data, dict):
-                # Handles new single-instance JSON output from script.py
+                # Handles single-instance JSON output from script.py
                 if "instance_name" in data:
                     inst_name = data["instance_name"]
                     project_id = data.get("project_id", "")
-                    # Unique key to ensure no collision across projects
-                    unique_key = f"{project_id}_{inst_name}" if project_id else inst_name
+                    unique_key = f"{project_id}:{inst_name}" if project_id else inst_name
                     report_data[unique_key] = data
                 else:
-                    # Fallback for old multi-instance root structure
+                    # Fallback for multi-instance root structure
                     for k, v in data.items():
                         if isinstance(v, dict) and "health_checks" in v:
                             report_data[k] = v
     except Exception as e:
-        print(f"Warning: Failed to load '{filepath}': {e}")
+        print(f"⚠️ Warning: Failed to load '{filepath}': {e}")
 
 # Process command-line inputs
 for arg in sys.argv[1:]:
     if os.path.isdir(arg):
         for filename in sorted(os.listdir(arg)):
-            if filename.endswith(".json") and filename != "queries.json":
+            if filename.endswith(".json"):
                 load_json_file(os.path.join(arg, filename))
     elif os.path.isfile(arg):
         load_json_file(arg)
 
 if not report_data:
-    print("Error: No valid database report JSON data found in the provided inputs.")
+    print("❌ Error: No valid database report JSON data found in the provided inputs.")
     sys.exit(1)
 
-print(f"Loaded {len(report_data)} instance(s) into report generator.")
-
-# Load raw SQL queries for extracting header column names on failed queries
-try:
-    with open("queries.json", "r") as f:
-        queries_definitions = json.load(f)
-except Exception:
-    queries_definitions = {}
+print(f"✅ Loaded {len(report_data)} instance(s) into report generator.")
 
 generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
 
@@ -109,28 +102,7 @@ def format_clean_title(key):
         .replace("Db",  "DB"))
 
 
-def get_sql_headers(sql_query):
-    """Extracts column header names/aliases from raw SQL string."""
-    try:
-        select_part = sql_query.split(" FROM ")[0].split(" from ")[0]
-        select_part = re.sub(r'(?i)^SELECT\s+', '', select_part)
-        columns = select_part.split(',')
-        headers = []
-        for col in columns:
-            col = col.strip()
-            if ' AS ' in col.upper():
-                alias = re.split(r'\s+AS\s+', col, flags=re.IGNORECASE)[-1]
-                alias = alias.strip(" `\"'")
-                headers.append(alias)
-            else:
-                col_name = col.split('.')[-1].strip(" `\"'")
-                headers.append(col_name)
-        return headers if headers else ["Metric Data"]
-    except Exception:
-        return ["Metric Data"]
-
-
-def build_paginated_table(rows, table_id, sql_query=""):
+def build_paginated_table(rows, table_id, metric_name=""):
     if not rows or not isinstance(rows, list):
         return '<p class="no-issues">No issues or records flagged.</p>'
 
@@ -140,16 +112,16 @@ def build_paginated_table(rows, table_id, sql_query=""):
         if first_row.get("message") == "0 records returned":
             return '<p class="no-issues">No issues or records flagged.</p>'
 
-    # ── CASE 2: Query Failed / Permission Error (Headers Only, Empty tbody) ──
+    # ── CASE 2: Query Failed / Permission Error (Option B: Dynamic Header, Empty Body) ──
     if len(rows) > 0 and isinstance(rows[0], dict):
         first_row = rows[0]
         if "error" in first_row or first_row.get("status") == "ERROR" or "Result unavailable" in str(first_row.get("message")):
-            headers = get_sql_headers(sql_query) if sql_query else [""]
+            header_title = format_clean_title(metric_name) if metric_name else "Metric Details"
             html  = f'<div class="table-wrapper" id="wrapper-{table_id}">'
             html += f'<table id="tbl-{table_id}"><thead><tr>'
-            html += "".join([f"<th>{h}</th>" for h in headers])
+            html += f'<th>{header_title}</th>'
             html += "</tr></thead><tbody>"
-            html += "<!-- Empty body due to execution failure or missing permissions -->"
+            html += "<!-- Empty body due to query execution or permission error -->"
             html += "</tbody></table></div>"
             return html
 
@@ -242,7 +214,7 @@ html_content = f"""<!DOCTYPE html>
         /* ── MAIN CONTENT ── */
         #content {{ margin-top: 72px; padding: 24px; }}
 
-        /* ── PROVISIONED SPECS — single dynamic row ── */
+        /* ── PROVISIONED SPECS ── */
         .specs-grid {{
             display: flex;
             flex-wrap: nowrap;
@@ -416,7 +388,7 @@ for unique_key, data in report_data.items():
     elif "Error" in specs:
         html_content += f'<div class="error-box"><strong>Configuration Error:</strong><br>{specs["Error"]}</div>'
 
-    # ── Resource Utilization (Uses 'header-name' key from new JSON structure) ──
+    # ── Resource Utilization ──
     if utilization:
         html_content += '<div class="section-title" style="margin-top:20px;">Resource Utilization (Last 24h)</div>'
         html_content += '''<table class="metrics-table">
@@ -461,8 +433,7 @@ for unique_key, data in report_data.items():
                 clean_metric = format_clean_title(metric_name)
                 html_content += f'<div class="metric-title">{clean_metric}</div>'
 
-                sql_query = queries_definitions.get(db_type_label.lower(), {}).get(category, {}).get(metric_name, "")
-                html_content += build_paginated_table(rows, tid, sql_query=sql_query)
+                html_content += build_paginated_table(rows, tid, metric_name=metric_name)
 
             html_content += '</div>'  # close category-content
 
