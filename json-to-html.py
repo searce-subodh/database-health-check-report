@@ -371,10 +371,9 @@ for unique_key, data in report_data.items():
         html_content += '<div class="section-title">Provisioned Specifications</div>'
         html_content += '<div class="specs-grid">'
         for key, val in specs.items():
-            display_key = SPEC_RENAME.get(key, key)
             html_content += f'''
             <div class="spec-item">
-                <div class="spec-label">{display_key}</div>
+                <div class="spec-label">{key}</div>
                 <div class="spec-value">{val if val is not None else "N/A"}</div>
             </div>'''
         html_content += '</div>'
