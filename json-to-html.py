@@ -11,8 +11,6 @@ import sys
 if len(sys.argv) < 2:
     print("❌ Usage Error!")
     print("Please provide JSON file paths or a directory containing JSON files:")
-    print("  python3 json-to-html.py reports/data-analyst-504209_csql-mysql-db.json")
-    print("  python3 json-to-html.py ./reports/")
     sys.exit(1)
 
 report_data = {}
