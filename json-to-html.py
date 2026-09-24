@@ -9,7 +9,7 @@ import sys
 # ─────────────────────────────────────────────
 
 if len(sys.argv) < 2:
-    print("❌ Usage Error!")
+    print("Usage Error!")
     print("Please provide JSON file paths or a directory containing JSON files:")
     sys.exit(1)
 
@@ -34,7 +34,7 @@ def load_json_file(filepath):
                         if isinstance(v, dict) and "health_checks" in v:
                             report_data[k] = v
     except Exception as e:
-        print(f"⚠️ Warning: Failed to load '{filepath}': {e}")
+        print(f"Warning: Failed to load '{filepath}': {e}")
 
 # Process command-line inputs
 for arg in sys.argv[1:]:
@@ -46,10 +46,10 @@ for arg in sys.argv[1:]:
         load_json_file(arg)
 
 if not report_data:
-    print("❌ Error: No valid database report JSON data found in the provided inputs.")
+    print("Error: No valid database report JSON data found in the provided inputs.")
     sys.exit(1)
 
-print(f"✅ Loaded {len(report_data)} instance(s) into report generator.")
+print(f"Loaded {len(report_data)} instance(s) into report generator.")
 
 # Load raw SQL queries for extracting header column names on failed queries
 try:
