@@ -161,6 +161,133 @@ def execute_blocking_query(conn, query):
 def generate_locks_data(db_type):
     print(f"\n--- Generating Locks Dummy Data for {db_type.upper()} ---")
     
+    # 1. Setup tables
+    conn_setup = get_connection(db_type)
+    conn_setup.autocommit = True
+    c_setup = conn_setup.cursor()
+    
+    c_setup.execute("CREATE TABLE IF NOT EXISTS test_lock_contention (id INT PRIMARY KEY, status VARCHAR(20));")
+    c_setup.execute("CREATE TABLE IF NOT EXISTS test_deadlock (id INT PRIMARY KEY, val INT);")
+    c_setup.execute("CREATE TABLE IF NOT EXISTS test_metadata_lock (id INT PRIMARY KEY, payload TEXT);")
+    
+    if db_type == 'postgres':
+        c_setup.execute("INSERT INTO test_lock_contention (id, status) VALUES (1, 'pending') ON CONFLICT DO NOTHING;")
+        c_setup.execute("INSERT INTO test_deadlock (id, val) VALUES (1, 100), (2, 200) ON CONFLICT DO NOTHING;")
+    elif db_type == 'mysql':
+        c_setup.execute("INSERT IGNORE INTO test_lock_contention (id, status) VALUES (1, 'pending');")
+        c_setup.execute("INSERT IGNORE INTO test_deadlock (id, val) VALUES (1, 100), (2, 200);")
+    
+    conn_setup.close()
+
+    # --- 2. SIMULATE DEADLOCK (For Query 3) ---
+    print("Simulating deadlock to increment historical counters...")
+    def cause_deadlock():
+        try:
+            conn1 = get_connection(db_type)
+            conn2 = get_connection(db_type)
+            conn1.autocommit = False
+            conn2.autocommit = False
+            c1 = conn1.cursor()
+            c2 = conn2.cursor()
+
+            if db_type == 'postgres':
+                c1.execute("BEGIN;")
+                c2.execute("BEGIN;")
+            else:
+                c1.execute("START TRANSACTION;")
+                c2.execute("START TRANSACTION;")
+                
+            c1.execute("UPDATE test_deadlock SET val = 101 WHERE id = 1;")
+            c2.execute("UPDATE test_deadlock SET val = 201 WHERE id = 2;")
+            
+            # Cross-lock each other to force the engine to kill one
+            def thread_cross_lock_1():
+                try:
+                    c1.execute("UPDATE test_deadlock SET val = 202 WHERE id = 2;")
+                except Exception:
+                    pass
+
+            def thread_cross_lock_2():
+                try:
+                    time.sleep(0.5) # Offset slightly to ensure a collision
+                    c2.execute("UPDATE test_deadlock SET val = 102 WHERE id = 1;")
+                except Exception:
+                    pass
+
+            t_dl1 = threading.Thread(target=thread_cross_lock_1)
+            t_dl2 = threading.Thread(target=thread_cross_lock_2)
+            t_dl1.start()
+            t_dl2.start()
+            t_dl1.join()
+            t_dl2.join()
+            conn1.close()
+            conn2.close()
+        except Exception as e:
+            pass # Deadlocks throw exceptions by design, we ignore them here
+
+    cause_deadlock()
+
+    # --- 3. SIMULATE CONTENTION & IDLE TRANSACTION (For Queries 1 & 2) ---
+    print("Simulating lock contention and idle transaction...")
+    conn_a = get_connection(db_type)
+    conn_b = get_connection(db_type)
+    conn_a.autocommit = False
+    conn_b.autocommit = True
+    cursor_a = conn_a.cursor()
+
+    if db_type == 'postgres':
+        cursor_a.execute("BEGIN;")
+    else:
+        cursor_a.execute("START TRANSACTION;")
+
+    # Connection A locks the row and goes IDLE
+    cursor_a.execute("UPDATE test_lock_contention SET status = 'processing' WHERE id = 1;")
+    
+    # Connection B tries to update the same row and HANGS (Contention)
+    t_contention = threading.Thread(target=execute_blocking_query, args=(conn_b, "UPDATE test_lock_contention SET status = 'completed' WHERE id = 1;"))
+    t_contention.start()
+
+    # --- 4. SIMULATE METADATA LOCK (For Query 4) ---
+    print("Simulating metadata lock / DDL blocker...")
+    conn_c = get_connection(db_type)
+    conn_d = get_connection(db_type)
+    conn_c.autocommit = False
+    conn_d.autocommit = True
+    cursor_c = conn_c.cursor()
+    
+    if db_type == 'postgres':
+        cursor_c.execute("BEGIN;")
+        # Explicit share lock guarantees conflict with ALTER TABLE
+        cursor_c.execute("LOCK TABLE test_metadata_lock IN SHARE MODE;") 
+    else:
+        cursor_c.execute("START TRANSACTION;")
+        # FOR SHARE ensures metadata locks are held in MySQL
+        cursor_c.execute("SELECT * FROM test_metadata_lock FOR SHARE;")
+        
+    # Connection D attempts DDL and HANGS waiting for Connection C
+    t_meta = threading.Thread(target=execute_blocking_query, args=(conn_d, "ALTER TABLE test_metadata_lock ADD COLUMN IF NOT EXISTS new_col INT;"))
+    t_meta.start()
+
+    # Wait 12 seconds to ensure MySQL "Duration (s) > 10" threshold is met!
+    print("Waiting 12 seconds to trigger 'Duration > 10s' threshold for Idle Transactions...")
+    time.sleep(12)
+
+    input(f">>> Run ALL your LOCKS Health Check queries on {db_type.upper()} now, then press Enter to release the locks...")
+    
+    # Cleanup: Rollback releases all locks so threads can exit cleanly
+    conn_a.rollback()
+    conn_c.rollback()
+    t_contention.join()
+    t_meta.join()
+    
+    conn_a.close()
+    conn_b.close()
+    conn_c.close()
+    conn_d.close()
+
+
+    print(f"\n--- Generating Locks Dummy Data for {db_type.upper()} ---")
+    
     # Multiple connections to simulate locks
     conn_a = get_connection(db_type)
     conn_b = get_connection(db_type)
