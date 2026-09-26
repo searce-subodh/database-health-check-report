@@ -349,11 +349,25 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
     with engine.connect() as conn:
         for category, category_queries in db_user_queries.items():
             health_checks[category] = {}
-            for key, sql in category_queries.items():
+            for key, query_payload in category_queries.items():
                 if key.startswith("_"): continue
+                
+                # 1. Parse the hybrid JSON structure
+                if isinstance(query_payload, dict):
+                    primary_sql = query_payload.get("preferred_query")
+                    fallback_sql = query_payload.get("fallback_query")
+                else:
+                    primary_sql = query_payload
+                    fallback_sql = None
+
+                if not primary_sql:
+                    health_checks[category][key] = [{"status": "SKIPPED", "message": "No query defined."}]
+                    continue
+
+                # 2. Execute Primary Query with Fallback Logic
                 try:
                     with conn.begin_nested():
-                        result = conn.execute(sqlalchemy.text(sql))
+                        result = conn.execute(sqlalchemy.text(primary_sql))
                         if result.returns_rows:
                             rows = result.fetchall()
                             health_checks[category][key] = [dict(row._mapping) for row in rows] if rows else [{"message": "0 records returned"}]
@@ -361,8 +375,24 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
                             health_checks[category][key] = [{"message": "Query executed successfully"}]
                 except Exception as e:
                     print(f"    [!] Query failed [{category} -> {key}]: {e}")
-                    health_checks[category][key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
+                    
+                    if fallback_sql:
+                        print(f"    [*] Attempting fallback query for [{category} -> {key}]...")
+                        try:
+                            with conn.begin_nested():
+                                result = conn.execute(sqlalchemy.text(fallback_sql))
+                                if result.returns_rows:
+                                    rows = result.fetchall()
+                                    health_checks[category][key] = [dict(row._mapping) for row in rows] if rows else [{"message": "0 records returned"}]
+                                else:
+                                    health_checks[category][key] = [{"message": "Fallback query executed successfully"}]
+                        except Exception as fallback_e:
+                            print(f"    [!] Fallback Query failed [{category} -> {key}]: {fallback_e}")
+                            health_checks[category][key] = [{"status": "ERROR", "message": "Primary and fallback queries failed"}]
+                    else:
+                        health_checks[category][key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
 
+        # Internal queries execution remains unchanged
         for key, sql in db_internal_queries.items():
             try:
                 with conn.begin_nested():
