@@ -1,0 +1,87 @@
+{
+  "mysql": {
+    "indexes": {
+      "unused_indexes": "SELECT object_schema AS \"Database Name\", object_name AS \"Table Name\", index_name AS \"Index Name\" FROM sys.schema_unused_indexes WHERE object_schema NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') LIMIT 15;",
+      "duplicate_indexes": "SELECT sri.table_schema AS \"Database Name\", sri.table_name AS \"Table Name\", sri.redundant_index_columns AS \"Indexed Columns\", sri.redundant_index_name AS \"Index 1 (Redundant)\", COALESCE(u1.COUNT_STAR, 0) AS \"Idx 1 Usage Count\", sri.dominant_index_name AS \"Index 2 (Dominant)\", COALESCE(u2.COUNT_STAR, 0) AS \"Idx 2 Usage Count\", COALESCE(CONCAT(ROUND((COALESCE(u1.COUNT_STAR, 0) / NULLIF(COALESCE(u1.COUNT_STAR, 0) + COALESCE(u2.COUNT_STAR, 0), 0)) * 100, 1), '%'), 'No Usage Yet') AS \"Idx 1 Usage %\" FROM sys.schema_redundant_indexes sri LEFT JOIN performance_schema.table_io_waits_summary_by_index_usage u1 ON sri.table_schema = u1.OBJECT_SCHEMA AND sri.table_name = u1.OBJECT_NAME AND sri.redundant_index_name = u1.INDEX_NAME LEFT JOIN performance_schema.table_io_waits_summary_by_index_usage u2 ON sri.table_schema = u2.OBJECT_SCHEMA AND sri.table_name = u2.OBJECT_NAME AND sri.dominant_index_name = u2.INDEX_NAME WHERE sri.table_schema NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') AND sri.redundant_index_columns = sri.dominant_index_columns ORDER BY (COALESCE(u1.COUNT_STAR, 0) + COALESCE(u2.COUNT_STAR, 0)) DESC LIMIT 15;",
+        "fallback_query": "SELECT table_schema AS \"Database Name\", table_name AS \"Table Name\", redundant_index_name AS \"Index 1 (Redundant)\", dominant_index_name AS \"Index 2 (Dominant)\", dominant_index_columns AS \"Index Columns\" FROM sys.schema_redundant_indexes WHERE table_schema NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') AND redundant_index_columns = dominant_index_columns LIMIT 15;",
+        "dependency": "performance_schema"
+      },
+      "queries_high_full_table_scans": {
+        "preferred_query": "SELECT db AS \"Database Name\", IFNULL(query, 'Unknown') AS \"Query Snippet\", exec_count AS \"Execution Count\", sys.format_time(total_latency) AS \"Total Latency\", rows_examined_avg AS \"Avg Rows Examined\" FROM sys.statements_with_full_table_scans WHERE db NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') ORDER BY total_latency DESC LIMIT 15;",
+        "fallback_query": null,
+        "dependency": "sys,performance_schema"
+      }
+    },
+    "performance": {
+      "buffer_pool_hit_ratio": {
+        "preferred_query": "SELECT 'InnoDB Buffer Pool' AS \"Component\", CAST(SUM(variable_value) AS UNSIGNED) AS \"Total Read Requests\", CAST(SUM(CASE WHEN variable_name = 'INNODB_BUFFER_POOL_READS' THEN variable_value ELSE 0 END) AS UNSIGNED) AS \"Physical Disk Reads\", ROUND((1 - (SUM(CASE WHEN variable_name = 'INNODB_BUFFER_POOL_READS' THEN variable_value ELSE 0 END) / NULLIF(SUM(CASE WHEN variable_name = 'INNODB_BUFFER_POOL_READ_REQUESTS' THEN variable_value ELSE 0 END), 0))) * 100, 2) AS \"Hit Ratio (%)\" FROM performance_schema.global_status WHERE variable_name IN ('INNODB_BUFFER_POOL_READ_REQUESTS', 'INNODB_BUFFER_POOL_READS');",
+        "fallback_query": null,
+        "dependency": "performance_schema"
+      },
+      "dirty_pages": "SELECT POOL_ID AS \"Buffer Pool ID\", CONCAT(ROUND(POOL_SIZE * 16384 / 1024 / 1024, 2), ' MB') AS \"Pool Size\", MODIFIED_DATABASE_PAGES AS \"Dirty Pages\", ROUND((MODIFIED_DATABASE_PAGES / NULLIF(POOL_SIZE, 0)) * 100, 2) AS \"Dirty Pages (%)\" FROM information_schema.innodb_buffer_pool_stats ORDER BY \"Dirty Pages (%)\" DESC;",
+      "redo_log": "",
+      "temp_table_usage": {
+        "preferred_query": "SELECT db AS \"Database Name\", IFNULL(query, 'Unknown') AS \"Query Snippet\", exec_count AS \"Execution Count\", memory_tmp_tables AS \"Memory Temp Tables\", disk_tmp_tables AS \"Disk Temp Tables\", tmp_tables_to_disk_pct AS \"Disk Spill Ratio (%)\" FROM sys.statements_with_temp_tables WHERE db NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') ORDER BY disk_tmp_tables DESC LIMIT 15;",
+        "fallback_query": null,
+        "dependency": "sys,performance_schema"
+      },
+      "top_queries_by_execution_time": {
+        "preferred_query": "SELECT db AS \"Database Name\", IFNULL(query, 'Unknown') AS \"Query Snippet\", exec_count AS \"Execution Count\", sys.format_time(total_latency) AS \"Total Latency\", sys.format_time(avg_latency) AS \"Avg Latency\", sys.format_time(max_latency) AS \"Max Latency\" FROM sys.statement_analysis WHERE db NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') ORDER BY total_latency DESC LIMIT 15;",
+        "fallback_query": null,
+        "dependency": "sys,performance_schema"
+      }
+    },
+    "locks": {
+      "lock_waits": {
+        "preferred_query": "SELECT wait_age AS \"Wait Duration\", locked_table AS \"Locked Table\", waiting_pid AS \"Blocked Process ID\", waiting_query AS \"Blocked Query\", blocking_pid AS \"Blocking Process ID\", blocking_query AS \"Blocking Query\", sql_kill_blocking_connection AS \"Quick Fix (Kill Command)\" FROM sys.innodb_lock_waits WHERE locked_table_schema NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') ORDER BY wait_age DESC LIMIT 15;",
+        "fallback_query": null,
+        "dependency": "sys,performance_schema"
+      }
+    },
+    "connections": {
+      "active_connections": "SELECT user AS \"Username\", SUBSTRING_INDEX(host, ':', 1) AS \"Client IP\", command AS \"Connection State\", COUNT(*) AS \"Total Connections\" FROM information_schema.processlist WHERE user NOT IN ('system user', 'event_scheduler', 'rdsadmin', 'cloudsqladmin') GROUP BY user, SUBSTRING_INDEX(host, ':', 1), command ORDER BY \"Total Connections\" DESC LIMIT 15;",
+      "aborted_connections": {
+        "preferred_query": "SELECT user AS \"User\", host AS \"Host\", error_number AS \"Error Code\", error_name AS \"Error Name\", sum_error_raised AS \"Total Occurrences\", first_seen AS \"First Seen\", last_seen AS \"Last Seen\" FROM performance_schema.events_errors_summary_by_account_by_error WHERE error_name IN ('ER_ACCESS_DENIED_ERROR', 'ER_ABORTING_CONNECTION', 'ER_NEW_ABORTING_CONNECTION') AND sum_error_raised > 0 ORDER BY last_seen DESC;",
+        "fallback_query": null,
+        "dependency": "performance_schema"
+      },
+      "thread_activity": "SELECT user AS \"Username\", SUBSTRING_INDEX(host, ':', 1) AS \"Client IP\", db AS \"Database Name\", time AS \"Idle Time (Seconds)\", CONCAT(ROUND(time / 60, 2), ' Minutes') AS \"Idle Duration\" FROM information_schema.processlist WHERE command = 'Sleep' AND user NOT IN ('system user', 'event_scheduler', 'rdsadmin', 'cloudsqladmin') AND time > 300 ORDER BY time DESC LIMIT 15;"
+    },
+    "storage": {
+      "fragmentation": "SELECT table_schema AS \"Database Name\", table_name AS \"Table Name\", CONCAT(ROUND(data_length / 1024 / 1024, 2), ' MB') AS \"Data Size\", CONCAT(ROUND(index_length / 1024 / 1024, 2), ' MB') AS \"Index Size\", CONCAT(ROUND(data_free / 1024 / 1024, 2), ' MB') AS \"Reclaimable Free Space\", ROUND((data_free / NULLIF(data_length + index_length + data_free, 0)) * 100, 2) AS \"Fragmentation (%)\" FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys') AND table_type = 'BASE TABLE' AND data_free > 0 ORDER BY data_free DESC LIMIT 15;"
+    }
+  },
+  "postgres": {
+    "indexes": {
+      "unused_indexes": "SELECT schemaname AS \"Schema Name\", relname AS \"Table Name\", indexrelname AS \"Index Name\", pg_size_pretty(pg_relation_size(indexrelid)) AS \"Index Size\", idx_scan AS \"Total Scans\" FROM pg_stat_user_indexes JOIN pg_index USING (indexrelid) WHERE idx_scan = 0 AND indisunique IS FALSE AND schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY pg_relation_size(indexrelid) DESC LIMIT 15;",
+      "duplicate_indexes": "SELECT p1.schemaname AS \"Schema Name\", p1.tablename AS \"Table Name\", p1.indexname AS \"Index 1 Name\", COALESCE(s1.idx_scan, 0) AS \"Idx 1 Usage Count\", p2.indexname AS \"Index 2 Name\", COALESCE(s2.idx_scan, 0) AS \"Idx 2 Usage Count\", CASE WHEN COALESCE(s1.idx_scan, 0) + COALESCE(s2.idx_scan, 0) = 0 THEN 'No Usage Yet' ELSE ROUND((COALESCE(s1.idx_scan, 0)::numeric / (COALESCE(s1.idx_scan, 0) + COALESCE(s2.idx_scan, 0))) * 100, 1)::text || '%' END AS \"Idx 1 Usage %\", substring(p1.indexdef from ' USING ([a-zA-Z0-9_]+) ') AS \"Index Type\", substring(p1.indexdef from '\\((.*)\\)') AS \"Indexed Columns\" FROM pg_indexes p1 JOIN pg_indexes p2 ON p1.schemaname = p2.schemaname AND p1.tablename = p2.tablename AND p1.indexname < p2.indexname AND substring(p1.indexdef from '\\((.*)\\)') = substring(p2.indexdef from '\\((.*)\\)') AND substring(p1.indexdef from ' USING ([a-zA-Z0-9_]+) ') = substring(p2.indexdef from ' USING ([a-zA-Z0-9_]+) ') LEFT JOIN pg_stat_user_indexes s1 ON p1.schemaname = s1.schemaname AND p1.tablename = s1.relname AND p1.indexname = s1.indexrelname LEFT JOIN pg_stat_user_indexes s2 ON p2.schemaname = s2.schemaname AND p2.tablename = s2.relname AND p2.indexname = s2.indexrelname WHERE p1.schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY (COALESCE(s1.idx_scan, 0) + COALESCE(s2.idx_scan, 0)) DESC, p1.tablename;",
+      "queries_high_full_table_scans": "SELECT schemaname AS \"Schema Name\", relname AS \"Table Name\", seq_scan AS \"Total Full Scans\", seq_tup_read AS \"Total Rows Read\", ROUND(seq_tup_read::numeric / NULLIF(seq_scan, 0), 0) AS \"Avg Rows Per Scan\", pg_size_pretty(pg_table_size(relid)) AS \"Table Size\" FROM pg_stat_user_tables WHERE seq_scan > 0 AND pg_table_size(relid) > 1048576 AND schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY seq_tup_read DESC LIMIT 15;"
+    },
+    "performance": {
+      "buffer_pool_hit_ratio": "SELECT datname AS \"Database Name\", blks_hit AS \"Cache Hits\", blks_read AS \"Disk Reads\", ROUND((blks_hit::numeric / NULLIF(blks_hit + blks_read, 0)) * 100, 2) AS \"Hit Ratio (%)\" FROM pg_stat_database WHERE datname NOT LIKE 'template%' ORDER BY \"Hit Ratio (%)\" ASC LIMIT 15;",
+      "dirty_pages": "SELECT datname AS \"Database Name\", blks_hit AS \"Buffer Hits (RAM Reads)\", blks_read AS \"Disk Reads\", ROUND((blks_hit::numeric / NULLIF(blks_hit + blks_read, 0)) * 100, 3) AS \"Buffer Hit Ratio (%)\" FROM pg_stat_database;",
+      "redo_log": "",
+      "temp_table_usage": {
+        "preferred_query": "SELECT d.datname AS \"Database Name\", substring(s.query, 1, 100) || '...' AS \"Query Snippet\", s.calls AS \"Execution Count\", ROUND((s.temp_blks_written * 8.0) / 1024.0, 2) AS \"Total Disk Temp Written (MB)\", ROUND((s.temp_blks_read * 8.0) / 1024.0, 2) AS \"Total Disk Temp Read (MB)\", ROUND(((s.temp_blks_written + s.temp_blks_read) * 8.0) / 1024.0 / s.calls, 2) AS \"Avg Temp Data Per Call (MB)\" FROM pg_stat_statements s JOIN pg_database d ON s.dbid = d.oid WHERE s.temp_blks_written > 0 AND d.datname NOT LIKE 'template%' ORDER BY s.temp_blks_written DESC LIMIT 15;",
+        "fallback_query": "SELECT datname AS \"Database Name\", temp_files AS \"Temp Files Created\", pg_size_pretty(temp_bytes) AS \"Total Disk Spill Vol\", ROUND(temp_bytes::numeric / NULLIF(temp_files, 0), 2) AS \"Avg Spill Size (Bytes)\" FROM pg_stat_database WHERE temp_bytes > 0 ORDER BY temp_bytes DESC LIMIT 15;",
+        "dependency": "pg_stat_statements"
+      },
+      "top_queries_by_execution_time": {
+        "preferred_query": "SELECT (SELECT datname FROM pg_database WHERE oid = dbid) AS \"Database Name\", SUBSTRING(query FROM 1 FOR 80) AS \"Query Snippet\", calls AS \"Execution Count\", ROUND(total_exec_time::numeric, 2) AS \"Total Time (ms)\", ROUND(mean_exec_time::numeric, 2) AS \"Avg Time (ms)\", ROUND(max_exec_time::numeric, 2) AS \"Max Time (ms)\" FROM pg_stat_statements WHERE (SELECT datname FROM pg_database WHERE oid = dbid) NOT LIKE 'template%' ORDER BY total_exec_time DESC LIMIT 15;",
+        "fallback_query": "SELECT query, state FROM pg_stat_activity WHERE state = 'active';",
+        "dependency": "pg_stat_statements"
+      }
+    },
+    "locks": {
+      "lock_waits": "SELECT blocked.pid AS \"Blocked Process ID\", ROUND(EXTRACT(EPOCH FROM (now() - blocked.query_start))::numeric, 2)::text || ' seconds' AS \"Wait Duration\", blocked.query AS \"Blocked Query\", blocking.pid AS \"Blocking Process ID\", blocking.query AS \"Blocking Query\", 'SELECT pg_terminate_backend(' || blocking.pid || ');' AS \"Quick Fix (Kill Command)\" FROM pg_stat_activity blocked JOIN unnest(pg_blocking_pids(blocked.pid)) blocking_pid ON true JOIN pg_stat_activity blocking ON blocking.pid = blocking_pid WHERE blocked.wait_event_type = 'Lock' ORDER BY now() - blocked.query_start DESC;"
+    },
+    "connections": {
+      "active_connections": "SELECT usename AS \"Username\", client_addr AS \"Client IP\", state AS \"Connection State\", COUNT(*) AS \"Total Connections\" FROM pg_stat_activity WHERE pid != pg_backend_pid() AND usename NOT IN ('cloudsqladmin', 'cloudsqlagent') GROUP BY usename, client_addr, state ORDER BY COUNT(*) DESC LIMIT 15;",
+      "aborted_connections": "SELECT datname AS \"Database Name\", sessions AS \"Total Sessions Initiated\", sessions_abandoned AS \"Abandoned Sessions (Lost Connection)\", sessions_fatal AS \"Fatal Sessions (Errors/Terminated)\", ROUND(((sessions_abandoned + sessions_fatal)::numeric / NULLIF(sessions, 0)) * 100, 2) AS \"Failure Rate (%)\" FROM pg_stat_database WHERE datname NOT LIKE 'template%' AND (sessions_abandoned > 0 OR sessions_fatal > 0) ORDER BY \"Failure Rate (%)\" DESC NULLS LAST LIMIT 15;",
+      "thread_activity": "SELECT usename AS \"Username\", client_addr AS \"Client IP\", datname AS \"Database Name\", ROUND(EXTRACT(EPOCH FROM (NOW() - state_change))::numeric, 2) AS \"Idle Time (Seconds)\", TO_CHAR((NOW() - state_change), 'HH24:MI:SS') AS \"Idle Duration\" FROM pg_stat_activity WHERE state = 'idle' AND usename NOT IN ('cloudsqladmin', 'cloudsqlagent') AND EXTRACT(EPOCH FROM (NOW() - state_change)) > 300 ORDER BY \"Idle Time (Seconds)\" DESC LIMIT 15;"
+    },
+    "storage": {
+      "fragmentation": "SELECT schemaname AS \"Schema Name\", relname AS \"Table Name\", n_dead_tup AS \"Dead Tuples\", n_live_tup AS \"Live Rows\", ROUND((n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) * 100, 2) AS \"Bloat Ratio (%)\", pg_size_pretty(pg_total_relation_size(relid)) AS \"Total Allocated Space\", pg_size_pretty(ROUND((n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) * pg_relation_size(relid))::bigint) AS \"Estimated Reclaimable Space\" FROM pg_stat_user_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND n_dead_tup > 0 ORDER BY (n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) DESC NULLS LAST LIMIT 15;"
+    }
+  }
+}
