@@ -284,7 +284,7 @@ def get_iam_engine(target, connector):
 
     def _getconn():
         return connector.connect(
-            instance_name, driver, user=target["user"], db=target["database"], enable_iam_auth=True
+            instance_name, driver, user=target["user"], db=target["database"], enable_iam_auth=True,ip_type="private"
         )
 
     return sqlalchemy.create_engine(dialect, creator=_getconn, pool_pre_ping=True)

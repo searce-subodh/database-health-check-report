@@ -2,6 +2,7 @@ from datetime import datetime
 import json
 import os
 import sys
+import html
 
 # ─────────────────────────────────────────────
 # LOAD INPUT JSON FILES (VIA COMMAND LINE)
@@ -72,7 +73,8 @@ for unique_key, data in report_data.items():
     
     nav_data[unique_key] = {
         "type": db_type,
-        "label": display_label
+        "label": display_label,
+        "project_id": project_id if project_id else "No Project"
     }
 
 
@@ -320,12 +322,15 @@ html_content = f"""<!DOCTYPE html>
 <!-- FROZEN TOP BAR -->
 <div id="topbar">
     <h1>Database Health Report</h1>
-    <select id="filter-dbtype" onchange="filterByType()">
+    <select id="filter-dbtype" onchange="updateServerDropdown()">
         <option value="ALL">All Database Engines</option>
         <option value="PostgreSQL">PostgreSQL</option>
         <option value="MySQL">MySQL</option>
     </select>
-    <select id="filter-server" onchange="filterByServer()">
+    <select id="filter-project" onchange="updateServerDropdown()">
+        <option value="ALL">All Projects</option>
+    </select>
+    <select id="filter-server" onchange="applyFilters()">
         <option value="ALL">All Instances</option>
     </select>
     <div class="topbar-timestamp">
@@ -353,8 +358,9 @@ for unique_key, data in report_data.items():
     health_checks = data.get("health_checks", {})
     
     db_type_label = nav_data.get(unique_key, {}).get("type", "Unknown")
+    safe_proj     = html.escape(project_id) if project_id else "No Project"
 
-    html_content += f'<div class="instance-block" data-server="{unique_key}" data-dbtype="{db_type_label}" id="srv-{safe_instance}">'
+    html_content += f'<div class="instance-block" data-server="{unique_key}" data-dbtype="{db_type_label}" data-project="{safe_proj}" id="srv-{safe_instance}">'
     
     # Instance Header with Cloud Breadcrumb Styling
     html_content += '<div class="instance-title">'
@@ -412,14 +418,33 @@ for unique_key, data in report_data.items():
         for category, queries in health_checks.items():
             if not isinstance(queries, dict):
                 continue
+            
             clean_category = format_clean_title(category)
+            
+            # Pre-filter metrics to skip entirely if they returned an execution error
+            valid_queries = {}
+            for metric_name, rows in queries.items():
+                skip_metric = False
+                if rows and isinstance(rows, list) and len(rows) > 0 and isinstance(rows[0], dict):
+                    first_row = rows[0]
+                    # Skip condition based on user request: status=ERROR / error presence / Result unavailable message
+                    if "error" in first_row or first_row.get("status") == "ERROR" or "Result unavailable" in str(first_row.get("message", "")):
+                        skip_metric = True
+                
+                if not skip_metric:
+                    valid_queries[metric_name] = rows
+            
+            # If all metrics in this category were skipped, do not render the category at all
+            if not valid_queries:
+                continue
+
             html_content += f'''
             <div class="category-title" onclick="toggleCategory(this)">
                 <span>{clean_category}</span><span>&#9654;</span>
             </div>
             <div class="category-content hidden">'''
 
-            for metric_name, rows in queries.items():
+            for metric_name, rows in valid_queries.items():
                 table_counter[0] += 1
                 tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
                 clean_metric = format_clean_title(metric_name)
@@ -443,41 +468,61 @@ html_content += f"""
 <script>
 const navData = {nav_json};
 
+const typeSel = document.getElementById('filter-dbtype');
+const projSel = document.getElementById('filter-project');
 const serverSel = document.getElementById('filter-server');
 
-// Populate initial Server Dropdown
-Object.entries(navData).forEach(([key, info]) => {{
+// Populate initial Project Dropdown
+const projects = new Set();
+Object.values(navData).forEach(info => {{
+    if (info.project_id && info.project_id !== "No Project") {{
+        projects.add(info.project_id);
+    }}
+}});
+Array.from(projects).sort().forEach(proj => {{
     const o = document.createElement('option');
-    o.value = key; 
-    o.textContent = info.label;
-    serverSel.appendChild(o);
+    o.value = proj; 
+    o.textContent = proj;
+    projSel.appendChild(o);
 }});
 
-function filterByType() {{
-    const type = document.getElementById('filter-dbtype').value;
+function updateServerDropdown() {{
+    const type = typeSel.value;
+    const proj = projSel.value;
+    
     serverSel.innerHTML = '<option value="ALL">All Instances</option>';
     
     Object.entries(navData).forEach(([key, info]) => {{
-        if (type === 'ALL' || info.type === type) {{
+        const typeMatch = type === 'ALL' || info.type === type;
+        const projMatch = proj === 'ALL' || info.project_id === proj;
+        
+        if (typeMatch && projMatch) {{
             const o = document.createElement('option');
             o.value = key; 
             o.textContent = info.label;
             serverSel.appendChild(o);
         }}
     }});
-    filterByServer();
+    
+    applyFilters();
 }}
 
-function filterByServer() {{
-    const type = document.getElementById('filter-dbtype').value;
+function applyFilters() {{
+    const type = typeSel.value;
+    const proj = projSel.value;
     const srv  = serverSel.value;
     
     document.querySelectorAll('.instance-block').forEach(block => {{
         const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
-        const srvMatch  = srv   === 'ALL' || block.dataset.server === srv;
-        block.classList.toggle('hidden', !(typeMatch && srvMatch));
+        const projMatch = proj === 'ALL' || block.dataset.project === proj;
+        const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
+        
+        block.classList.toggle('hidden', !(typeMatch && projMatch && srvMatch));
     }});
 }}
+
+// Initialize dropdown dependencies
+updateServerDropdown();
 
 function toggleCategory(el) {{
     const content  = el.nextElementSibling;
