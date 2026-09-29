@@ -3,6 +3,7 @@ import json
 import re
 import os
 import yaml
+import numpy as np
 import sqlalchemy
 from sqlalchemy.engine import URL
 from google.cloud import monitoring_v3
@@ -220,86 +221,51 @@ def extract_typed_value(typed_value):
         return float(typed_value.int64_value)
     return 0.0
 
-
 def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     metric_suffix = metric_type.split("/")[-1]
     value_col = f"value.{metric_suffix}"
 
-    # Query 1 — Mean, P95, P99
-    mql_aggregated = f"""
+    # Single query to fetch a time series of 1-minute points
+    mql_query = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
     | filter (resource.database_id == '{project_id}:{instance_id}')
     | within 24h
-    | group_by [], [
-        mean_val: mean({value_col}),
-        p95: percentile({value_col}, 95),
-        p99: percentile({value_col}, 99)
-      ]
-    | every 24h
-    """
-
-    # Query 2 — True max via per-minute points
-    mql_max = f"""
-    fetch cloudsql_database
-    | metric '{metric_type}'
-    | filter (resource.database_id == '{project_id}:{instance_id}')
-    | within 24h
-    | group_by [], [max_val: max({value_col})]
+    | group_by [], [val: sum({value_col})]
     | every 1m
     """
+    
     result = {"mean": None, "p95": None, "p99": None, "max": None}
+    data_points = []
 
-    # Apply mathematical scaling based on metric type
     def scale_value(val):
-        if val is None:
-            return None
-        if "utilization" in metric_key:
-            return val * 100
-        elif "bytes_used" in metric_key:
-            return val / (1024 ** 3) # Convert Bytes to GB
-        elif "ops" in metric_key:
-            return val / 60 # Convert ops/min to IOPS (ops/sec)
+        if val is None: return None
+        if "utilization" in metric_key: return val * 100
+        elif "bytes_used" in metric_key: return val / (1024 ** 3)
+        elif "ops" in metric_key: return val / 60
         return val
 
     try:
         request = monitoring_v3.QueryTimeSeriesRequest(
-            name=f"projects/{project_id}", query=mql_aggregated
+            name=f"projects/{project_id}", query=mql_query
         )
         response = client.query_time_series(request=request)
-        for series_data in response:
-            if not series_data.point_data:
-                continue
-            point = series_data.point_data[0]
-            
-            raw_mean = extract_typed_value(point.values[0]) if len(point.values) > 0 else 0.0
-            raw_p95 = extract_typed_value(point.values[1]) if len(point.values) > 0 else 0.0
-            raw_p99 = extract_typed_value(point.values[2]) if len(point.values) > 0 else 0.0
-            
-            result["mean"] = round(scale_value(raw_mean), 2)
-            result["p95"] = round(scale_value(raw_p95), 2)
-            result["p99"] = round(scale_value(raw_p99), 2)  
-    except Exception as e:
-        print(f"      [!] Aggregated metric query failed for '{metric_key}': {e}")
-
-    try:
-        request = monitoring_v3.QueryTimeSeriesRequest(
-            name=f"projects/{project_id}", query=mql_max
-        )
-        response = client.query_time_series(request=request)
-        true_max = None
+        
         for series_data in response:
             for point in series_data.point_data:
-                val = extract_typed_value(point.values[0])
-                if true_max is None or val > true_max:
-                    true_max = val
-        if true_max is not None:
-            result["max"] = round(scale_value(true_max), 2)
+                raw_val = extract_typed_value(point.values[0])
+                data_points.append(scale_value(raw_val))
+                
+        if data_points:
+            result["mean"] = round(np.mean(data_points), 2)
+            result["p95"] = round(np.percentile(data_points, 95), 2)
+            result["p99"] = round(np.percentile(data_points, 99), 2)
+            result["max"] = round(np.max(data_points), 2)
+            
     except Exception as e:
-        print(f"      [!] Max metric query failed for '{metric_key}': {e}")
+        print(f"      [!] Metric query failed for '{metric_key}': {e}")
 
     return result
-
 
 # ─────────────────────────────────────────────
 # DB AUTH ENGINES & QUERY RUNNER
