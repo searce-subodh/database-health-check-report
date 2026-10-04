@@ -770,4 +770,4 @@ Object.keys(dashboardsData).forEach(instId => {{
 }});
 </script>
 </body>
-</html>
+</html>"""
