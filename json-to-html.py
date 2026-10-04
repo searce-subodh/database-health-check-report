@@ -213,7 +213,8 @@ html_content = f"""<!DOCTYPE html>
             margin-left: auto; font-size: 0.8em; color: #94a3b8;
             white-space: nowrap; text-align: right; line-height: 1.6;
         }}
-        #content {{ margin-top: 72px; padding: 24px; max-width: 1200px; margin-left: auto; margin-right: auto; }}
+        #content {{ margin-top: 72px; padding: 24px; max-width: 1400px; margin-left: auto; margin-right: auto; }}
+        
         .specs-grid {{
             display: flex; flex-wrap: nowrap; overflow-x: auto;
             gap: 10px; margin-bottom: 16px; padding-bottom: 6px;
@@ -261,11 +262,22 @@ html_content = f"""<!DOCTYPE html>
         /* =========================================
            DASHBOARD UI STYLES
            ========================================= */
-        .dashboard-wrapper {{ background-color: var(--bg-main); border-radius: 8px; margin-bottom: 40px; display: flex; flex-direction: column; gap: 32px; }}
+        .dashboard-wrapper {{ 
+            background-color: var(--bg-card); /* Update 2: White Background */
+            width: 100%; /* Update 1: Spread full width */
+            margin-bottom: 24px; 
+            margin-top: 16px;
+            display: flex; flex-direction: column; gap: 24px; 
+        }}
         .dashboard-header {{ display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }}
-        .dashboard-header h2 {{ font-size: 16px; font-weight: 700; margin: 0; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px; }}
         
-        .header-controls {{ display: flex; align-items: center; gap: 24px; }}
+        /* Update 3: Accordion Title Toggle */
+        .dash-title-group {{ display: flex; align-items: center; gap: 8px; cursor: pointer; }}
+        .dash-title-group:hover h2, .dash-title-group:hover .dash-arrow {{ color: #1d4ed8; }}
+        .dash-arrow {{ font-size: 1.1em; color: #2563eb; transition: transform 0.2s; }}
+        .dashboard-header h2 {{ font-size: 1.15em; font-weight: 700; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Montserrat', sans-serif; }}
+        
+        .header-controls {{ display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }}
         .global-toggles {{ display: none; align-items: center; gap: 4px; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; padding: 4px 8px; }}
         .dashboard-wrapper.view-all .global-toggles {{ display: flex; }}
         .toggle-btn {{ background-color: transparent; border: none; color: var(--text-primary); border-radius: 16px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px; }}
@@ -293,8 +305,8 @@ html_content = f"""<!DOCTYPE html>
         .mdt-dot {{ width: 8px; height: 8px; border-radius: 50%; }}
         .mdt-val {{ font-size: 14px; font-weight: 600; color: var(--text-primary); padding-left: 14px; }}
 
-        .gauges-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px; margin-bottom: 24px; }}
-        .gauge-card {{ position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; display: flex; flex-direction: column; align-items: center; }}
+        .gauges-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 24px; }}
+        .gauge-card {{ position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }}
         .card-header {{ display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 24px; }}
         .card-title {{ font-size: 14px; font-weight: 600; color: var(--text-primary); margin: 0; }}
         .gauge-body {{ position: relative; width: 240px; height: 120px; }}
@@ -316,7 +328,7 @@ html_content = f"""<!DOCTYPE html>
         .dashboard-wrapper.view-all .gauge-value {{ display: none; }}
 
         .bars-grid {{ display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; }}
-        .bar-card {{ position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; }}
+        .bar-card {{ position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }}
         .bar-header {{ display: flex; justify-content: space-between; align-items: flex-end; }}
         .bar-single-value {{ font-size: 18px; font-weight: 600; color: var(--text-primary); transition: color 0.3s; }}
         .dashboard-wrapper.view-all .bar-single-value {{ display: none; }}
@@ -330,7 +342,7 @@ html_content = f"""<!DOCTYPE html>
         .bar-p99  {{ width: var(--w-p99, 0%);  background: var(--c-p99);  z-index: 2; opacity: 0.40; }}
         .bar-p95  {{ width: var(--w-p95, 0%);  background: var(--c-p95);  z-index: 3; opacity: 0.70; }}
         .bar-mean {{ width: var(--w-mean, 0%); background: var(--c-mean); z-index: 4; opacity: 1.00; }}
-        .dashboard-section-title {{ font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; border-bottom: 1px solid var(--border-color); padding-bottom: 8px; }}
+        .dashboard-section-title {{ font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; padding-bottom: 8px; }}
     </style>
 </head>
 <body>
@@ -390,7 +402,7 @@ for unique_key, data in report_data.items():
 
     # ── Provisioned Specs ──
     if specs and "Error" not in specs:
-        html_content += '<div class="section-title">Provisioned Specifications</div>'
+        html_content += '<div class="section-title" style="margin-bottom:16px;">Provisioned Specifications</div>'
         html_content += '<div class="specs-grid">'
         for key, val in specs.items():
             html_content += f'''
@@ -404,7 +416,6 @@ for unique_key, data in report_data.items():
 
     # ── Resource Utilization Dashboard ──
     if utilization:
-        # Pre-process utilization metrics into percentages vs counts
         pct_metrics = []
         cnt_metrics = []
         
@@ -421,11 +432,11 @@ for unique_key, data in report_data.items():
                 }
             }
             if "(%)" in label or "Percent" in label:
-                item["thresholds"] = {"yellow": 70, "red": 90} # Dynamic defaults
+                item["thresholds"] = {"yellow": 70, "red": 90} 
                 pct_metrics.append(item)
             else:
                 max_val = m.get("max") if m.get("max") is not None else 100
-                item["max_scale"] = max_val * 1.5 if max_val > 0 else 100 # Default ceiling bounds
+                item["max_scale"] = max_val * 1.5 if max_val > 0 else 100 
                 cnt_metrics.append(item)
                 
         dashboards_json_data[safe_instance] = {
@@ -433,11 +444,14 @@ for unique_key, data in report_data.items():
             "count_metrics": cnt_metrics
         }
         
-        # Inject the Dashboard Wrapper per instance
+        # Inject the Dashboard Wrapper per instance with toggle functionality
         html_content += f'''
         <div class="dashboard-wrapper" id="dash-{safe_instance}">
             <div class="dashboard-header">
-                <h2>Resource Utilization (Last 24h)</h2>
+                <div class="dash-title-group" onclick="toggleDashboard(this)">
+                    <span class="dash-arrow">&#9660;</span>
+                    <h2>Resource Utilization (Last 24h)</h2>
+                </div>
                 <div class="header-controls">
                     <div class="global-toggles" id="toggles-{safe_instance}">
                         <button class="toggle-btn active" data-metric="Mean">Mean</button>
@@ -452,11 +466,13 @@ for unique_key, data in report_data.items():
                 </div>
             </div>
             
-            <div class="dashboard-section-title">Percentage Metrics</div>
-            <div id="gauges-{safe_instance}" class="gauges-grid"></div>
-            
-            <div class="dashboard-section-title">Count Metrics</div>
-            <div id="bars-{safe_instance}" class="bars-grid"></div>
+            <div class="dashboard-content" id="dash-content-{safe_instance}">
+                <div class="dashboard-section-title">Percentage Metrics</div>
+                <div id="gauges-{safe_instance}" class="gauges-grid"></div>
+                
+                <div class="dashboard-section-title">Count Metrics</div>
+                <div id="bars-{safe_instance}" class="bars-grid"></div>
+            </div>
         </div>
         '''
 
@@ -576,6 +592,14 @@ updateServerDropdown();
 function toggleCategory(el) {{
     const content  = el.nextElementSibling;
     const arrow    = el.querySelector('span:last-child');
+    const isHidden = content.classList.toggle('hidden');
+    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
+}}
+
+function toggleDashboard(el) {{
+    const wrapper  = el.closest('.dashboard-wrapper');
+    const content  = wrapper.querySelector('.dashboard-content');
+    const arrow    = el.querySelector('.dash-arrow');
     const isHidden = content.classList.toggle('hidden');
     arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
 }}
@@ -746,10 +770,4 @@ Object.keys(dashboardsData).forEach(instId => {{
 }});
 </script>
 </body>
-</html>"""
-
-output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Database_Health_Report.html")
-with open(output_path, "w") as f:
-    f.write(html_content)
-
-print(f"[OK] Report saved to: {output_path}")
+</html>
