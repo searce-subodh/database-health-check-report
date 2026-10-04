@@ -167,7 +167,7 @@ def main():
             inst = row.get('instance_name', '').strip()
             
             if not project_id or not inst:
-                continue # Skip empty or malformed rows
+                continue
 
             output_key = f"{project_id}:{inst}"
 
