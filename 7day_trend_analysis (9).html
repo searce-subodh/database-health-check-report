@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>7-Day Database Trend Analysis</title>
+    <!-- Google Fonts: Inter -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-main: #f8fafc;
+            --bg-card: #ffffff;
+            --bg-subcard: #f1f5f9;
+            --border-color: #e2e8f0;
+            --text-main: #0f172a;
+            --text-muted: #64748b;
+
+            --color-mean: #0284c7;
+            --color-p95:  #059669;
+            --color-p99:  #d97706;
+            --color-max:  #7e22ce;
+
+            --badge-red-bg: rgba(239, 68, 68, 0.1);
+            --badge-red-text: #dc2626;
+            --badge-red-border: rgba(239, 68, 68, 0.3);
+
+            --track-bg: #e2e8f0;
+            --gridline-color: rgba(0, 0, 0, 0.06);
+            --shadow-color: rgba(0, 0, 0, 0.05);
+
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-main);
+            color: var(--text-main);
+            margin: 0;
+            padding: 40px 24px;
+            box-sizing: border-box;
+        }
+
+        .container {
+            max-width: 1040px;
+            margin: 0 auto;
+            display: flex;
+            flex-direction: column;
+            gap: 36px;
+        }
+
+        .global-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .global-title {
+            font-size: 22px;
+            font-weight: 700;
+            margin: 0;
+            color: var(--text-main);
+        }
+
+        .instance-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            padding: 32px;
+            display: flex;
+            flex-direction: column;
+            gap: 28px;
+            box-shadow: 0 10px 25px -5px var(--shadow-color);
+        }
+
+        .instance-header {
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 16px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .breadcrumb {
+            font-size: 18px;
+            font-weight: 700;
+        }
+        .breadcrumb-project { color: var(--text-muted); }
+        .breadcrumb-sep { color: var(--border-color); margin: 0 8px; }
+        .breadcrumb-instance { color: var(--color-mean); }
+
+        .days-badge {
+            font-size: 12px;
+            background: rgba(2, 132, 199, 0.08);
+            color: var(--color-mean);
+            font-weight: 600;
+            padding: 5px 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(2, 132, 199, 0.2);
+        }
+
+        .section-title {
+            font-size: 13px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            color: var(--text-muted);
+            margin-bottom: 16px;
+        }
+
+        .bullet-group {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .bullet-row {
+            background: var(--bg-subcard);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 16px 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .bullet-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .bullet-title {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--text-main);
+        }
+
+        .bullet-badges {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .badge-pill {
+            font-size: 11px;
+            font-weight: 600;
+            padding: 3px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.8);
+            border: 1px solid rgba(0, 0, 0, 0.08);
+        }
+
+        .badge-pill.mean { color: var(--color-mean); border-color: rgba(2, 132, 199, 0.3); background: rgba(2, 132, 199, 0.1); }
+        .badge-pill.p95  { color: var(--color-p95);  border-color: rgba(5, 150, 105, 0.3); background: rgba(5, 150, 105, 0.1); }
+        .badge-pill.p99  { color: var(--color-p99);  border-color: rgba(217, 119, 6, 0.3); background: rgba(217, 119, 6, 0.1); }
+        .badge-pill.max  { color: var(--color-max);  border-color: rgba(126, 34, 206, 0.3); background: rgba(126, 34, 206, 0.1); }
+
+        .badge-pill.critical {
+            color: var(--badge-red-text) !important;
+            background: var(--badge-red-bg) !important;
+            border-color: var(--badge-red-border) !important;
+        }
+
+        .track-wrapper {
+            position: relative;
+            width: 100%;
+        }
+
+        .gridlines {
+            position: absolute;
+            top: 0; left: 0; right: 0; bottom: 0;
+            display: flex;
+            justify-content: space-between;
+            pointer-events: none;
+            z-index: 0;
+        }
+        .gridline {
+            width: 1px;
+            height: 100%;
+            background: var(--gridline-color);
+        }
+
+        .bullet-track {
+            position: relative;
+            height: 18px;
+            background: var(--track-bg);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 1px solid var(--border-color);
+            box-shadow: inset 0 2px 4px var(--shadow-color);
+            z-index: 1;
+        }
+
+        .bullet-bar {
+            position: absolute;
+            top: 0; left: 0; height: 100%;
+            border-radius: 6px;
+            transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1);
+        }
+
+        .bar-max  { background: var(--color-max);  z-index: 1; opacity: 0.5; }
+        .bar-p99  { background: var(--color-p99);  z-index: 2; opacity: 0.7; }
+        .bar-p95  { background: var(--color-p95);  z-index: 3; opacity: 0.85; }
+        .bar-mean { background: var(--color-mean); z-index: 4; opacity: 1; }
+
+        .ticks-row {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        .kpi-tile-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 18px;
+        }
+
+        .kpi-tile {
+            background: var(--bg-subcard);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            cursor: pointer;
+            transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease;
+        }
+        .kpi-tile:hover, .kpi-tile.selected {
+            transform: translateY(-2px);
+            border-color: var(--color-mean);
+            background: rgba(2, 132, 199, 0.04);
+        }
+
+        .kpi-tile-header {
+            font-size: 13px;
+            font-weight: 600;
+            color: var(--text-muted);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .main-val-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+
+        .kpi-tile-main-val {
+            font-size: 28px;
+            font-weight: 700;
+            color: var(--color-mean);
+            line-height: 1;
+            white-space: nowrap;
+        }
+
+        .max-allowed-badge {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-muted);
+            align-self: flex-start;
+        }
+
+        .kpi-tile-footer {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 8px;
+            border-top: 1px solid var(--border-color);
+            padding-top: 10px;
+            margin-top: 4px;
+        }
+
+        .kpi-footer-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .kpi-footer-label {
+            font-size: 10px;
+            font-weight: 700;
+            color: var(--text-muted);
+            text-transform: uppercase;
+        }
+
+        .kpi-footer-val {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--text-main);
+            margin-top: 2px;
+        }
+
+        .shared-bar-container {
+            display: none;
+            margin-top: 18px;
+            width: 100%;
+        }
+
+        .shared-bar-container.active {
+            display: block;
+        }
+
+        .truncate {
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="global-header">
+            <h1 class="global-title">7-Day Aggregated Database Health Analysis</h1>
+        </div>
+
+        <div id="instances-list"></div>
+    </div>
+
+    <script>
+        const dashboardData = {
+  "playground-poc": {
+    "csql-mysql": {
+      "project_id": "playground-poc",
+      "instance_name": "csql-mysql",
+      "days_counted": 2,
+      "max_allowed_connections": 4030.0,
+      "resource_utilization": {
+        "CPU Utilization (%)": {
+          "header-name": "CPU Utilization (%)",
+          "Mean": 10.9,
+          "P95": 11.75,
+          "P99": 12.12,
+          "Max": 88.2
+        },
+        "Memory Utilization (%)": {
+          "header-name": "Memory Utilization (%)",
+          "Mean": 63.01,
+          "P95": 64.8,
+          "P99": 65.16,
+          "Max": 74.8
+        },
+        "Disk Utilization (%)": {
+          "header-name": "Disk Utilization (%)",
+          "Mean": 14.64,
+          "P95": 14.85,
+          "P99": 14.96,
+          "Max": 18.0
+        },
+        "Disk Read (IOPS)": {
+          "header-name": "Disk Read (IOPS)",
+          "Mean": 149.72,
+          "P95": 156.01,
+          "P99": 157.5,
+          "Max": 352.3
+        },
+        "Disk Write (IOPS)": {
+          "header-name": "Disk Write (IOPS)",
+          "Mean": 1417.91,
+          "P95": 1441.67,
+          "P99": 1455.53,
+          "Max": 2420.5
+        },
+        "Disk Bytes Used (GB)": {
+          "header-name": "Disk Bytes Used (GB)",
+          "Mean": 2.9,
+          "P95": 3.25,
+          "P99": 3.25,
+          "Max": 3.6
+        },
+        "Connections (Count)": {
+          "header-name": "Connections (Count)",
+          "Mean": 8.6,
+          "P95": 9.09,
+          "P99": 9.25,
+          "Max": 14.0
+        }
+      }
+    },
+    "csql-psql": {
+      "project_id": "playground-poc",
+      "instance_name": "csql-psql",
+      "days_counted": 2,
+      "max_allowed_connections": 100.0,
+      "resource_utilization": {
+        "CPU Utilization (%)": {
+          "header-name": "CPU Utilization (%)",
+          "Mean": 12.35,
+          "P95": 13.05,
+          "P99": 13.27,
+          "Max": 18.2
+        },
+        "Memory Utilization (%)": {
+          "header-name": "Memory Utilization (%)",
+          "Mean": 30.46,
+          "P95": 31.23,
+          "P99": 31.45,
+          "Max": 33.8
+        },
+        "Disk Utilization (%)": {
+          "header-name": "Disk Utilization (%)",
+          "Mean": 0.44,
+          "P95": 0.96,
+          "P99": 1.0,
+          "Max": 1.02
+        },
+        "Disk Read (IOPS)": {
+          "header-name": "Disk Read (IOPS)",
+          "Mean": 2.9,
+          "P95": 2.97,
+          "P99": 3.0,
+          "Max": 6.65
+        },
+        "Disk Write (IOPS)": {
+          "header-name": "Disk Write (IOPS)",
+          "Mean": 501.38,
+          "P95": 520.96,
+          "P99": 525.4,
+          "Max": 820.0
+        },
+        "Disk Bytes Used (GB)": {
+          "header-name": "Disk Bytes Used (GB)",
+          "Mean": 0.48,
+          "P95": 0.49,
+          "P99": 0.49,
+          "Max": 0.5
+        },
+        "Connections (Count)": {
+          "header-name": "Connections (Count)",
+          "Mean": 0.32,
+          "P95": 2.1,
+          "P99": 2.17,
+          "Max": 4.0
+        }
+      }
+    }
+  }
+};
+
+        function formatNumber(num) {
+            if (num === null || num === undefined) return "N/A";
+            return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+        }
+
+        function formatTickValue(val) {
+            if (val >= 10) return Math.round(val).toLocaleString();
+            return Number(val.toFixed(2));
+        }
+
+        function getSnapCeiling(maxVal) {
+            if (maxVal <= 20) return 25;
+            if (maxVal <= 42) return 50;
+            if (maxVal <= 68) return 75;
+            return 100;
+        }
+
+        // MULTI-TIER DYNAMIC RATIO SCALING FOR COUNT METRICS
+        function getDynamicCountScale(mMax) {
+            if (mMax <= 0) return 1;
+            
+            // Give 35% to 50% breathing room at the right end relative to actual peak usage
+            const target = mMax * 1.4;
+            
+            if (target <= 1) return 1;
+            if (target <= 2) return 2;
+            if (target <= 5) return 5;
+            if (target <= 10) return 10;
+            if (target <= 25) return 25;
+            if (target <= 50) return 50;
+            if (target <= 100) return 100;
+            if (target <= 250) return 250;
+            if (target <= 500) return 500;
+            if (target <= 1000) return 1000;
+            
+            // Round to next clean multiple of 500 for higher numbers
+            return Math.ceil(target / 500) * 500;
+        }
+
+        function handleTileClick(instId, metricKey) {
+            const container = document.getElementById(`shared-bar-${instId}`);
+            const allTiles = document.querySelectorAll(`.tile-${instId}`);
+
+            if (!container) return;
+
+            const sanitizedKey = metricKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+            const selectedTile = document.getElementById(`tile-${instId}-${sanitizedKey}`);
+            const isAlreadyActive = selectedTile && selectedTile.classList.contains('selected') && container.classList.contains('active');
+
+            allTiles.forEach(t => t.classList.remove('selected'));
+
+            if (isAlreadyActive) {
+                container.classList.remove('active');
+                container.innerHTML = '';
+                return;
+            }
+
+            if (selectedTile) selectedTile.classList.add('selected');
+
+            let targetInst = null;
+            Object.values(dashboardData).forEach(proj => {
+                Object.values(proj).forEach(inst => {
+                    const curId = inst.instance_name.replace(/[^a-zA-Z0-9_-]/g, '_');
+                    if (curId === instId) targetInst = inst;
+                });
+            });
+
+            if (!targetInst) return;
+
+            const m = targetInst.resource_utilization[metricKey];
+            if (!m) return;
+
+            const label = m["header-name"] || metricKey;
+            
+            // Compute scale boundary dynamically relative to peak Max usage
+            const dynamicScaleBound = getDynamicCountScale(m.Max);
+            const calcWidth = (val) => Math.min(100, Math.max(0, (val / dynamicScaleBound) * 100));
+
+            // Generate 5 evenly-spaced tick marks with precision formatting
+            const step = dynamicScaleBound / 4;
+            const ticksMarkup = `
+                <div class="ticks-row">
+                    <span>0</span>
+                    <span>${formatTickValue(step)}</span>
+                    <span>${formatTickValue(step * 2)}</span>
+                    <span>${formatTickValue(step * 3)}</span>
+                    <span>${formatTickValue(dynamicScaleBound)}</span>
+                </div>
+            `;
+
+            container.innerHTML = `
+                <div class="bullet-row">
+                    <div class="bullet-header">
+                        <div class="bullet-title">${label}</div>
+                        <div class="bullet-badges">
+                            <span class="badge-pill mean">Mean: ${formatNumber(m.Mean)}</span>
+                            <span class="badge-pill p95">P95: ${formatNumber(m.P95)}</span>
+                            <span class="badge-pill p99">P99: ${formatNumber(m.P99)}</span>
+                            <span class="badge-pill max">Max: ${formatNumber(m.Max)}</span>
+                        </div>
+                    </div>
+
+                    <div class="track-wrapper">
+                        <div class="gridlines">
+                            <div class="gridline"></div>
+                            <div class="gridline"></div>
+                            <div class="gridline"></div>
+                            <div class="gridline"></div>
+                            <div class="gridline"></div>
+                        </div>
+
+                        <div class="bullet-track">
+                            <div class="bullet-bar bar-max" style="width: ${calcWidth(m.Max)}%;"></div>
+                            <div class="bullet-bar bar-p99" style="width: ${calcWidth(m.P99)}%;"></div>
+                            <div class="bullet-bar bar-p95" style="width: ${calcWidth(m.P95)}%;"></div>
+                            <div class="bullet-bar bar-mean" style="width: ${calcWidth(m.Mean)}%;"></div>
+                        </div>
+                    </div>
+
+                    ${ticksMarkup}
+                </div>
+            `;
+
+            container.classList.add('active');
+        }
+
+        function renderDashboard() {
+            const container = document.getElementById('instances-list');
+            container.innerHTML = '';
+
+            Object.keys(dashboardData).sort().forEach(projKey => {
+                const instanceDict = dashboardData[projKey];
+                
+                Object.keys(instanceDict).sort().forEach(instKey => {
+                    const inst = instanceDict[instKey];
+                    const card = document.createElement('div');
+                    card.className = 'instance-card';
+
+                    const res = inst.resource_utilization || {};
+                    const safeInstId = inst.instance_name.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                    let pctRowsHtml = '';
+                    let kpiTilesHtml = '';
+
+                    Object.keys(res).forEach(metricKey => {
+                        const m = res[metricKey];
+                        const label = m["header-name"] || metricKey;
+                        const isPct = label.includes("(%)");
+
+                        if (isPct) {
+                            const snapMax = getSnapCeiling(m.Max);
+                            const calcWidth = (val) => Math.min(100, Math.max(0, (val / snapMax) * 100));
+                            const isCriticalMax = m.Max >= 80;
+
+                            pctRowsHtml += `
+                                <div class="bullet-row">
+                                    <div class="bullet-header">
+                                        <div class="bullet-title">${label}</div>
+                                        <div class="bullet-badges">
+                                            <span class="badge-pill mean">Mean: ${formatNumber(m.Mean)}%</span>
+                                            <span class="badge-pill p95">P95: ${formatNumber(m.P95)}%</span>
+                                            <span class="badge-pill p99">P99: ${formatNumber(m.P99)}%</span>
+                                            <span class="badge-pill max ${isCriticalMax ? 'critical' : ''}">Max: ${formatNumber(m.Max)}%</span>
+                                        </div>
+                                    </div>
+
+                                    <div class="track-wrapper">
+                                        <div class="gridlines">
+                                            <div class="gridline"></div>
+                                            <div class="gridline"></div>
+                                            <div class="gridline"></div>
+                                            <div class="gridline"></div>
+                                            <div class="gridline"></div>
+                                        </div>
+
+                                        <div class="bullet-track">
+                                            <div class="bullet-bar bar-max" style="width: ${calcWidth(m.Max)}%;"></div>
+                                            <div class="bullet-bar bar-p99" style="width: ${calcWidth(m.P99)}%;"></div>
+                                            <div class="bullet-bar bar-p95" style="width: ${calcWidth(m.P95)}%;"></div>
+                                            <div class="bullet-bar bar-mean" style="width: ${calcWidth(m.Mean)}%;"></div>
+                                        </div>
+                                    </div>
+
+                                    <div class="ticks-row">
+                                        <span>0%</span>
+                                        <span>${Math.round(snapMax * 0.25)}%</span>
+                                        <span>${Math.round(snapMax * 0.50)}%</span>
+                                        <span>${Math.round(snapMax * 0.75)}%</span>
+                                        <span>${snapMax}%</span>
+                                    </div>
+                                </div>
+                            `;
+                        } else {
+                            let maxAllowedStr = "N/A";
+                            if (label.includes("Connections") && inst.max_allowed_connections) {
+                                maxAllowedStr = formatNumber(inst.max_allowed_connections);
+                            }
+
+                            const sanitizedMetricKey = metricKey.replace(/[^a-zA-Z0-9_-]/g, '_');
+
+                            kpiTilesHtml += `
+                                <div id="tile-${safeInstId}-${sanitizedMetricKey}" 
+                                     class="kpi-tile tile-${safeInstId}" 
+                                     onclick="handleTileClick('${safeInstId}', '${metricKey}')">
+                                    <div class="kpi-tile-header truncate" title="${label}">
+                                        <span>${label}</span>
+                                    </div>
+                                    <div class="main-val-container">
+                                        <div class="kpi-tile-main-val">${formatNumber(m.Mean)}</div>
+                                        <div class="max-allowed-badge">Max Allowed: ${maxAllowedStr}</div>
+                                    </div>
+                                    <div class="kpi-tile-footer">
+                                        <div class="kpi-footer-item truncate">
+                                            <span class="kpi-footer-label" style="color: var(--color-p95);">P95</span>
+                                            <span class="kpi-footer-val truncate">${formatNumber(m.P95)}</span>
+                                        </div>
+                                        <div class="kpi-footer-item truncate">
+                                            <span class="kpi-footer-label" style="color: var(--color-p99);">P99</span>
+                                            <span class="kpi-footer-val truncate">${formatNumber(m.P99)}</span>
+                                        </div>
+                                        <div class="kpi-footer-item truncate">
+                                            <span class="kpi-footer-label" style="color: var(--color-max);">Max</span>
+                                            <span class="kpi-footer-val truncate">${formatNumber(m.Max)}</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            `;
+                        }
+                    });
+
+                    const pctSection = pctRowsHtml ? `
+                        <div>
+                            <div class="section-title">Percentage Utilization Metrics</div>
+                            <div class="bullet-group">${pctRowsHtml}</div>
+                        </div>` : '';
+
+                    const countSection = kpiTilesHtml ? `
+                        <div>
+                            <div class="section-title">Count & Throughput Metrics</div>
+                            <div class="kpi-tile-grid">${kpiTilesHtml}</div>
+                            <!-- SINGLE SHARED FULL-WIDTH EXPANDABLE CONTAINER BELOW ALL TILES -->
+                            <div id="shared-bar-${safeInstId}" class="shared-bar-container"></div>
+                        </div>` : '';
+
+                    card.innerHTML = `
+                        <div class="instance-header">
+                            <div class="breadcrumb">
+                                <span class="breadcrumb-project">${inst.project_id}</span>
+                                <span class="breadcrumb-sep">/</span>
+                                <span class="breadcrumb-instance">${inst.instance_name}</span>
+                            </div>
+                            <span class="days-badge">${inst.days_counted} Day(s) Aggregated</span>
+                        </div>
+
+                        ${pctSection}
+                        ${countSection}
+                    `;
+
+                    container.appendChild(card);
+                });
+            });
+        }
+
+        renderDashboard();
+    </script>
+</body>
+</html>
