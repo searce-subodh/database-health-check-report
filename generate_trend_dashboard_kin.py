@@ -38,12 +38,12 @@ def list_report_sources(bucket_name=None, local_dir=None):
         return sources
 
     from google.cloud import storage  # imported lazily so local mode works without the SDK
-    print(f"📡 Connecting to GCS Bucket: 'gs://{bucket_name}'...")
+    print(f"Connecting to GCS Bucket: 'gs://{bucket_name}'...")
     try:
         bucket = storage.Client().bucket(bucket_name)
         blobs = list(bucket.list_blobs())
     except Exception as e:
-        print(f"❌ Error accessing GCS bucket '{bucket_name}': {e}")
+        print(f"Error accessing GCS bucket '{bucket_name}': {e}")
         sys.exit(1)
 
     for blob in blobs:
@@ -129,7 +129,7 @@ def collect_daily_records(bucket_name=None, local_dir=None, history_days=90):
         try:
             records.extend(parse_report(read_fn(), file_date))
         except Exception as e:
-            print(f"⚠️ Failed to parse HTML report '{name}': {e}")
+            print(f"Failed to parse HTML report '{name}': {e}")
     return records
 
 # ==========================================
@@ -284,6 +284,32 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             margin-bottom: 16px;
         }
 
+        /* ---------- Collapsible sections ---------- */
+        .metric-section > summary {
+            list-style: none;
+            cursor: pointer;
+            user-select: none;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border-radius: 6px;
+        }
+        .metric-section > summary::-webkit-details-marker { display: none; }
+        .metric-section > summary:hover { color: var(--text-main); }
+        .metric-section > summary:focus-visible { outline: 2px solid rgba(2,132,199,0.35); outline-offset: 2px; }
+        .section-chevron {
+            width: 14px; height: 14px; flex-shrink: 0;
+            transition: transform 0.2s ease;
+        }
+        .metric-section[open] > summary .section-chevron { transform: rotate(90deg); }
+        .metric-section:not([open]) > summary { margin-bottom: 0; }
+        .section-count {
+            font-size: 11px; font-weight: 600; letter-spacing: 0;
+            text-transform: none; color: var(--text-muted);
+            background: var(--bg-subcard); border: 1px solid var(--border-color);
+            border-radius: 10px; padding: 1px 8px;
+        }
+
         .bullet-group { display: flex; flex-direction: column; gap: 20px; }
 
         .bullet-row {
@@ -391,10 +417,19 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
         .kpi-tile-header {
             font-size: 13px;
             font-weight: 600;
-            color: var(--text-muted);
+            color: var(--text-main);
             display: flex;
             justify-content: space-between;
             align-items: center;
+        }
+
+        .kpi-tile-header-group { display: flex; flex-direction: column; gap: 4px; }
+
+        /* "Mean" caption under the tile title; same size/weight as "Max Allowed" */
+        .kpi-mean-label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--color-mean);
         }
 
         .main-val-container { display: flex; flex-direction: column; gap: 6px; }
@@ -414,10 +449,10 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             align-self: flex-start;
         }
 
-        /* 4 columns now: Mean / P95 / P99 / Max */
+        /* P95 / P99 / Max (Mean is shown as the main value above) */
         .kpi-tile-footer {
             display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(68px, 1fr));
+            grid-template-columns: repeat(3, 1fr);
             gap: 8px 10px;
             border-top: 1px solid var(--border-color);
             padding-top: 10px;
@@ -662,6 +697,28 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
             container.classList.add('active');
         }
 
+        // ---------- collapsible sections ----------
+        // Remembers which sections are collapsed so a date-range change keeps them that way.
+        const collapsedSections = new Set();
+
+        function onSectionToggle(el) {
+            if (el.open) collapsedSections.delete(el.dataset.key);
+            else collapsedSections.add(el.dataset.key);
+        }
+
+        function sectionHtml(key, title, count, bodyHtml) {
+            const isOpen = !collapsedSections.has(key);
+            return `
+                <details class="metric-section" data-key="${key}" ${isOpen ? 'open' : ''} ontoggle="onSectionToggle(this)">
+                    <summary class="section-title">
+                        <svg class="section-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3l5 5-5 5"/></svg>
+                        <span>${title}</span>
+                        <span class="section-count">${count}</span>
+                    </summary>
+                    ${bodyHtml}
+                </details>`;
+        }
+
         // ---------- render ----------
         function renderDashboard() {
             const container = document.getElementById('instances-list');
@@ -737,18 +794,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
                                 <div id="tile-${safeInstId}-${safeId(metricKey)}"
                                      class="kpi-tile tile-${safeInstId}"
                                      onclick="handleTileClick('${safeInstId}', '${metricKey}')">
-                                    <div class="kpi-tile-header truncate" title="${label}">
-                                        <span>${label}</span>
+                                    <div class="kpi-tile-header-group">
+                                        <div class="kpi-tile-header truncate" title="${label}">
+                                            <span>${label}</span>
+                                        </div>
+                                        <div class="kpi-mean-label">Mean</div>
                                     </div>
                                     <div class="main-val-container">
                                         <div class="kpi-tile-main-val">${formatNumber(m.Mean)}</div>
                                         <div class="max-allowed-badge">Max Allowed: ${maxAllowedStr}</div>
                                     </div>
                                     <div class="kpi-tile-footer">
-                                        <div class="kpi-footer-item">
-                                            <span class="kpi-footer-label" style="color: var(--color-mean);">Mean</span>
-                                            <span class="kpi-footer-val">${formatNumber(m.Mean)}</span>
-                                        </div>
                                         <div class="kpi-footer-item">
                                             <span class="kpi-footer-label" style="color: var(--color-p95);">P95</span>
                                             <span class="kpi-footer-val">${formatNumber(m.P95)}</span>
@@ -767,18 +823,17 @@ HTML_TEMPLATE = r"""<!DOCTYPE html>
                         }
                     });
 
-                    const pctSection = pctRowsHtml ? `
-                        <div>
-                            <div class="section-title">Percentage Utilization Metrics</div>
-                            <div class="bullet-group">${pctRowsHtml}</div>
-                        </div>` : '';
+                    const pctCount = (pctRowsHtml.match(/class="bullet-row"/g) || []).length;
+                    const kpiCount = (kpiTilesHtml.match(/class="kpi-tile /g) || []).length;
 
-                    const countSection = kpiTilesHtml ? `
-                        <div>
-                            <div class="section-title">Count & Throughput Metrics</div>
-                            <div class="kpi-tile-grid">${kpiTilesHtml}</div>
-                            <div id="shared-bar-${safeInstId}" class="shared-bar-container"></div>
-                        </div>` : '';
+                    const pctSection = pctRowsHtml ? sectionHtml(
+                        `${safeInstId}::pct`, 'Percentage Utilization Metrics', pctCount,
+                        `<div class="bullet-group">${pctRowsHtml}</div>`) : '';
+
+                    const countSection = kpiTilesHtml ? sectionHtml(
+                        `${safeInstId}::count`, 'Count & Throughput Metrics', kpiCount,
+                        `<div class="kpi-tile-grid">${kpiTilesHtml}</div>
+                         <div id="shared-bar-${safeInstId}" class="shared-bar-container"></div>`) : '';
 
                     card.innerHTML = `
                         <div class="instance-header">
@@ -843,7 +898,7 @@ def generate_trend_html(daily_records, output_filepath="trend_analysis.html"):
     data_json = json.dumps(daily_records, indent=2).replace("</", "<\\/")
     with open(output_filepath, "w", encoding="utf-8") as f:
         f.write(HTML_TEMPLATE.replace("__DASHBOARD_DATA__", data_json))
-    print(f"✅ Dashboard generated successfully: {output_filepath}")
+    print(f"Dashboard generated successfully: {output_filepath}")
 
 # ==========================================
 # 3. SCRIPT ENTRYPOINT
@@ -862,6 +917,6 @@ if __name__ == "__main__":
                                     history_days=args.history_days)
 
     if not records:
-        print(f"❌ No valid HTML report data found for the past {args.history_days} days.")
+        print(f"No valid HTML report data found for the past {args.history_days} days.")
     else:
         generate_trend_html(records, args.out)
