@@ -13,8 +13,6 @@ import pg8000
 import pymysql
 import pymysql.cursors
 
-
-
 METRIC_LABELS = {
     "cpu_utilization": "CPU Utilization (%)",
     "memory_utilization": "Memory Utilization (%)",
@@ -24,26 +22,63 @@ METRIC_LABELS = {
     "disk_bytes_used": "Disk Bytes Used (GB)",
     "connections": "Connections (Count)",
 }
+
 # ─────────────────────────────────────────────
 # TIGHTLY BOUND INTERNAL QUERIES
 # ─────────────────────────────────────────────
 
 INTERNAL_QUERIES = {
     "mysql": {
-        "uptime": "SHOW GLOBAL STATUS LIKE 'Uptime';"
+        "uptime": "SHOW GLOBAL STATUS LIKE 'Uptime';",
+        "max_connections": "SHOW GLOBAL VARIABLES LIKE 'max_connections';"
     },
     "postgres": {
-        "uptime": "SELECT pg_postmaster_start_time() AS start_time;"
+        "uptime": "SELECT pg_postmaster_start_time() AS start_time;",
+        "max_connections": "SHOW max_connections;"
     },
 }
 
 # ─────────────────────────────────────────────
-# TIER MAP
+# TIER MAP & IOPS REFERENCE DATA
 # ─────────────────────────────────────────────
 
 TIER_MAP = {
     "db-f1-micro": (1, "0.614 GB"),
     "db-g1-small": (1, "1.7 GB"),
+}
+
+MACHINE_LIMITS = {
+    "SSD": {
+        "ENTERPRISE": {
+            "SHARED_CORE": [(0, (12000, 10000))], 
+            "DEDICATED_CORE": [
+                (1, (12000, 10000)),
+                (2, (15000, 15000)),
+                (16, (25000, 25000)),
+                (32, (60000, 60000)),
+                (64, (100000, 100000))
+            ]
+        },
+        "ENTERPRISE_PLUS": {
+            "N2": [
+                (2, (15000, 15000)),
+                (16, (25000, 25000)),
+                (32, (60000, 60000)),
+                (64, (100000, 80000))
+            ]
+        }
+    },
+    "HDD": {
+        "ENTERPRISE": {
+            "SHARED_CORE": [(0, (1000, 10000))],
+            "DEDICATED_CORE": [
+                (1, (1000, 10000)),
+                (2, (3000, 15000)),
+                (8, (5000, 15000)),
+                (16, (7500, 15000))
+            ]
+        }
+    }
 }
 
 # ─────────────────────────────────────────────
@@ -80,9 +115,78 @@ def get_metrics_for_engine(db_type: str, requested_metrics: list) -> dict:
                 metrics[metric] = POSTGRES_METRICS["connections"]
     return metrics
 
+# ─────────────────────────────────────────────
+# HELPER: IOPS CALCULATION
+# ─────────────────────────────────────────────
+
+def determine_machine_family(machine_tier: str) -> str:
+    tier = machine_tier.lower()
+    if "shared" in tier or "f1" in tier or "g1" in tier: return "SHARED_CORE"
+    if "n4" in tier: return "N4"
+    if "n2" in tier: return "N2"
+    if "c4a" in tier: return "c4A"
+    return "DEDICATED_CORE"
+
+def extract_vcpu(machine_tier: str) -> int:
+    parts = machine_tier.split('-')
+    for part in reversed(parts):
+        if part.isdigit():
+            return int(part)
+    return 1
+
+def get_machine_limit(disk_type: str, edition: str, machine_family: str, vcpu: int):
+    try:
+        checkpoints = MACHINE_LIMITS[disk_type][edition][machine_family]
+        max_r, max_w = None, None
+        
+        for cp_vcpu, limits in checkpoints:
+            if vcpu >= cp_vcpu:
+                max_r, max_w = limits
+            else:
+                break
+        return max_r, max_w
+    except KeyError:
+        return None, None
+
+def calculate_iops_limits(machine_tier: str, disk_type: str, storage_gb: int, edition: str, provisioned_iops: int):
+    machine_family = determine_machine_family(machine_tier)
+    vcpu = extract_vcpu(machine_tier)
+    
+    is_user_provisioned = machine_family in ["N4", "c4A"]
+
+    # Step 1: Machine Limit (X)
+    if is_user_provisioned:
+        max_r, max_w = None, None
+    else:
+        max_r, max_w = get_machine_limit(disk_type, edition, machine_family, vcpu)
+
+    # Step 2: Capacity Calculation (Y)
+    if is_user_provisioned:
+        cap_r = provisioned_iops if provisioned_iops else 0
+        cap_w = provisioned_iops if provisioned_iops else 0
+    elif disk_type == "SSD":
+        cap_r = cap_w = 6000 + (30 * storage_gb)
+    elif disk_type == "HDD":
+        if storage_gb <= 100:
+            cap_r, cap_w = 75, 150
+        else:
+            cap_r = int(storage_gb * 0.75)
+            cap_w = int(storage_gb * 1.5)
+    else:
+        cap_r, cap_w = 0, 0
+
+    # Step 3: Final Resolution
+    if is_user_provisioned:
+        final_r, final_w = cap_r, cap_w
+    else:
+        final_r = min(cap_r, max_r) if max_r else cap_r
+        final_w = min(cap_w, max_w) if max_w else cap_w
+
+    return final_r, final_w
+
 
 # ─────────────────────────────────────────────
-# HELPER: FORMAT UPTIME
+# HELPER: FORMAT UPTIME & EXTRACT SPECS
 # ─────────────────────────────────────────────
 
 def format_uptime(uptime_raw: list, db_type: str) -> str:
@@ -119,10 +223,8 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
             minutes = int((uptime_seconds % 3600) // 60)
             
             parts = []
-            if days > 0:
-                parts.append(f"{days}d")
-            if hours > 0:
-                parts.append(f"{hours}h")
+            if days > 0: parts.append(f"{days}d")
+            if hours > 0: parts.append(f"{hours}h")
             parts.append(f"{minutes}m")
             
             return " ".join(parts) if parts else "0m"
@@ -134,21 +236,20 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
 
 
 def parse_compute_specs(tier: str) -> tuple:
-    if not tier:
-        return ("N/A", "N/A")
-    if tier in TIER_MAP:
-        return (str(TIER_MAP[tier][0]), TIER_MAP[tier][1])
+    if not tier: return ("N/A", "N/A")
+    if tier in TIER_MAP: return (str(TIER_MAP[tier][0]), TIER_MAP[tier][1])
+    
     custom_match = re.search(r"-(\d+)-(\d+)$", tier)
     if custom_match:
         memory_gb = round(int(custom_match.group(2)) / 1024, 2)
         return (custom_match.group(1), f"{memory_gb} GB")
+        
     suffix_match = re.search(r"-(\d+)$", tier)
     return (suffix_match.group(1), "N/A") if suffix_match else ("N/A", "N/A")
 
 
 def format_timestamp(ts: str) -> str:
-    if not ts or ts == "No backups found":
-        return ts
+    if not ts or ts == "No backups found": return ts
     try:
         dt = datetime.fromisoformat(ts.replace("Z", "+00:00"))
         return dt.strftime("%d %b %Y, %I:%M %p UTC")
@@ -158,18 +259,19 @@ def format_timestamp(ts: str) -> str:
 
 def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
     try:
-        inst = (
-            service.instances()
-            .get(project=project_id, instance=instance_name)
-            .execute()
-        )
+        inst = service.instances().get(project=project_id, instance=instance_name).execute()
     except Exception as e:
-        return ({"Error": f"Failed to fetch details: {str(e)}"}, None, None, None, None, None)
+        return ({"Error": f"Failed to fetch details: {str(e)}"}, None, None, None, None, None, {})
 
     settings = inst.get("settings", {})
-    vcpu, memory = parse_compute_specs(settings.get("tier"))
-    disk_type = settings.get("dataDiskType", "").replace("PD_", "")
+    tier = settings.get("tier", "")
+    vcpu, memory = parse_compute_specs(tier)
+    disk_type_raw = settings.get("dataDiskType", "")
+    disk_type = "SSD" if "SSD" in disk_type_raw else ("HDD" if "HDD" in disk_type_raw else "N/A")
     db_version = inst.get("databaseVersion", "UNKNOWN")
+    edition = settings.get("edition", "ENTERPRISE").upper()
+    storage_gb = int(settings.get("dataDiskSizeGb", 0))
+    provisioned_iops = int(settings.get("dataDiskProvisionedIops", 0)) if settings.get("dataDiskProvisionedIops") else 0
 
     db_type = "mysql" if "MYSQL" in db_version else "postgres" if "POSTGRES" in db_version else "sql_server"
     connection_name = inst.get("connectionName")
@@ -184,12 +286,7 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
 
     last_backup_time = "No backups found"
     try:
-        backups = (
-            service.backupRuns()
-            .list(project=project_id, instance=instance_name, maxResults=1)
-            .execute()
-            .get("items", [])
-        )
+        backups = service.backupRuns().list(project=project_id, instance=instance_name, maxResults=1).execute().get("items", [])
         if backups and "windowStartTime" in backups[0]:
             last_backup_time = format_timestamp(backups[0]["windowStartTime"])
     except Exception:
@@ -197,35 +294,40 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
 
     specs = {
         "Engine": db_version.replace("_", " "),
-        "Edition": settings.get("edition", "ENTERPRISE"),
+        "Edition": edition,
         "CPU": vcpu,
         "Memory": memory,
-        "Storage": f"{settings.get('dataDiskSizeGb', 'N/A')} GB {disk_type}".strip(),
+        "Storage": f"{storage_gb} GB {disk_type_raw.replace('PD_', '')}".strip(),
         "Availability": settings.get("availabilityType", "N/A").title(),
         "Replicas": len(inst.get("replicaNames", [])),
         "Last Backup": last_backup_time,
     }
 
-    return specs, connection_name, db_type, region, host, port
+    raw_hw_details = {
+        "tier": tier,
+        "disk_type": disk_type,
+        "storage_gb": storage_gb,
+        "edition": edition,
+        "provisioned_iops": provisioned_iops
+    }
+
+    return specs, connection_name, db_type, region, host, port, raw_hw_details
 
 
 # ─────────────────────────────────────────────
-# FETCH MONITORING METRICS (SCALED & 2 QUERIES)
+# FETCH MONITORING METRICS
 # ─────────────────────────────────────────────
 
 def extract_typed_value(typed_value):
     val_type = typed_value._pb.WhichOneof("value")
-    if val_type == "double_value":
-        return typed_value.double_value
-    elif val_type == "int64_value":
-        return float(typed_value.int64_value)
+    if val_type == "double_value": return typed_value.double_value
+    elif val_type == "int64_value": return float(typed_value.int64_value)
     return 0.0
 
 def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     metric_suffix = metric_type.split("/")[-1]
     value_col = f"value.{metric_suffix}"
 
-    # Single query to fetch a time series of 1-minute points
     mql_query = f"""
     fetch cloudsql_database
     | metric '{metric_type}'
@@ -246,9 +348,7 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
         return val
 
     try:
-        request = monitoring_v3.QueryTimeSeriesRequest(
-            name=f"projects/{project_id}", query=mql_query
-        )
+        request = monitoring_v3.QueryTimeSeriesRequest(name=f"projects/{project_id}", query=mql_query)
         response = client.query_time_series(request=request)
         
         for series_data in response:
@@ -274,18 +374,10 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
 def get_iam_engine(target, connector):
     db_type = target.get("db_type").lower()
     instance_name = f"{target['project_id']}:{target['region']}:{target['instance']}"
-
-    if db_type == "postgres":
-        driver, dialect = "pg8000", "postgresql+pg8000://"
-    elif db_type == "mysql":
-        driver, dialect = "pymysql", "mysql+pymysql://"
-    else:
-        raise ValueError(f"Unsupported db_type: {db_type}")
+    driver, dialect = ("pg8000", "postgresql+pg8000://") if db_type == "postgres" else ("pymysql", "mysql+pymysql://")
 
     def _getconn():
-        return connector.connect(
-            instance_name, driver, user=target["user"], db=target["database"], enable_iam_auth=True,ip_type="private"
-        )
+        return connector.connect(instance_name, driver, user=target["user"], db=target["database"], enable_iam_auth=True, ip_type="private")
 
     return sqlalchemy.create_engine(dialect, creator=_getconn, pool_pre_ping=True)
 
@@ -295,12 +387,8 @@ def get_native_engine(target):
     drivername = "postgresql+pg8000" if db_type == "postgres" else "mysql+pymysql"
     
     url = URL.create(
-        drivername=drivername,
-        username=target.get("user", ""),
-        password=target.get("password", ""),
-        host=target.get("host", ""),
-        port=target.get("port"),
-        database=target.get("database")
+        drivername=drivername, username=target.get("user", ""), password=target.get("password", ""),
+        host=target.get("host", ""), port=target.get("port"), database=target.get("database")
     )
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 
@@ -308,7 +396,6 @@ def get_native_engine(target):
 def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict) -> tuple:
     health_checks = {}
     internal_results = {}
-    
     db_user_queries = user_queries.get(db_type, {})
     db_internal_queries = internal_queries.get(db_type, {})
 
@@ -318,19 +405,15 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
             for key, query_payload in category_queries.items():
                 if key.startswith("_"): continue
                 
-                # 1. Parse the hybrid JSON structure
                 if isinstance(query_payload, dict):
-                    primary_sql = query_payload.get("preferred_query")
-                    fallback_sql = query_payload.get("fallback_query")
+                    primary_sql, fallback_sql = query_payload.get("preferred_query"), query_payload.get("fallback_query")
                 else:
-                    primary_sql = query_payload
-                    fallback_sql = None
+                    primary_sql, fallback_sql = query_payload, None
 
                 if not primary_sql:
                     health_checks[category][key] = [{"status": "SKIPPED", "message": "No query defined."}]
                     continue
 
-                # 2. Execute Primary Query with Fallback Logic
                 try:
                     with conn.begin_nested():
                         result = conn.execute(sqlalchemy.text(primary_sql))
@@ -358,7 +441,6 @@ def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict
                     else:
                         health_checks[category][key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
 
-        # Internal queries execution remains unchanged
         for key, sql in db_internal_queries.items():
             try:
                 with conn.begin_nested():
@@ -407,7 +489,6 @@ def main():
         print(" [!] No instances found in config.yaml. Exiting.")
         return
 
-    # Create the reports directory if it doesn't exist
     reports_dir = "reports"
     os.makedirs(reports_dir, exist_ok=True)
     print(f" -> Output directory '{reports_dir}/' is ready.")
@@ -436,7 +517,6 @@ def main():
             if not project_id or not instance_name: continue
             print(f"\n[PROCESSING] Instance: {instance_name} (Project: {project_id})")
 
-            # Initialize a localized dictionary for THIS instance only
             instance_report = {
                 "project_id": project_id,
                 "instance_name": instance_name,
@@ -447,7 +527,7 @@ def main():
             }
 
             print("   -> Fetching instance hardware and configuration details...")
-            specs, connection_name, db_type, region, host, port = get_instance_details(sqladmin, project_id, instance_name)
+            specs, connection_name, db_type, region, host, port, hw_details = get_instance_details(sqladmin, project_id, instance_name)
             
             if isinstance(specs, dict) and "Error" in specs:
                 instance_report["provisioned_specs"] = specs
@@ -459,40 +539,79 @@ def main():
                 print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
                 continue
 
-            print(f"   -> Engine identified as: {db_type.upper()}")
+            # Pre-calculate Max Disk IOPS Limits
+            final_read_iops, final_write_iops = calculate_iops_limits(
+                machine_tier=hw_details.get("tier"),
+                disk_type=hw_details.get("disk_type"),
+                storage_gb=hw_details.get("storage_gb"),
+                edition=hw_details.get("edition"),
+                provisioned_iops=hw_details.get("provisioned_iops")
+            )
 
+            print(f"   -> Engine identified as: {db_type.upper()}")
             print("   -> Fetching requested Cloud Monitoring metrics (24h window)...")
+            
             engine_metrics = get_metrics_for_engine(db_type, requested_metrics)
             
             if not engine_metrics:
                 print("   [!] No valid monitoring metrics were found in 'config.yaml' for this engine.")
             else:
                 for m_key, m_type in engine_metrics.items():
-                    metric_data = fetch_mql_metric(
-                        mon_client, project_id, instance_name, m_key, m_type
-                    )
+                    metric_data = fetch_mql_metric(mon_client, project_id, instance_name, m_key, m_type)
                     metric_data["header-name"] = METRIC_LABELS.get(m_key, m_key)
+                    
+                    # Apply Allocation Limits to Output
+                    if m_key in ["cpu_utilization", "memory_utilization", "disk_utilization"]:
+                        metric_data["max_allocated_limit"] = 100
+                    elif m_key == "disk_bytes_used":
+                        metric_data["max_allocated_limit"] = hw_details.get("storage_gb")
+                    elif m_key == "disk_read_ops":
+                        metric_data["max_allocated_limit"] = final_read_iops
+                    elif m_key == "disk_write_ops":
+                        metric_data["max_allocated_limit"] = final_write_iops
+                    elif m_key == "connections":
+                        metric_data["max_allocated_limit"] = "N/A" # Placeholder, overwritten after db query
+                        
                     instance_report["resource_utilization"][m_key] = metric_data
 
             print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
             try:
                 if auth_type == "iam":
                     engine = get_iam_engine(
-                        {
-                            "project_id": project_id, "region": region, "instance": instance_name,
-                            "user": db_user, "database": "mysql" if db_type == "mysql" else "postgres", "db_type": db_type,
-                        }, connector,
+                        {"project_id": project_id, "region": region, "instance": instance_name, "user": db_user, "database": "mysql" if db_type == "mysql" else "postgres", "db_type": db_type}, connector
                     )
                 else:
-                    engine = get_native_engine({
-                        "db_type": db_type, "user": db_user, "password": db_pass,
-                        "host": host, "port": port, "database": "mysql" if db_type == "mysql" else "postgres",
-                    })
+                    engine = get_native_engine(
+                        {"db_type": db_type, "user": db_user, "password": db_pass, "host": host, "port": port, "database": "mysql" if db_type == "mysql" else "postgres"}
+                    )
                 
                 print("   Executing Database Audits & Internal Queries...")
                 health_checks, internal_results = run_queries(engine, db_type, all_queries, INTERNAL_QUERIES)
                 instance_report["health_checks"] = health_checks
                 instance_report["provisioned_specs"]["Uptime"] = format_uptime(internal_results.get("uptime"), db_type)
+                
+                # Assign dynamic max connections limit based on engine type
+                if "connections" in instance_report["resource_utilization"]:
+                    max_conn_limit = "N/A"
+                    conn_results = internal_results.get("max_connections", [])
+                    
+                    if conn_results and isinstance(conn_results, list):
+                        if db_type == "mysql":
+                            for r in conn_results:
+                                if r.get("Variable_name", "").lower() == "max_connections":
+                                    max_conn_limit = r.get("Value", "N/A")
+                                    break
+                        elif db_type == "postgres":
+                            max_conn_limit = conn_results[0].get("max_connections", "N/A")
+                    
+                    try:
+                        if max_conn_limit != "N/A":
+                            max_conn_limit = int(max_conn_limit)
+                    except ValueError:
+                        pass
+                        
+                    instance_report["resource_utilization"]["connections"]["max_allocated_limit"] = max_conn_limit
+
                 print(f"   -> Successfully executed health check queries for {instance_name}.")
 
             except Exception as e:
@@ -500,11 +619,8 @@ def main():
                 instance_report["health_checks"] = {"error": str(e)}
             finally:
                 if 'engine' in locals():
-                    engine.dispose() # Clean up connection pool
+                    engine.dispose() 
 
-            # ─────────────────────────────────────────────
-            # DUMP INDIVIDUAL JSON FILE
-            # ─────────────────────────────────────────────
             filename = f"{project_id}_{instance_name}.json"
             filepath = os.path.join(reports_dir, filename)
             
