@@ -159,7 +159,6 @@ report_window = first_instance_data.get("report_window", {})
 period_from   = report_window.get("from", generated_at)
 period_to     = report_window.get("to",   generated_at)
 
-# Using standard strings to avoid syntax errors with CSS braces
 css_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -258,7 +257,7 @@ css_template = """<!DOCTYPE html>
         .hidden      { display: none !important; }
 
         /* =========================================
-           DASHBOARD UI STYLES
+           DASHBOARD UI STYLES (NEW UPDATED)
            ========================================= */
         .dashboard-wrapper { 
             background-color: var(--bg-card); 
@@ -268,78 +267,52 @@ css_template = """<!DOCTYPE html>
             display: flex; flex-direction: column; gap: 24px; 
         }
         .dashboard-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
-        
         .dash-title-group { display: flex; align-items: center; gap: 8px; cursor: pointer; }
         .dash-title-group:hover h2, .dash-title-group:hover .dash-arrow { color: #1d4ed8; }
         .dash-arrow { font-size: 1.1em; color: #2563eb; transition: transform 0.2s; }
         .dashboard-header h2 { font-size: 1.15em; font-weight: 700; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Montserrat', sans-serif; }
-        
-        .header-controls { display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-        .global-toggles { display: none; align-items: center; gap: 4px; background-color: var(--bg-card); border: 1px solid var(--border-color); border-radius: 20px; padding: 4px 8px; }
-        .dashboard-wrapper.view-all .global-toggles { display: flex; }
-        .toggle-btn { background-color: transparent; border: none; color: var(--text-primary); border-radius: 16px; padding: 6px 12px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: center; gap: 6px; }
-        .toggle-btn::before { content: ''; display: block; width: 8px; height: 8px; border-radius: 50%; }
-        .toggle-btn[data-metric="Mean"]::before { background-color: var(--c-mean); }
-        .toggle-btn[data-metric="P95"]::before  { background-color: var(--c-p95); }
-        .toggle-btn[data-metric="P99"]::before  { background-color: var(--c-p99); }
-        .toggle-btn[data-metric="Max"]::before  { background-color: var(--c-max); }
-        .toggle-btn:not(.active) { opacity: 0.4; filter: grayscale(100%); }
-        .toggle-btn.active { background-color: var(--bg-main); }
-
-        .controls-container { display: flex; align-items: center; gap: 12px; }
-        .controls-container label { font-size: 14px; font-weight: 500; color: var(--text-secondary); }
-        .controls-container select { background-color: var(--bg-card); color: var(--text-primary); border: 1px solid var(--border-color); padding: 6px 32px 6px 12px; border-radius: 4px; font-size: 14px; font-weight: 500; cursor: pointer; outline: none; appearance: none; }
-
-        .dashboard-wrapper.hide-Mean .arc-mean, .dashboard-wrapper.hide-Mean .bar-mean { opacity: 0 !important; pointer-events: none !important; }
-        .dashboard-wrapper.hide-P95 .arc-p95,   .dashboard-wrapper.hide-P95 .bar-p95   { opacity: 0 !important; pointer-events: none !important; }
-        .dashboard-wrapper.hide-P99 .arc-p99,   .dashboard-wrapper.hide-P99 .bar-p99   { opacity: 0 !important; pointer-events: none !important; }
-        .dashboard-wrapper.hide-Max .arc-max,   .dashboard-wrapper.hide-Max .bar-max   { opacity: 0 !important; pointer-events: none !important; }
-
-        .mini-data-table { width: 100%; display: none; justify-content: space-between; margin-top: 16px; padding-top: 16px; border-top: 1px solid var(--border-color); }
-        .dashboard-wrapper.view-all .mini-data-table { display: flex; }
-        .mdt-col { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; }
-        .mdt-label { font-size: 12px; color: var(--text-secondary); display: flex; align-items: center; gap: 6px; }
-        .mdt-dot { width: 8px; height: 8px; border-radius: 50%; }
-        .mdt-val { font-size: 14px; font-weight: 600; color: var(--text-primary); padding-left: 14px; }
-
-        .gauges-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 24px; margin-bottom: 24px; }
-        .gauge-card { position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 24px; display: flex; flex-direction: column; align-items: center; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-        .card-header { display: flex; justify-content: space-between; align-items: center; width: 100%; margin-bottom: 24px; }
-        .card-title { font-size: 14px; font-weight: 600; color: var(--text-primary); margin: 0; }
-        .gauge-body { position: relative; width: 240px; height: 120px; }
-        .gauge-outer-track { position: absolute; bottom: 0; left: 0; width: 240px; height: 120px; background: conic-gradient(from 270deg at 50% 100%, var(--color-green) 0deg, var(--color-green) calc(var(--yellow-deg) - 1.5deg), transparent calc(var(--yellow-deg) - 1.5deg), transparent calc(var(--yellow-deg) + 1.5deg), var(--color-yellow) calc(var(--yellow-deg) + 1.5deg), var(--color-yellow) calc(var(--red-deg) - 1.5deg), transparent calc(var(--red-deg) - 1.5deg), transparent calc(var(--red-deg) + 1.5deg), var(--color-red) calc(var(--red-deg) + 1.5deg), var(--color-red) 180deg); mask-image: radial-gradient(circle at 50% 100%, transparent 115px, black 116px); -webkit-mask-image: radial-gradient(circle at 50% 100%, transparent 115px, black 116px); border-radius: 120px 120px 0 0; transition: opacity 0.3s; }
-        .dashboard-wrapper.view-all .gauge-outer-track { display: none; }
-        .gauge-inner-bg { position: absolute; bottom: 0; left: 10px; width: 220px; height: 110px; border: 24px solid var(--track-bg); border-bottom: 0; border-radius: 110px 110px 0 0; box-sizing: border-box; }
-        .gauge-inner-fill-wrapper { position: absolute; bottom: 0; left: 10px; width: 220px; height: 110px; overflow: hidden; }
-        .arc-fill { position: absolute; bottom: 0; left: 0; width: 220px; height: 110px; border: 24px solid; border-bottom: 0; border-radius: 110px 110px 0 0; box-sizing: border-box; transform-origin: 50% 100%; transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease, border-color 0.3s ease; }
-        .arc-single { border-color: var(--fill-color, var(--c-mean)); transform: rotate(var(--rot-single, -180deg)); z-index: 5; }
-        .dashboard-wrapper.view-all .arc-single { display: none; }
-        .arc-multi { display: none; }
-        .dashboard-wrapper.view-all .arc-multi { display: block; }
-        .arc-max  { border-color: var(--c-max);  transform: rotate(var(--rot-max, -180deg));  z-index: 1; opacity: 0.15; }
-        .arc-p99  { border-color: var(--c-p99);  transform: rotate(var(--rot-p99, -180deg));  z-index: 2; opacity: 0.40; }
-        .arc-p95  { border-color: var(--c-p95);  transform: rotate(var(--rot-p95, -180deg));  z-index: 3; opacity: 0.70; }
-        .arc-mean { border-color: var(--c-mean); transform: rotate(var(--rot-mean, -180deg)); z-index: 4; opacity: 1.00; }
-        .gauge-value { position: absolute; bottom: 8px; left: 0; width: 100%; text-align: center; }
-        .gauge-value-main { font-size: 28px; font-weight: 600; color: var(--fill-color, var(--text-primary)); transition: color 0.4s ease; }
-        .dashboard-wrapper.view-all .gauge-value { display: none; }
-
-        .bars-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px; }
-        .bar-card { position: relative; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 6px; padding: 20px 24px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 1px 2px rgba(0,0,0,0.02); }
-        .bar-header { display: flex; justify-content: space-between; align-items: flex-end; }
-        .bar-single-value { font-size: 18px; font-weight: 600; color: var(--text-primary); transition: color 0.3s; }
-        .dashboard-wrapper.view-all .bar-single-value { display: none; }
-        .bar-track { width: 100%; height: 12px; background: var(--track-bg); border-radius: 6px; overflow: hidden; position: relative; }
-        .bar-fill { position: absolute; top: 0; left: 0; height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.3s ease, background-color 0.3s ease; }
-        .bar-single { background: var(--fill-color, var(--c-mean)); width: var(--w-single, 0%); z-index: 5; }
-        .dashboard-wrapper.view-all .bar-single { display: none; }
-        .bar-multi { display: none; }
-        .dashboard-wrapper.view-all .bar-multi { display: block; }
-        .bar-max  { width: var(--w-max, 0%);  background: var(--c-max);  z-index: 1; opacity: 0.15; }
-        .bar-p99  { width: var(--w-p99, 0%);  background: var(--c-p99);  z-index: 2; opacity: 0.40; }
-        .bar-p95  { width: var(--w-p95, 0%);  background: var(--c-p95);  z-index: 3; opacity: 0.70; }
-        .bar-mean { width: var(--w-mean, 0%); background: var(--c-mean); z-index: 4; opacity: 1.00; }
         .dashboard-section-title { font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; padding-bottom: 8px; }
+
+        .bullet-group { display: flex; flex-direction: column; gap: 20px; margin-bottom: 24px; }
+        .bullet-row { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+        .bullet-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .bullet-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+        .bullet-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge-pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.08); }
+        .badge-pill.mean { color: var(--c-mean); border-color: var(--c-mean); background: #eff6ff; }
+        .badge-pill.p95  { color: var(--c-p95);  border-color: var(--c-p95); background: #ecfdf5; }
+        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #fff7ed; }
+        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #faf5ff; }
+
+        .track-wrapper { position: relative; width: 100%; }
+        .gridlines { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; pointer-events: none; z-index: 0; }
+        .gridline { width: 1px; height: 100%; background: rgba(0,0,0,0.06); }
+        .bullet-track { position: relative; height: 18px; background: var(--track-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); z-index: 1; }
+        .bullet-bar { position: absolute; top: 0; left: 0; height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
+        
+        .bar-max  { background: var(--c-max);  z-index: 1; opacity: 0.5; }
+        .bar-p99  { background: var(--c-p99);  z-index: 2; opacity: 0.7; }
+        .bar-p95  { background: var(--c-p95);  z-index: 3; opacity: 0.85; }
+        .bar-mean { background: var(--c-mean); z-index: 4; opacity: 1; }
+        .ticks-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
+
+        .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 24px; }
+        .kpi-tile { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
+        .kpi-tile:hover, .kpi-tile.selected { transform: translateY(-2px); border-color: var(--c-mean); background: #eff6ff; }
+        .kpi-tile-header { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; }
+        .kpi-tile-header-group { display: flex; flex-direction: column; gap: 4px; }
+        .kpi-mean-label { font-size: 11px; font-weight: 600; color: var(--c-mean); }
+        .main-val-container { display: flex; flex-direction: column; gap: 6px; }
+        .kpi-tile-main-val { font-size: 28px; font-weight: 700; color: var(--c-mean); line-height: 1; white-space: nowrap; }
+        .max-allowed-badge { font-size: 11px; font-weight: 600; color: var(--text-secondary); align-self: flex-start; }
+        
+        .kpi-tile-footer { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 4px; }
+        .kpi-footer-item { display: flex; flex-direction: column; min-width: 0; }
+        .kpi-footer-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
+        .kpi-footer-val { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-top: 2px; }
+        .shared-bar-container { display: none; margin-top: 18px; width: 100%; }
+        .shared-bar-container.active { display: block; }
+        .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
     </style>
 </head>
 <body>
@@ -414,35 +387,98 @@ for unique_key, data in report_data.items():
 
     # ── Resource Utilization Dashboard ──
     if utilization:
-        pct_metrics = []
-        cnt_metrics = []
+        pct_rows_html = ""
+        kpi_tiles_html = ""
+        dashboards_json_data[safe_instance] = {}
         
         for metric_key, m in utilization.items():
             if not isinstance(m, dict): continue
             label = m.get("header-name") or format_clean_title(metric_key)
-            item = {
-                "name": label,
-                "values": {
-                    "Mean": m.get("mean"),
-                    "P95": m.get("p95"),
-                    "P99": m.get("p99"),
-                    "Max": m.get("max")
-                }
-            }
-            if "(%)" in label or "Percent" in label:
-                item["thresholds"] = {"yellow": 70, "red": 90} 
-                pct_metrics.append(item)
-            else:
-                max_val = m.get("max") if m.get("max") is not None else 100
-                item["max_scale"] = max_val * 1.5 if max_val > 0 else 100 
-                cnt_metrics.append(item)
+            
+            mean_val = m.get("mean")
+            p95_val = m.get("p95")
+            p99_val = m.get("p99")
+            max_val = m.get("max")
+            max_alloc = m.get("max_allocated_limit")
+            
+            is_pct = "(%)" in label or "Percent" in label
+            
+            def fmt_val(v, is_pct_flag=False):
+                if v is None: return "N/A"
+                return f"{v:,.2f}{'%' if is_pct_flag else ''}"
+
+            if is_pct:
+                snap_max = max_alloc if max_alloc else 100
+                def calc_w(v): return min(100, max(0, (v / snap_max) * 100)) if v is not None else 0
                 
-        dashboards_json_data[safe_instance] = {
-            "percentage_metrics": pct_metrics,
-            "count_metrics": cnt_metrics
-        }
-        
-        # Dashboard Wrapper with F-strings for Python Variables
+                pct_rows_html += f'''
+                <div class="bullet-row">
+                    <div class="bullet-header">
+                        <div class="bullet-title">{label}</div>
+                        <div class="bullet-badges">
+                            <span class="badge-pill mean">Mean: {fmt_val(mean_val, True)}</span>
+                            <span class="badge-pill p95">P95: {fmt_val(p95_val, True)}</span>
+                            <span class="badge-pill p99">P99: {fmt_val(p99_val, True)}</span>
+                            <span class="badge-pill max">Max: {fmt_val(max_val, True)}</span>
+                        </div>
+                    </div>
+                    <div class="track-wrapper">
+                        <div class="gridlines">
+                            <div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div>
+                        </div>
+                        <div class="bullet-track">
+                            <div class="bullet-bar bar-max" style="width: {calc_w(max_val)}%;"></div>
+                            <div class="bullet-bar bar-p99" style="width: {calc_w(p99_val)}%;"></div>
+                            <div class="bullet-bar bar-p95" style="width: {calc_w(p95_val)}%;"></div>
+                            <div class="bullet-bar bar-mean" style="width: {calc_w(mean_val)}%;"></div>
+                        </div>
+                    </div>
+                    <div class="ticks-row">
+                        <span>0%</span>
+                        <span>{round(snap_max * 0.25)}%</span>
+                        <span>{round(snap_max * 0.50)}%</span>
+                        <span>{round(snap_max * 0.75)}%</span>
+                        <span>{snap_max}%</span>
+                    </div>
+                </div>
+                '''
+            else:
+                max_allowed_str = fmt_val(max_alloc) if max_alloc is not None else "N/A"
+                safe_metric_key = metric_key.replace("_", "-").replace(" ", "-")
+                
+                # Push data to JS dict for expanding detailed bar 
+                dashboards_json_data[safe_instance][metric_key] = m
+                
+                kpi_tiles_html += f'''
+                <div id="tile-{safe_instance}-{safe_metric_key}" class="kpi-tile tile-{safe_instance}" onclick="handleTileClick('{safe_instance}', '{metric_key}')">
+                    <div class="kpi-tile-header-group">
+                        <div class="kpi-tile-header truncate" title="{label}">
+                            <span>{label}</span>
+                        </div>
+                        <div class="kpi-mean-label">Mean</div>
+                    </div>
+                    <div class="main-val-container">
+                        <div class="kpi-tile-main-val">{fmt_val(mean_val)}</div>
+                        <div class="max-allowed-badge">Max Allowed: {max_allowed_str}</div>
+                    </div>
+                    <div class="kpi-tile-footer">
+                        <div class="kpi-footer-item">
+                            <span class="kpi-footer-label" style="color: var(--c-p95);">P95</span>
+                            <span class="kpi-footer-val">{fmt_val(p95_val)}</span>
+                        </div>
+                        <div class="kpi-footer-item">
+                            <span class="kpi-footer-label" style="color: var(--c-p99);">P99</span>
+                            <span class="kpi-footer-val">{fmt_val(p99_val)}</span>
+                        </div>
+                        <div class="kpi-footer-item">
+                            <span class="kpi-footer-label" style="color: var(--c-max);">Max</span>
+                            <span class="kpi-footer-val">{fmt_val(max_val)}</span>
+                        </div>
+                    </div>
+                </div>
+                '''
+                
+        # Main Dashboard Wrapper Assembly
         html_content += f'''
         <div class="dashboard-wrapper" id="dash-{safe_instance}">
             <div class="dashboard-header">
@@ -450,26 +486,25 @@ for unique_key, data in report_data.items():
                     <span class="dash-arrow">&#9660;</span>
                     <h2>Resource Utilization (Last 24h)</h2>
                 </div>
-                <div class="header-controls">
-                    <div class="global-toggles" id="toggles-{safe_instance}">
-                        <button class="toggle-btn active" data-metric="Mean">Mean</button>
-                        <button class="toggle-btn active" data-metric="P95">P95</button>
-                        <button class="toggle-btn active" data-metric="P99">P99</button>
-                        <button class="toggle-btn active" data-metric="Max">Max</button>
-                    </div>
-                    <div class="controls-container">
-                        <label>Aggregation View:</label>
-                        <select id="agg-{safe_instance}"></select>
-                    </div>
-                </div>
             </div>
             
             <div class="dashboard-content" id="dash-content-{safe_instance}">
-                <div class="dashboard-section-title">Percentage Metrics</div>
-                <div id="gauges-{safe_instance}" class="gauges-grid"></div>
-                
-                <div class="dashboard-section-title">Count Metrics</div>
-                <div id="bars-{safe_instance}" class="bars-grid"></div>
+        '''
+        
+        if pct_rows_html:
+            html_content += f'''
+                <div class="dashboard-section-title">Percentage Utilization Metrics</div>
+                <div class="bullet-group">{pct_rows_html}</div>
+            '''
+            
+        if kpi_tiles_html:
+            html_content += f'''
+                <div class="dashboard-section-title">Count & Throughput Metrics</div>
+                <div class="kpi-tile-grid">{kpi_tiles_html}</div>
+                <div id="shared-bar-{safe_instance}" class="shared-bar-container"></div>
+            '''
+            
+        html_content += '''
             </div>
         </div>
         '''
@@ -527,12 +562,12 @@ for unique_key, data in report_data.items():
 nav_json = json.dumps(nav_data)
 dash_data_json = json.dumps(dashboards_json_data)
 
-# Using standard strings to avoid syntax errors with JS braces
 js_template = """
 </div>
 
 <script>
 const navData = __NAV_JSON__;
+const countMetricsData = __DASH_JSON__;
 
 const typeSel = document.getElementById('filter-dbtype');
 const projSel = document.getElementById('filter-project');
@@ -620,153 +655,82 @@ function changePage(tableId, direction) {
 }
 
 // =========================================
-// DASHBOARD RENDER LOGIC
+// DASHBOARD KPI TILE CLICK HANDLER
 // =========================================
-const metricColorMap = {
-    "Mean": "var(--c-mean)",
-    "P95": "var(--c-p95)",
-    "P99": "var(--c-p99)",
-    "Max": "var(--c-max)"
-};
 
-function generateMiniDataTableHTML(values, isPct) {
-    const fmt = (v) => isPct ? (v != null ? v.toFixed(2) + '%' : 'N/A') : (v != null ? v.toLocaleString('en-US', {maximumFractionDigits:2}) : 'N/A');
-    return `
-        <div class="mini-data-table">
-            <div class="mdt-col"><div class="mdt-label"><div class="mdt-dot" style="background: var(--c-mean)"></div>Mean</div><div class="mdt-val">${fmt(values.Mean)}</div></div>
-            <div class="mdt-col"><div class="mdt-label"><div class="mdt-dot" style="background: var(--c-p95)"></div>P95</div><div class="mdt-val">${fmt(values.P95)}</div></div>
-            <div class="mdt-col"><div class="mdt-label"><div class="mdt-dot" style="background: var(--c-p99)"></div>P99</div><div class="mdt-val">${fmt(values.P99)}</div></div>
-            <div class="mdt-col"><div class="mdt-label"><div class="mdt-dot" style="background: var(--c-max)"></div>Max</div><div class="mdt-val">${fmt(values.Max)}</div></div>
-        </div>
-    `;
+function formatTickValue(val) {
+    if (val >= 10) return Math.round(val).toLocaleString();
+    return Number(val.toFixed(2));
 }
 
-const dashboardsData = __DASH_JSON__;
+function formatNumber(num) {
+    if (num === null || num === undefined) return "N/A";
+    return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
+}
 
-Object.keys(dashboardsData).forEach(instId => {
-    const appData = dashboardsData[instId];
-    if (appData.percentage_metrics.length === 0 && appData.count_metrics.length === 0) return;
+function handleTileClick(instId, metricKey) {
+    const container = document.getElementById(`shared-bar-${instId}`);
+    const allTiles = document.querySelectorAll(`.tile-${instId}`);
+    if (!container) return;
 
-    let currentAggregation = "All";
-    const dashboardWrapper = document.getElementById('dash-' + instId);
-    const selectEl = document.getElementById('agg-' + instId);
-    const gaugesContainer = document.getElementById('gauges-' + instId);
-    const barsContainer = document.getElementById('bars-' + instId);
+    const safeMetricKey = metricKey.replace(/_/g, '-').replace(/ /g, '-');
+    const selectedTile = document.getElementById(`tile-${instId}-${safeMetricKey}`);
+    const isAlreadyActive = selectedTile && selectedTile.classList.contains('selected') && container.classList.contains('active');
 
-    ["All", "Mean", "P95", "P99", "Max"].forEach(opt => {
-        const option = document.createElement('option');
-        option.value = opt; option.textContent = opt;
-        if (opt === currentAggregation) option.selected = true;
-        selectEl.appendChild(option);
-    });
+    allTiles.forEach(t => t.classList.remove('selected'));
 
-    selectEl.addEventListener('change', (e) => {
-        currentAggregation = e.target.value;
-        updateDashboard();
-    });
-
-    document.querySelectorAll(`#toggles-${instId} .toggle-btn`).forEach(btn => {
-        btn.addEventListener('click', (e) => {
-            e.target.classList.toggle('active');
-            dashboardWrapper.classList.toggle(`hide-${e.target.getAttribute('data-metric')}`);
-        });
-    });
-
-    appData.percentage_metrics.forEach((metric, index) => {
-        const card = document.createElement('div');
-        card.className = 'gauge-card';
-        card.id = `gauge-${instId}-${index}`;
-        const yellowDeg = (metric.thresholds.yellow / 100) * 180;
-        const redDeg = (metric.thresholds.red / 100) * 180;
-        card.style.setProperty('--yellow-deg', `${yellowDeg}deg`);
-        card.style.setProperty('--red-deg', `${redDeg}deg`);
-
-        card.innerHTML = `
-            <div class="card-header"><h3 class="card-title">${metric.name}</h3></div>
-            <div class="gauge-body">
-                <div class="gauge-outer-track"></div>
-                <div class="gauge-inner-bg"></div>
-                <div class="gauge-inner-fill-wrapper">
-                    <div class="arc-fill arc-single"></div>
-                    <div class="arc-fill arc-multi arc-max"></div>
-                    <div class="arc-fill arc-multi arc-p99"></div>
-                    <div class="arc-fill arc-multi arc-p95"></div>
-                    <div class="arc-fill arc-multi arc-mean"></div>
-                </div>
-                <div class="gauge-value"><div class="gauge-value-main"></div></div>
-            </div>
-            ${generateMiniDataTableHTML(metric.values, true)}
-        `;
-        gaugesContainer.appendChild(card);
-    });
-
-    appData.count_metrics.forEach((metric, index) => {
-        const card = document.createElement('div');
-        card.className = 'bar-card';
-        card.id = `bar-${instId}-${index}`;
-        card.innerHTML = `
-            <div class="card-header">
-                <h3 class="card-title">${metric.name}</h3>
-                <div class="bar-single-value"></div>
-            </div>
-            <div class="bar-track">
-                <div class="bar-fill bar-single"></div>
-                <div class="bar-fill bar-multi bar-max"></div>
-                <div class="bar-fill bar-multi bar-p99"></div>
-                <div class="bar-fill bar-multi bar-p95"></div>
-                <div class="bar-fill bar-multi bar-mean"></div>
-            </div>
-            ${generateMiniDataTableHTML(metric.values, false)}
-        `;
-        barsContainer.appendChild(card);
-    });
-
-    function updateDashboard() {
-        const isAll = currentAggregation === "All";
-        if (isAll) dashboardWrapper.classList.add('view-all');
-        else dashboardWrapper.classList.remove('view-all');
-
-        appData.percentage_metrics.forEach((config, index) => {
-            const card = document.getElementById(`gauge-${instId}-${index}`);
-            const getSingleRot = (v) => v != null ? (Math.max(0, Math.min(v, 100)) / 100 * 180 - 180) + 'deg' : '-180deg';
-            const fmt = (v) => v != null ? (Number.isInteger(v) ? v : v.toFixed(2).replace(/\.?0+$/, '')) + '%' : 'N/A';
-
-            if (isAll) {
-                const localMax = config.values.Max > 0 ? config.values.Max : 1; 
-                card.style.setProperty('--rot-mean', (((config.values.Mean / localMax) * 180) - 180) + 'deg');
-                card.style.setProperty('--rot-p95', (((config.values.P95 / localMax) * 180) - 180) + 'deg');
-                card.style.setProperty('--rot-p99', (((config.values.P99 / localMax) * 180) - 180) + 'deg');
-                card.style.setProperty('--rot-max', '0deg');
-            } else {
-                const valTarget = config.values[currentAggregation];
-                card.style.setProperty('--rot-single', getSingleRot(valTarget));
-                card.style.setProperty('--fill-color', metricColorMap[currentAggregation]);
-                card.querySelector('.gauge-value-main').textContent = fmt(valTarget);
-            }
-        });
-
-        appData.count_metrics.forEach((config, index) => {
-            const card = document.getElementById(`bar-${instId}-${index}`);
-            const getSingleWidth = (v) => v != null ? Math.min((v / config.max_scale) * 100, 100) + '%' : '0%';
-            const fmtBar = (v) => v != null ? v.toLocaleString('en-US', { maximumFractionDigits: 2 }) : 'N/A';
-
-            if (isAll) {
-                const localMax = config.values.Max > 0 ? config.values.Max : 1; 
-                card.style.setProperty('--w-mean', (config.values.Mean / localMax * 100) + '%');
-                card.style.setProperty('--w-p95', (config.values.P95 / localMax * 100) + '%');
-                card.style.setProperty('--w-p99', (config.values.P99 / localMax * 100) + '%');
-                card.style.setProperty('--w-max', '100%');
-            } else {
-                const valTarget = config.values[currentAggregation];
-                card.style.setProperty('--w-single', getSingleWidth(valTarget));
-                card.style.setProperty('--fill-color', metricColorMap[currentAggregation]);
-                card.querySelector('.bar-single-value').textContent = fmtBar(valTarget);
-            }
-        });
+    if (isAlreadyActive) {
+        container.classList.remove('active');
+        container.innerHTML = '';
+        return;
     }
 
-    setTimeout(updateDashboard, 50);
-});
+    if (selectedTile) selectedTile.classList.add('selected');
+
+    const instData = countMetricsData[instId];
+    if (!instData) return;
+    const m = instData[metricKey];
+    if (!m) return;
+
+    const label = m["header-name"] || metricKey;
+    const dynamicScaleBound = m["max_allocated_limit"] || (m["max"] * 1.5) || 100;
+    const calcWidth = (val) => Math.min(100, Math.max(0, (val / dynamicScaleBound) * 100));
+    const step = dynamicScaleBound / 4;
+
+    container.innerHTML = `
+        <div class="bullet-row">
+            <div class="bullet-header">
+                <div class="bullet-title">${label}</div>
+                <div class="bullet-badges">
+                    <span class="badge-pill mean">Mean: ${formatNumber(m.mean)}</span>
+                    <span class="badge-pill p95">P95: ${formatNumber(m.p95)}</span>
+                    <span class="badge-pill p99">P99: ${formatNumber(m.p99)}</span>
+                    <span class="badge-pill max">Max: ${formatNumber(m.max)}</span>
+                </div>
+            </div>
+            <div class="track-wrapper">
+                <div class="gridlines">
+                    <div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div>
+                </div>
+                <div class="bullet-track">
+                    <div class="bullet-bar bar-max" style="width: ${calcWidth(m.max)}%;"></div>
+                    <div class="bullet-bar bar-p99" style="width: ${calcWidth(m.p99)}%;"></div>
+                    <div class="bullet-bar bar-p95" style="width: ${calcWidth(m.p95)}%;"></div>
+                    <div class="bullet-bar bar-mean" style="width: ${calcWidth(m.mean)}%;"></div>
+                </div>
+            </div>
+            <div class="ticks-row">
+                <span>0</span>
+                <span>${formatTickValue(step)}</span>
+                <span>${formatTickValue(step * 2)}</span>
+                <span>${formatTickValue(step * 3)}</span>
+                <span>${formatTickValue(dynamicScaleBound)}</span>
+            </div>
+        </div>
+    `;
+    container.classList.add('active');
+}
+
 </script>
 </body>
 </html>
