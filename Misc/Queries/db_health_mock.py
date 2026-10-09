@@ -12,14 +12,14 @@ RUN_ON = ['postgres', 'mysql']
 # Define credentials for both databases
 DATABASES = {
     'postgres': {
-        'host': '10.35.112.5',
+        'host': '172.31.80.5',
         'port': 5432,
         'database': 'health_test_db',
         'user': 'postgres',
         'password': 'postgres'
     },
     'mysql': {
-        'host': '10.35.112.3',
+        'host': '172.31.80.3',
         'port': 3306,
         'database': 'health_test_db',
         'user': 'root',
