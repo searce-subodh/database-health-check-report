@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import math
 import os
 import sys
 import html
@@ -66,7 +67,8 @@ for unique_key, data in report_data.items():
     instance_name = data.get("instance_name", unique_key)
     project_id    = data.get("project_id", "")
     
-    display_label = f"{instance_name} ({project_id})" if project_id else instance_name
+    # Instance dropdown only displays the name without the project ID
+    display_label = instance_name
     
     nav_data[unique_key] = {
         "type": db_type,
@@ -77,6 +79,32 @@ for unique_key, data in report_data.items():
 # ─────────────────────────────────────────────
 # HELPERS
 # ─────────────────────────────────────────────
+
+def get_dynamic_scale(m_max):
+    """MULTI-TIER DYNAMIC RATIO SCALING FOR PERCENTAGE/COUNT METRICS"""
+    if m_max is None or m_max <= 0: return 1
+    
+    target = m_max * 1.4
+    if target <= 1: return 1
+    if target <= 2: return 2
+    if target <= 5: return 5
+    if target <= 10: return 10
+    if target <= 25: return 25
+    if target <= 50: return 50
+    if target <= 100: return 100
+    if target <= 250: return 250
+    if target <= 500: return 500
+    if target <= 1000: return 1000
+    
+    return math.ceil(target / 500) * 500
+
+def format_tick(val):
+    if val >= 10:
+        return f"{round(val):,}"
+    formatted = f"{val:.2f}"
+    if '.' in formatted:
+        formatted = formatted.rstrip('0').rstrip('.')
+    return formatted
 
 def row_class(row):
     if not isinstance(row, dict):
@@ -266,15 +294,15 @@ css_template = """<!DOCTYPE html>
             margin-top: 16px;
             display: flex; flex-direction: column; gap: 24px; 
         }
-        .dashboard-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
-        .dashboard-header h2 { font-size: 1.15em; font-weight: 700; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Montserrat', sans-serif; }
         
         details.metric-details {
             margin-bottom: 24px;
         }
         details.metric-details > summary {
-            font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; 
-            letter-spacing: 0.5px; padding-bottom: 8px; margin-bottom: 16px; 
+            font-size: 1.05em; font-weight: 600; color: var(--text-primary); 
+            font-family: 'Montserrat', sans-serif;
+            padding-bottom: 8px; margin-bottom: 16px; 
+            border-bottom: 1px solid var(--border-color);
             cursor: pointer; list-style: none; display: flex; align-items: center;
         }
         details.metric-details > summary::-webkit-details-marker {
@@ -427,8 +455,10 @@ for unique_key, data in report_data.items():
                 return f"{v:,.2f}{'%' if is_pct_flag else ''}"
 
             if is_pct:
-                snap_max = max_alloc if max_alloc else 100
+                snap_max = get_dynamic_scale(max_val)
                 def calc_w(v): return min(100, max(0, (v / snap_max) * 100)) if v is not None else 0
+                
+                step = snap_max / 4
                 
                 pct_rows_html += f'''
                 <div class="bullet-row">
@@ -454,10 +484,10 @@ for unique_key, data in report_data.items():
                     </div>
                     <div class="ticks-row">
                         <span>0%</span>
-                        <span>{round(snap_max * 0.25)}%</span>
-                        <span>{round(snap_max * 0.50)}%</span>
-                        <span>{round(snap_max * 0.75)}%</span>
-                        <span>{snap_max}%</span>
+                        <span>{format_tick(step)}%</span>
+                        <span>{format_tick(step * 2)}%</span>
+                        <span>{format_tick(step * 3)}%</span>
+                        <span>{format_tick(snap_max)}%</span>
                     </div>
                 </div>
                 '''
@@ -500,9 +530,7 @@ for unique_key, data in report_data.items():
         # Main Dashboard Wrapper Assembly
         html_content += f'''
         <div class="dashboard-wrapper" id="dash-{safe_instance}">
-            <div class="dashboard-header">
-                <h2>Resource Utilization (Last 24h)</h2>
-            </div>
+            <div class="section-title" style="margin-bottom:16px;">Resource Utilization (Last 24h)</div>
             
             <div class="dashboard-content" id="dash-content-{safe_instance}">
         '''
