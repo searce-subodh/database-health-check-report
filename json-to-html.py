@@ -257,7 +257,7 @@ css_template = """<!DOCTYPE html>
         .hidden      { display: none !important; }
 
         /* =========================================
-           DASHBOARD UI STYLES (NEW UPDATED)
+           DASHBOARD UI STYLES 
            ========================================= */
         .dashboard-wrapper { 
             background-color: var(--bg-card); 
@@ -267,13 +267,32 @@ css_template = """<!DOCTYPE html>
             display: flex; flex-direction: column; gap: 24px; 
         }
         .dashboard-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
-        .dash-title-group { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        .dash-title-group:hover h2, .dash-title-group:hover .dash-arrow { color: #1d4ed8; }
-        .dash-arrow { font-size: 1.1em; color: #2563eb; transition: transform 0.2s; }
         .dashboard-header h2 { font-size: 1.15em; font-weight: 700; margin: 0; color: #0f172a; text-transform: uppercase; letter-spacing: 0.5px; font-family: 'Montserrat', sans-serif; }
-        .dashboard-section-title { font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px; padding-bottom: 8px; }
+        
+        details.metric-details {
+            margin-bottom: 24px;
+        }
+        details.metric-details > summary {
+            font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; 
+            letter-spacing: 0.5px; padding-bottom: 8px; margin-bottom: 16px; 
+            cursor: pointer; list-style: none; display: flex; align-items: center;
+        }
+        details.metric-details > summary::-webkit-details-marker {
+            display: none;
+        }
+        details.metric-details > summary::before {
+            content: '▶';
+            display: inline-block;
+            margin-right: 8px;
+            font-size: 0.9em;
+            color: #2563eb;
+            transition: transform 0.2s;
+        }
+        details.metric-details[open] > summary::before {
+            transform: rotate(90deg);
+        }
 
-        .bullet-group { display: flex; flex-direction: column; gap: 20px; margin-bottom: 24px; }
+        .bullet-group { display: flex; flex-direction: column; gap: 20px; }
         .bullet-row { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
         .bullet-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
         .bullet-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
@@ -296,7 +315,7 @@ css_template = """<!DOCTYPE html>
         .bar-mean { background: var(--c-mean); z-index: 4; opacity: 1; }
         .ticks-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
 
-        .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; margin-bottom: 24px; }
+        .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
         .kpi-tile { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
         .kpi-tile:hover, .kpi-tile.selected { transform: translateY(-2px); border-color: var(--c-mean); background: #eff6ff; }
         .kpi-tile-header { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; }
@@ -482,10 +501,7 @@ for unique_key, data in report_data.items():
         html_content += f'''
         <div class="dashboard-wrapper" id="dash-{safe_instance}">
             <div class="dashboard-header">
-                <div class="dash-title-group" onclick="toggleDashboard(this)">
-                    <span class="dash-arrow">&#9660;</span>
-                    <h2>Resource Utilization (Last 24h)</h2>
-                </div>
+                <h2>Resource Utilization (Last 24h)</h2>
             </div>
             
             <div class="dashboard-content" id="dash-content-{safe_instance}">
@@ -493,15 +509,19 @@ for unique_key, data in report_data.items():
         
         if pct_rows_html:
             html_content += f'''
-                <div class="dashboard-section-title">Percentage Utilization Metrics</div>
-                <div class="bullet-group">{pct_rows_html}</div>
+                <details class="metric-details" open>
+                    <summary>Percentage Utilization Metrics</summary>
+                    <div class="bullet-group">{pct_rows_html}</div>
+                </details>
             '''
             
         if kpi_tiles_html:
             html_content += f'''
-                <div class="dashboard-section-title">Count & Throughput Metrics</div>
-                <div class="kpi-tile-grid">{kpi_tiles_html}</div>
-                <div id="shared-bar-{safe_instance}" class="shared-bar-container"></div>
+                <details class="metric-details" open>
+                    <summary>Count And Throughput Metrics</summary>
+                    <div class="kpi-tile-grid">{kpi_tiles_html}</div>
+                    <div id="shared-bar-{safe_instance}" class="shared-bar-container"></div>
+                </details>
             '''
             
         html_content += '''
@@ -630,14 +650,6 @@ function toggleCategory(el) {
     arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
 }
 
-function toggleDashboard(el) {
-    const wrapper  = el.closest('.dashboard-wrapper');
-    const content  = wrapper.querySelector('.dashboard-content');
-    const arrow    = el.querySelector('.dash-arrow');
-    const isHidden = content.classList.toggle('hidden');
-    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
-}
-
 const pageState = {};
 function changePage(tableId, direction) {
     const rows       = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
@@ -668,6 +680,28 @@ function formatNumber(num) {
     return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
 }
 
+// MULTI-TIER DYNAMIC RATIO SCALING FOR COUNT METRICS
+function getDynamicCountScale(mMax) {
+    if (mMax <= 0) return 1;
+    
+    // Give 40% breathing room at the right end relative to actual peak usage
+    const target = mMax * 1.4;
+    
+    if (target <= 1) return 1;
+    if (target <= 2) return 2;
+    if (target <= 5) return 5;
+    if (target <= 10) return 10;
+    if (target <= 25) return 25;
+    if (target <= 50) return 50;
+    if (target <= 100) return 100;
+    if (target <= 250) return 250;
+    if (target <= 500) return 500;
+    if (target <= 1000) return 1000;
+    
+    // Round to next clean multiple of 500 for higher numbers
+    return Math.ceil(target / 500) * 500;
+}
+
 function handleTileClick(instId, metricKey) {
     const container = document.getElementById(`shared-bar-${instId}`);
     const allTiles = document.querySelectorAll(`.tile-${instId}`);
@@ -693,8 +727,12 @@ function handleTileClick(instId, metricKey) {
     if (!m) return;
 
     const label = m["header-name"] || metricKey;
-    const dynamicScaleBound = m["max_allocated_limit"] || (m["max"] * 1.5) || 100;
+    
+    // Compute scale boundary dynamically relative to peak Max usage
+    const dynamicScaleBound = getDynamicCountScale(m.max);
     const calcWidth = (val) => Math.min(100, Math.max(0, (val / dynamicScaleBound) * 100));
+    
+    // Generate evenly-spaced tick marks
     const step = dynamicScaleBound / 4;
 
     container.innerHTML = `
@@ -735,6 +773,7 @@ function handleTileClick(instId, metricKey) {
 </body>
 </html>
 """
+
 html_content += js_template.replace("__NAV_JSON__", nav_json).replace("__DASH_JSON__", dash_data_json)
 current_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 filename = f"Database_Health_Report_{current_time}.html"
