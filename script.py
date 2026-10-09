@@ -34,7 +34,8 @@ INTERNAL_QUERIES = {
     },
     "postgres": {
         "uptime": "SELECT pg_postmaster_start_time() AS start_time;",
-        "max_connections": "SHOW max_connections;"
+        "max_connections": "SHOW max_connections;",
+        "get_databases": "SELECT datname FROM pg_database WHERE datistemplate = false AND has_database_privilege(datname, 'connect');"
     },
 }
 
@@ -154,13 +155,11 @@ def calculate_iops_limits(machine_tier: str, disk_type: str, storage_gb: int, ed
     
     is_user_provisioned = machine_family in ["N4", "c4A"]
 
-    # Step 1: Machine Limit (X)
     if is_user_provisioned:
         max_r, max_w = None, None
     else:
         max_r, max_w = get_machine_limit(disk_type, edition, machine_family, vcpu)
 
-    # Step 2: Capacity Calculation (Y)
     if is_user_provisioned:
         cap_r = provisioned_iops if provisioned_iops else 0
         cap_w = provisioned_iops if provisioned_iops else 0
@@ -175,7 +174,6 @@ def calculate_iops_limits(machine_tier: str, disk_type: str, storage_gb: int, ed
     else:
         cap_r, cap_w = 0, 0
 
-    # Step 3: Final Resolution
     if is_user_provisioned:
         final_r, final_w = cap_r, cap_w
     else:
@@ -368,7 +366,7 @@ def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
     return result
 
 # ─────────────────────────────────────────────
-# DB AUTH ENGINES & QUERY RUNNER
+# DB AUTH ENGINES
 # ─────────────────────────────────────────────
 
 def get_iam_engine(target, connector):
@@ -393,68 +391,164 @@ def get_native_engine(target):
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 
 
-def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict) -> tuple:
+# ─────────────────────────────────────────────
+# QUERY RUNNER FUNCTIONS
+# ─────────────────────────────────────────────
+
+def execute_query(conn, primary_sql, fallback_sql, category, key):
+    """Helper function to execute a single query with fallback logic."""
+    try:
+        with conn.begin_nested():
+            result = conn.execute(sqlalchemy.text(primary_sql))
+            if result.returns_rows:
+                rows = result.fetchall()
+                return [dict(row._mapping) for row in rows] if rows else []
+            else:
+                return [{"message": "Query executed successfully"}]
+    except Exception as e:
+        print(f"    [!] Query failed [{category} -> {key}]: {e}")
+        if fallback_sql:
+            print(f"    [*] Attempting fallback query for [{category} -> {key}]...")
+            try:
+                with conn.begin_nested():
+                    result = conn.execute(sqlalchemy.text(fallback_sql))
+                    if result.returns_rows:
+                        rows = result.fetchall()
+                        return [dict(row._mapping) for row in rows] if rows else []
+                    else:
+                        return [{"message": "Fallback query executed successfully"}]
+            except Exception as fallback_e:
+                print(f"    [!] Fallback Query failed [{category} -> {key}]: {fallback_e}")
+                return [{"status": "ERROR", "message": "Primary and fallback queries failed"}]
+        else:
+            return [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
+
+
+def run_mysql_flow(engine, user_queries, internal_queries) -> tuple:
+    # """Executes MySQL logic: runs everything once on the initial connection."""
     health_checks = {}
     internal_results = {}
-    db_user_queries = user_queries.get(db_type, {})
-    db_internal_queries = internal_queries.get(db_type, {})
+    db_user_queries = user_queries.get("mysql", {})
+    db_internal_queries = internal_queries.get("mysql", {})
 
     with engine.connect() as conn:
+        # Run standard MySQL queries
         for category, category_queries in db_user_queries.items():
             health_checks[category] = {}
             for key, query_payload in category_queries.items():
                 if key.startswith("_"): continue
                 
-                if isinstance(query_payload, dict):
-                    primary_sql, fallback_sql = query_payload.get("preferred_query"), query_payload.get("fallback_query")
-                else:
-                    primary_sql, fallback_sql = query_payload, None
+                primary_sql = query_payload.get("preferred_query") if isinstance(query_payload, dict) else query_payload
+                fallback_sql = query_payload.get("fallback_query") if isinstance(query_payload, dict) else None
 
-                if not primary_sql:
-                    health_checks[category][key] = [{"status": "SKIPPED", "message": "No query defined."}]
-                    continue
+                res = execute_query(conn, primary_sql, fallback_sql, category, key)
+                health_checks[category][key] = res if res else [{"message": "0 records returned"}]
 
-                try:
-                    with conn.begin_nested():
-                        result = conn.execute(sqlalchemy.text(primary_sql))
-                        if result.returns_rows:
-                            rows = result.fetchall()
-                            health_checks[category][key] = [dict(row._mapping) for row in rows] if rows else [{"message": "0 records returned"}]
-                        else:
-                            health_checks[category][key] = [{"message": "Query executed successfully"}]
-                except Exception as e:
-                    print(f"    [!] Query failed [{category} -> {key}]: {e}")
-                    
-                    if fallback_sql:
-                        print(f"    [*] Attempting fallback query for [{category} -> {key}]...")
-                        try:
-                            with conn.begin_nested():
-                                result = conn.execute(sqlalchemy.text(fallback_sql))
-                                if result.returns_rows:
-                                    rows = result.fetchall()
-                                    health_checks[category][key] = [dict(row._mapping) for row in rows] if rows else [{"message": "0 records returned"}]
-                                else:
-                                    health_checks[category][key] = [{"message": "Fallback query executed successfully"}]
-                        except Exception as fallback_e:
-                            print(f"    [!] Fallback Query failed [{category} -> {key}]: {fallback_e}")
-                            health_checks[category][key] = [{"status": "ERROR", "message": "Primary and fallback queries failed"}]
-                    else:
-                        health_checks[category][key] = [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
-
+        # Run internal MySQL queries
         for key, sql in db_internal_queries.items():
             try:
                 with conn.begin_nested():
                     result = conn.execute(sqlalchemy.text(sql))
                     if result.returns_rows:
                         rows = result.fetchall()
-                        internal_results[key] = [dict(row._mapping) for row in rows] if rows else [{"message": "0 records returned"}]
-                    else:
-                        internal_results[key] = [{"message": "Query executed successfully"}]
+                        internal_results[key] = [dict(row._mapping) for row in rows] if rows else []
             except Exception as e:
                 print(f"    [!] Internal Query failed [{key}]: {e}")
-                internal_results[key] = [{"status": "ERROR", "message": "Result unavailable"}]
 
     return health_checks, internal_results
+
+
+def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) -> tuple:
+    # """Executes PostgreSQL logic: runs global queries first, then iterates accessible databases for local queries."""
+    health_checks = {}
+    internal_results = {}
+    db_user_queries = user_queries.get("postgres", {})
+    db_internal_queries = internal_queries.get("postgres", {})
+
+    # PHASE 1: Connect to default DB and execute 'global' scoped & internal queries
+    with engine.connect() as conn:
+        # Prepare structure and run globals
+        for category, category_queries in db_user_queries.items():
+            health_checks[category] = {}
+            for key, query_payload in category_queries.items():
+                if key.startswith("_"): continue
+                
+                scope = query_payload.get("scope", "global") if isinstance(query_payload, dict) else "global"
+                
+                # Initialize local queries with empty lists for Phase 2 appending
+                if scope == "local":
+                    health_checks[category][key] = []
+                    continue
+
+                # Execute global queries
+                primary_sql = query_payload.get("preferred_query") if isinstance(query_payload, dict) else query_payload
+                fallback_sql = query_payload.get("fallback_query") if isinstance(query_payload, dict) else None
+                
+                res = execute_query(conn, primary_sql, fallback_sql, category, key)
+                health_checks[category][key] = res if res else [{"message": "0 records returned"}]
+
+        # Run internal queries (including get_databases)
+        for key, sql in db_internal_queries.items():
+            try:
+                with conn.begin_nested():
+                    result = conn.execute(sqlalchemy.text(sql))
+                    if result.returns_rows:
+                        rows = result.fetchall()
+                        internal_results[key] = [dict(row._mapping) for row in rows] if rows else []
+            except Exception as e:
+                print(f"    [!] Internal Query failed [{key}]: {e}")
+
+    # PHASE 2: Fetch database list and execute 'local' queries per database
+    db_list = [row["datname"] for row in internal_results.get("get_databases", []) if "datname" in row]
+
+    for db_name in db_list:
+        try:
+            local_engine = engine_factory(db_name)
+            with local_engine.connect() as local_conn:
+                for category, category_queries in db_user_queries.items():
+                    for key, query_payload in category_queries.items():
+                        if key.startswith("_"): continue
+                        
+                        scope = query_payload.get("scope", "global") if isinstance(query_payload, dict) else "global"
+                        if scope != "local": continue
+
+                        primary_sql = query_payload.get("preferred_query")
+                        fallback_sql = query_payload.get("fallback_query")
+
+                        res = execute_query(local_conn, primary_sql, fallback_sql, category, key)
+                        
+                        # Dynamically inject the database name into each returned row
+                        for row in res:
+                            if "message" in row or "status" in row:
+                                continue # Skip appending raw empty/error messages for individual databases
+                            
+                            new_row = {"Database Name": db_name}
+                            new_row.update(row)
+                            health_checks[category][key].append(new_row)
+                            
+        except Exception as e:
+            print(f" [!] Skipping database {db_name}: {e}")
+        finally:
+            if 'local_engine' in locals():
+                local_engine.dispose()
+
+    # PHASE 3: Clean up empty local queries
+    for category in health_checks:
+        for key in health_checks[category]:
+            if not health_checks[category][key]:
+                health_checks[category][key] = [{"message": "0 records returned"}]
+
+    return health_checks, internal_results
+
+
+def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict, engine_factory=None) -> tuple:
+    # """Master router function directing traffic based on engine type."""
+    if db_type == "mysql":
+        return run_mysql_flow(engine, user_queries, internal_queries)
+    elif db_type == "postgres":
+        return run_postgres_flow(engine, user_queries, internal_queries, engine_factory)
+    else:
+        return {}, {}
 
 
 # ─────────────────────────────────────────────
@@ -539,7 +633,6 @@ def main():
                 print(f"   [!] Skipping {instance_name}: Valid connection_name not found.")
                 continue
 
-            # Pre-calculate Max Disk IOPS Limits
             final_read_iops, final_write_iops = calculate_iops_limits(
                 machine_tier=hw_details.get("tier"),
                 disk_type=hw_details.get("disk_type"),
@@ -560,7 +653,6 @@ def main():
                     metric_data = fetch_mql_metric(mon_client, project_id, instance_name, m_key, m_type)
                     metric_data["header-name"] = METRIC_LABELS.get(m_key, m_key)
                     
-                    # Apply Allocation Limits to Output
                     if m_key in ["cpu_utilization", "memory_utilization", "disk_utilization"]:
                         metric_data["max_allocated_limit"] = 100
                     elif m_key == "disk_bytes_used":
@@ -570,27 +662,42 @@ def main():
                     elif m_key == "disk_write_ops":
                         metric_data["max_allocated_limit"] = final_write_iops
                     elif m_key == "connections":
-                        metric_data["max_allocated_limit"] = "N/A" # Placeholder, overwritten after db query
+                        metric_data["max_allocated_limit"] = "N/A" 
                         
                     instance_report["resource_utilization"][m_key] = metric_data
 
             print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
-            try:
+            
+            target_info = {
+                "project_id": project_id, 
+                "region": region, 
+                "instance": instance_name, 
+                "user": db_user, 
+                "password": db_pass,
+                "host": host, 
+                "port": port,
+                "db_type": db_type
+            }
+
+            def create_engine_for_db(db_name):
+                target_override = target_info.copy()
+                target_override["database"] = db_name
                 if auth_type == "iam":
-                    engine = get_iam_engine(
-                        {"project_id": project_id, "region": region, "instance": instance_name, "user": db_user, "database": "mysql" if db_type == "mysql" else "postgres", "db_type": db_type}, connector
-                    )
+                    return get_iam_engine(target_override, connector)
                 else:
-                    engine = get_native_engine(
-                        {"db_type": db_type, "user": db_user, "password": db_pass, "host": host, "port": port, "database": "mysql" if db_type == "mysql" else "postgres"}
-                    )
+                    return get_native_engine(target_override)
+
+            try:
+                default_db = "mysql" if db_type == "mysql" else "postgres"
+                engine = create_engine_for_db(default_db)
                 
                 print("   Executing Database Audits & Internal Queries...")
-                health_checks, internal_results = run_queries(engine, db_type, all_queries, INTERNAL_QUERIES)
+                health_checks, internal_results = run_queries(
+                    engine, db_type, all_queries, INTERNAL_QUERIES, engine_factory=create_engine_for_db
+                )
                 instance_report["health_checks"] = health_checks
                 instance_report["provisioned_specs"]["Uptime"] = format_uptime(internal_results.get("uptime"), db_type)
                 
-                # Assign dynamic max connections limit based on engine type
                 if "connections" in instance_report["resource_utilization"]:
                     max_conn_limit = "N/A"
                     conn_results = internal_results.get("max_connections", [])
