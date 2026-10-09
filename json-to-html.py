@@ -736,8 +736,10 @@ function handleTileClick(instId, metricKey) {
 </html>
 """
 html_content += js_template.replace("__NAV_JSON__", nav_json).replace("__DASH_JSON__", dash_data_json)
+current_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
+filename = f"Database_Health_Report_{current_time}.html"
+output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),filename)
 
-output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Database_Health_Report.html")
 with open(output_path, "w") as f:
     f.write(html_content)
 
