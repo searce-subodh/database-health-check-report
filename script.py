@@ -457,23 +457,45 @@ def run_mysql_flow(engine, user_queries, internal_queries) -> tuple:
 
     return health_checks, internal_results
 
+def get_local_postgres_queries(postgres_queries_dict: dict) -> set:
+    """
+    Traverses the parsed Postgres queries dictionary and dynamically extracts 
+    a set of all query keys explicitly marked with "scope": "local".
+    """
+    local_queries = set()
+    
+    for category, queries in postgres_queries_dict.items():
+        if not isinstance(queries, dict):
+            continue
+            
+        for query_key, query_payload in queries.items():
+            if query_key.startswith("_"):
+                continue
+                
+            if isinstance(query_payload, dict) and query_payload.get("scope") == "local":
+                local_queries.add(query_key)
+                
+    return local_queries
 
 def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) -> tuple:
-    # """Executes PostgreSQL logic: runs global queries first, then iterates accessible databases for local queries."""
+    """Executes PostgreSQL logic: runs global queries first, then iterates accessible databases for local queries."""
     health_checks = {}
     internal_results = {}
     db_user_queries = user_queries.get("postgres", {})
     db_internal_queries = internal_queries.get("postgres", {})
 
+    # DYNAMIC OVERRIDE: Extract all explicitly marked local queries from the JSON structure
+    local_postgres_queries = get_local_postgres_queries(db_user_queries)
+
     # PHASE 1: Connect to default DB and execute 'global' scoped & internal queries
     with engine.connect() as conn:
-        # Prepare structure and run globals
         for category, category_queries in db_user_queries.items():
             health_checks[category] = {}
             for key, query_payload in category_queries.items():
                 if key.startswith("_"): continue
                 
-                scope = query_payload.get("scope", "global") if isinstance(query_payload, dict) else "global"
+                # Determine scope dynamically based on the extracted set
+                scope = "local" if key in local_postgres_queries else "global"
                 
                 # Initialize local queries with empty lists for Phase 2 appending
                 if scope == "local":
@@ -509,11 +531,12 @@ def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) ->
                     for key, query_payload in category_queries.items():
                         if key.startswith("_"): continue
                         
-                        scope = query_payload.get("scope", "global") if isinstance(query_payload, dict) else "global"
-                        if scope != "local": continue
+                        # Only execute queries dynamically identified as local
+                        if key not in local_postgres_queries:
+                            continue
 
-                        primary_sql = query_payload.get("preferred_query")
-                        fallback_sql = query_payload.get("fallback_query")
+                        primary_sql = query_payload.get("preferred_query") if isinstance(query_payload, dict) else query_payload
+                        fallback_sql = query_payload.get("fallback_query") if isinstance(query_payload, dict) else None
 
                         res = execute_query(local_conn, primary_sql, fallback_sql, category, key)
                         
