@@ -1,9 +1,9 @@
 from datetime import datetime
 import json
-import math
 import os
 import sys
 import html
+import math
 
 # ─────────────────────────────────────────────
 # LOAD INPUT JSON FILES (VIA COMMAND LINE)
@@ -67,8 +67,7 @@ for unique_key, data in report_data.items():
     instance_name = data.get("instance_name", unique_key)
     project_id    = data.get("project_id", "")
     
-    # Instance dropdown only displays the name without the project ID
-    display_label = instance_name
+    display_label = f"{instance_name} ({project_id})" if project_id else instance_name
     
     nav_data[unique_key] = {
         "type": db_type,
@@ -80,31 +79,24 @@ for unique_key, data in report_data.items():
 # HELPERS
 # ─────────────────────────────────────────────
 
-def get_dynamic_scale(m_max):
-    """MULTI-TIER DYNAMIC RATIO SCALING FOR PERCENTAGE/COUNT METRICS"""
-    if m_max is None or m_max <= 0: return 1
+def calculate_y_axis_config(local_max, is_percent, allocated_limit):
+    """Calculates step size and boundary for Chart.js"""
+    if is_percent:
+        return {"min": 0, "max": 100, "step": 20}
     
-    target = m_max * 1.4
-    if target <= 1: return 1
-    if target <= 2: return 2
-    if target <= 5: return 5
-    if target <= 10: return 10
-    if target <= 25: return 25
-    if target <= 50: return 50
-    if target <= 100: return 100
-    if target <= 250: return 250
-    if target <= 500: return 500
-    if target <= 1000: return 1000
+    limit = local_max if local_max and local_max > 0 else 100
+    if allocated_limit and allocated_limit != "N/A" and isinstance(allocated_limit, (int, float)):
+        limit = max(limit, float(allocated_limit))
     
-    return math.ceil(target / 500) * 500
-
-def format_tick(val):
-    if val >= 10:
-        return f"{round(val):,}"
-    formatted = f"{val:.2f}"
-    if '.' in formatted:
-        formatted = formatted.rstrip('0').rstrip('.')
-    return formatted
+    target = limit * 1.2
+    magnitude = 10 ** math.floor(math.log10(max(1, target)))
+    normalized = target / magnitude
+    
+    if normalized <= 2: y_step = 0.5 * magnitude
+    elif normalized <= 5: y_step = 1 * magnitude
+    else: y_step = 2 * magnitude
+    
+    return {"min": 0, "max": math.ceil(target / y_step) * y_step, "step": y_step}
 
 def row_class(row):
     if not isinstance(row, dict):
@@ -192,6 +184,7 @@ css_template = """<!DOCTYPE html>
 <head>
     <meta charset="UTF-8">
     <title>Database Health Check Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <style>
         :root {
@@ -285,81 +278,21 @@ css_template = """<!DOCTYPE html>
         .hidden      { display: none !important; }
 
         /* =========================================
-           DASHBOARD UI STYLES 
+           DASHBOARD UI STYLES (CHART.JS)
            ========================================= */
-        .dashboard-wrapper { 
-            background-color: var(--bg-card); 
-            width: 100%; 
-            margin-bottom: 24px; 
-            margin-top: 16px;
-            display: flex; flex-direction: column; gap: 24px; 
-        }
+        .dashboard-wrapper { background-color: var(--bg-card); width: 100%; margin: 16px 0 24px 0; display: flex; flex-direction: column; gap: 24px; }
+        .dashboard-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
+        .dash-title-group { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        .dash-title-group:hover h2, .dash-title-group:hover .dash-arrow { color: #1d4ed8; }
+        .dash-arrow { font-size: 1.1em; color: #2563eb; transition: transform 0.2s; }
+        .dashboard-header h2 { font-size: 1.15em; font-weight: 700; margin: 0; color: #0f172a; text-transform: uppercase; font-family: 'Montserrat', sans-serif; }
         
-        details.metric-details {
-            margin-bottom: 24px;
-        }
-        details.metric-details > summary {
-            font-size: 1.05em; font-weight: 600; color: var(--text-primary); 
-            font-family: 'Montserrat', sans-serif;
-            padding-bottom: 8px; margin-bottom: 16px; 
-            border-bottom: 1px solid var(--border-color);
-            cursor: pointer; list-style: none; display: flex; align-items: center;
-        }
-        details.metric-details > summary::-webkit-details-marker {
-            display: none;
-        }
-        details.metric-details > summary::before {
-            content: '▶';
-            display: inline-block;
-            margin-right: 8px;
-            font-size: 0.9em;
-            color: #2563eb;
-            transition: transform 0.2s;
-        }
-        details.metric-details[open] > summary::before {
-            transform: rotate(90deg);
-        }
-
-        .bullet-group { display: flex; flex-direction: column; gap: 20px; }
-        .bullet-row { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
-        .bullet-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
-        .bullet-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
-        .bullet-badges { display: flex; gap: 8px; flex-wrap: wrap; }
-        .badge-pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.08); }
-        .badge-pill.mean { color: var(--c-mean); border-color: var(--c-mean); background: #eff6ff; }
-        .badge-pill.p95  { color: var(--c-p95);  border-color: var(--c-p95); background: #ecfdf5; }
-        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #fff7ed; }
-        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #faf5ff; }
-
-        .track-wrapper { position: relative; width: 100%; }
-        .gridlines { position: absolute; top: 0; left: 0; right: 0; bottom: 0; display: flex; justify-content: space-between; pointer-events: none; z-index: 0; }
-        .gridline { width: 1px; height: 100%; background: rgba(0,0,0,0.06); }
-        .bullet-track { position: relative; height: 18px; background: var(--track-bg); border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); box-shadow: inset 0 2px 4px rgba(0,0,0,0.05); z-index: 1; }
-        .bullet-bar { position: absolute; top: 0; left: 0; height: 100%; border-radius: 6px; transition: width 0.6s cubic-bezier(0.16, 1, 0.3, 1); }
-        
-        .bar-max  { background: var(--c-max);  z-index: 1; opacity: 0.5; }
-        .bar-p99  { background: var(--c-p99);  z-index: 2; opacity: 0.7; }
-        .bar-p95  { background: var(--c-p95);  z-index: 3; opacity: 0.85; }
-        .bar-mean { background: var(--c-mean); z-index: 4; opacity: 1; }
-        .ticks-row { display: flex; justify-content: space-between; font-size: 10px; color: var(--text-secondary); margin-top: 4px; }
-
-        .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
-        .kpi-tile { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
-        .kpi-tile:hover, .kpi-tile.selected { transform: translateY(-2px); border-color: var(--c-mean); background: #eff6ff; }
-        .kpi-tile-header { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; }
-        .kpi-tile-header-group { display: flex; flex-direction: column; gap: 4px; }
-        .kpi-mean-label { font-size: 11px; font-weight: 600; color: var(--c-mean); }
-        .main-val-container { display: flex; flex-direction: column; gap: 6px; }
-        .kpi-tile-main-val { font-size: 28px; font-weight: 700; color: var(--c-mean); line-height: 1; white-space: nowrap; }
-        .max-allowed-badge { font-size: 11px; font-weight: 600; color: var(--text-secondary); align-self: flex-start; }
-        
-        .kpi-tile-footer { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 4px; }
-        .kpi-footer-item { display: flex; flex-direction: column; min-width: 0; }
-        .kpi-footer-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
-        .kpi-footer-val { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-top: 2px; }
-        .shared-bar-container { display: none; margin-top: 18px; width: 100%; }
-        .shared-bar-container.active { display: block; }
-        .truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .dashboard-group { margin-top: 16px; }
+        .dashboard-section-title { font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 16px; padding-bottom: 8px; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px; margin-bottom: 32px; }
+        .chart-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+        .chart-title { font-size: 0.95em; text-align: center; margin-bottom: 12px; color: #334155; font-family: 'Montserrat', sans-serif; font-weight: 700; }
+        .canvas-wrapper { position: relative; height: 260px; width: 100%; }
     </style>
 </head>
 <body>
@@ -392,7 +325,7 @@ html_content = css_template.replace("__PERIOD_FROM__", period_from).replace("__P
 # ─────────────────────────────────────────────
 
 table_counter = [0]
-dashboards_json_data = {}
+global_chart_configs = {}
 
 for unique_key, data in report_data.items():
     safe_instance = unique_key.replace(":", "-").replace(" ", "_")
@@ -434,128 +367,73 @@ for unique_key, data in report_data.items():
 
     # ── Resource Utilization Dashboard ──
     if utilization:
-        pct_rows_html = ""
-        kpi_tiles_html = ""
-        dashboards_json_data[safe_instance] = {}
+        # Extract time keys (keys starting with "20" like "2026_10_11_10_00_00")
+        raw_time_keys = sorted([k for k in utilization.keys() if k.startswith("20")])
+        js_labels = [datetime.strptime(ts, '%Y_%m_%d_%H_%M_%S').isoformat() + "Z" for ts in raw_time_keys]
         
-        for metric_key, m in utilization.items():
-            if not isinstance(m, dict): continue
-            label = m.get("header-name") or format_clean_title(metric_key)
-            
-            mean_val = m.get("mean")
-            p95_val = m.get("p95")
-            p99_val = m.get("p99")
-            max_val = m.get("max")
-            max_alloc = m.get("max_allocated_limit")
-            
-            is_pct = "(%)" in label or "Percent" in label
-            
-            def fmt_val(v, is_pct_flag=False):
-                if v is None: return "N/A"
-                return f"{v:,.2f}{'%' if is_pct_flag else ''}"
+        global_chart_configs[safe_instance] = {"labels": js_labels, "charts": []}
+        
+        # Isolate metric config keys
+        metric_configs = {k: v for k, v in utilization.items() if not k.startswith("20") and isinstance(v, dict)}
+        
+        capacity_metrics = [k for k in metric_configs.keys() if "utilization" in k]
+        traffic_metrics  = [k for k in metric_configs.keys() if "utilization" not in k]
 
-            if is_pct:
-                snap_max = get_dynamic_scale(max_val)
-                def calc_w(v): return min(100, max(0, (v / snap_max) * 100)) if v is not None else 0
-                
-                step = snap_max / 4
-                
-                pct_rows_html += f'''
-                <div class="bullet-row">
-                    <div class="bullet-header">
-                        <div class="bullet-title">{label}</div>
-                        <div class="bullet-badges">
-                            <span class="badge-pill mean">Mean: {fmt_val(mean_val, True)}</span>
-                            <span class="badge-pill p95">P95: {fmt_val(p95_val, True)}</span>
-                            <span class="badge-pill p99">P99: {fmt_val(p99_val, True)}</span>
-                            <span class="badge-pill max">Max: {fmt_val(max_val, True)}</span>
-                        </div>
-                    </div>
-                    <div class="track-wrapper">
-                        <div class="gridlines">
-                            <div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div>
-                        </div>
-                        <div class="bullet-track">
-                            <div class="bullet-bar bar-max" style="width: {calc_w(max_val)}%;"></div>
-                            <div class="bullet-bar bar-p99" style="width: {calc_w(p99_val)}%;"></div>
-                            <div class="bullet-bar bar-p95" style="width: {calc_w(p95_val)}%;"></div>
-                            <div class="bullet-bar bar-mean" style="width: {calc_w(mean_val)}%;"></div>
-                        </div>
-                    </div>
-                    <div class="ticks-row">
-                        <span>0%</span>
-                        <span>{format_tick(step)}%</span>
-                        <span>{format_tick(step * 2)}%</span>
-                        <span>{format_tick(step * 3)}%</span>
-                        <span>{format_tick(snap_max)}%</span>
-                    </div>
-                </div>
-                '''
-            else:
-                max_allowed_str = fmt_val(max_alloc) if max_alloc is not None else "N/A"
-                safe_metric_key = metric_key.replace("_", "-").replace(" ", "-")
-                
-                # Push data to JS dict for expanding detailed bar 
-                dashboards_json_data[safe_instance][metric_key] = m
-                
-                kpi_tiles_html += f'''
-                <div id="tile-{safe_instance}-{safe_metric_key}" class="kpi-tile tile-{safe_instance}" onclick="handleTileClick('{safe_instance}', '{metric_key}')">
-                    <div class="kpi-tile-header-group">
-                        <div class="kpi-tile-header truncate" title="{label}">
-                            <span>{label}</span>
-                        </div>
-                        <div class="kpi-mean-label">Mean</div>
-                    </div>
-                    <div class="main-val-container">
-                        <div class="kpi-tile-main-val">{fmt_val(mean_val)}</div>
-                        <div class="max-allowed-badge">Max Allowed: {max_allowed_str}</div>
-                    </div>
-                    <div class="kpi-tile-footer">
-                        <div class="kpi-footer-item">
-                            <span class="kpi-footer-label" style="color: var(--c-p95);">P95</span>
-                            <span class="kpi-footer-val">{fmt_val(p95_val)}</span>
-                        </div>
-                        <div class="kpi-footer-item">
-                            <span class="kpi-footer-label" style="color: var(--c-p99);">P99</span>
-                            <span class="kpi-footer-val">{fmt_val(p99_val)}</span>
-                        </div>
-                        <div class="kpi-footer-item">
-                            <span class="kpi-footer-label" style="color: var(--c-max);">Max</span>
-                            <span class="kpi-footer-val">{fmt_val(max_val)}</span>
-                        </div>
-                    </div>
-                </div>
-                '''
-                
-        # Main Dashboard Wrapper Assembly
         html_content += f'''
         <div class="dashboard-wrapper" id="dash-{safe_instance}">
-            <div class="section-title" style="margin-bottom:16px;">Resource Utilization (Last 24h)</div>
-            
+            <div class="dashboard-header">
+                <div class="dash-title-group" onclick="toggleDashboard(this)">
+                    <span class="dash-arrow">&#9660;</span>
+                    <h2>Resource Utilization</h2>
+                </div>
+            </div>
             <div class="dashboard-content" id="dash-content-{safe_instance}">
         '''
-        
-        if pct_rows_html:
-            html_content += f'''
-                <details class="metric-details" open>
-                    <summary>Percentage Utilization Metrics</summary>
-                    <div class="bullet-group">{pct_rows_html}</div>
-                </details>
-            '''
+
+        def render_chart_group(group_name, metric_keys):
+            if not metric_keys: return ""
+            html_out = f'<div class="dashboard-group"><div class="dashboard-section-title">{group_name}</div><div class="charts-grid">'
             
-        if kpi_tiles_html:
-            html_content += f'''
-                <details class="metric-details" open>
-                    <summary>Count And Throughput Metrics</summary>
-                    <div class="kpi-tile-grid">{kpi_tiles_html}</div>
-                    <div id="shared-bar-{safe_instance}" class="shared-bar-container"></div>
-                </details>
-            '''
-            
-        html_content += '''
-            </div>
-        </div>
-        '''
+            for m_key in metric_keys:
+                limit_info = metric_configs[m_key]
+                is_pct = "utilization" in m_key
+                unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
+                display_name = limit_info.get("header-name", format_clean_title(m_key))
+                chart_id = f"chart_{safe_instance}_{m_key}"
+                
+                html_out += f'<div class="chart-card"><div class="chart-title">{display_name}</div><div class="canvas-wrapper"><canvas id="{chart_id}"></canvas></div></div>'
+
+                mean_data, p95_data, p99_data, max_data = [], [], [], []
+                local_max = 0.0
+                
+                for t_key in raw_time_keys:
+                    hour_data = utilization[t_key]
+                    v_mean = hour_data.get(f"{m_key}_mean")
+                    v_p95  = hour_data.get(f"{m_key}_p95")
+                    v_p99  = hour_data.get(f"{m_key}_p99")
+                    v_max  = hour_data.get(f"{m_key}_max")
+                    
+                    mean_data.append(v_mean)
+                    p95_data.append(v_p95)
+                    p99_data.append(v_p99)
+                    max_data.append(v_max)
+                    
+                    if v_max and v_max > local_max: local_max = v_max
+
+                y_config = calculate_y_axis_config(local_max, is_pct, limit_info.get("max_allocated_limit"))
+                y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
+
+                global_chart_configs[safe_instance]["charts"].append({
+                    "id": chart_id, "unit": unit, "yConfig": y_config,
+                    "data": {"mean": mean_data, "p95": p95_data, "p99": p99_data, "max": max_data}
+                })
+
+            html_out += '</div></div>'
+            return html_out
+
+        html_content += render_chart_group("Capacity Allocation", capacity_metrics)
+        html_content += render_chart_group("IO & Traffic statistics", traffic_metrics)
+        html_content += '</div></div>'
 
     html_content += '</div>'  # close section-card
 
@@ -608,14 +486,14 @@ for unique_key, data in report_data.items():
 # ─────────────────────────────────────────────
 
 nav_json = json.dumps(nav_data)
-dash_data_json = json.dumps(dashboards_json_data)
+dash_data_json = json.dumps(global_chart_configs if 'global_chart_configs' in locals() else {})
 
 js_template = """
 </div>
 
 <script>
 const navData = __NAV_JSON__;
-const countMetricsData = __DASH_JSON__;
+const chartConfigs = __DASH_JSON__;
 
 const typeSel = document.getElementById('filter-dbtype');
 const projSel = document.getElementById('filter-project');
@@ -637,21 +515,15 @@ Array.from(projects).sort().forEach(proj => {
 function updateServerDropdown() {
     const type = typeSel.value;
     const proj = projSel.value;
-    
     serverSel.innerHTML = '<option value="ALL">All Instances</option>';
     
     Object.entries(navData).forEach(([key, info]) => {
-        const typeMatch = type === 'ALL' || info.type === type;
-        const projMatch = proj === 'ALL' || info.project_id === proj;
-        
-        if (typeMatch && projMatch) {
+        if ((type === 'ALL' || info.type === type) && (proj === 'ALL' || info.project_id === proj)) {
             const o = document.createElement('option');
-            o.value = key; 
-            o.textContent = info.label;
+            o.value = key; o.textContent = info.label;
             serverSel.appendChild(o);
         }
     });
-    
     applyFilters();
 }
 
@@ -664,139 +536,84 @@ function applyFilters() {
         const typeMatch = type === 'ALL' || block.dataset.dbtype === type;
         const projMatch = proj === 'ALL' || block.dataset.project === proj;
         const srvMatch  = srv  === 'ALL' || block.dataset.server === srv;
-        
         block.classList.toggle('hidden', !(typeMatch && projMatch && srvMatch));
     });
 }
-
 updateServerDropdown();
 
 function toggleCategory(el) {
     const content  = el.nextElementSibling;
     const arrow    = el.querySelector('span:last-child');
-    const isHidden = content.classList.toggle('hidden');
-    arrow.innerHTML = isHidden ? '&#9654;' : '&#9660;';
+    arrow.innerHTML = content.classList.toggle('hidden') ? '&#9654;' : '&#9660;';
+}
+
+function toggleDashboard(el) {
+    const wrapper  = el.closest('.dashboard-wrapper');
+    const content  = wrapper.querySelector('.dashboard-content');
+    const arrow    = el.querySelector('.dash-arrow');
+    arrow.innerHTML = content.classList.toggle('hidden') ? '&#9654;' : '&#9660;';
 }
 
 const pageState = {};
 function changePage(tableId, direction) {
-    const rows       = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
+    const rows = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
     const totalPages = Math.ceil(rows.length / 10);
     if (!pageState[tableId]) pageState[tableId] = 1;
     pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
-    const currentPage = pageState[tableId];
-    const start       = (currentPage - 1) * 10;
-    const end         = start + 10;
-    rows.forEach((row, i) => {
-        row.style.display = (i >= start && i < end) ? '' : 'none';
+    const start = (pageState[tableId] - 1) * 10;
+    rows.forEach((row, i) => { row.style.display = (i >= start && i < start + 10) ? '' : 'none'; });
+    document.getElementById(`page-info-${tableId}`).textContent = `Page ${pageState[tableId]} of ${totalPages}`;
+}
+
+// =========================================
+// CHART.JS INITIALIZATION
+// =========================================
+function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
+    const ctx = document.getElementById(canvasId).getContext('2d');
+    new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: labels, 
+            datasets: [
+                { label: 'Mean', data: metricData.mean, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.15)', borderWidth: 1.5, tension: 0.3, fill: 'origin', pointRadius: 0, pointHoverRadius: 6 },
+                { label: 'P95', data: metricData.p95, borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6 },
+                { label: 'P99', data: metricData.p99, borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6 },
+                { label: 'Max', data: metricData.max, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6 }
+            ]
+        },
+        options: {
+            responsive: true, maintainAspectRatio: false,
+            interaction: { mode: 'index', intersect: false },
+            plugins: {
+                tooltip: {
+                    callbacks: {
+                        title: (ctx) => new Date(ctx[0].label).toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
+                        label: (ctx) => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y + unit : 'No Data')
+                    }
+                },
+                legend: { labels: { color: '#333' } }
+            },
+            scales: {
+                y: { min: yConfig.min, max: yConfig.max, title: { display: true, text: yConfig.title }, ticks: { stepSize: yConfig.step } },
+                x: {
+                    ticks: {
+                        callback: function(val, i) {
+                            let d = new Date(this.getLabelForValue(val));
+                            return (i % 2 !== 0) ? null : (d.getHours() === 0 ? d.toLocaleString('en-US', {month:'short', day:'numeric'}) : d.toLocaleString('en-US', {hour:'numeric', hour12:true}));
+                        }
+                    }
+                }
+            }
+        }
     });
-    const info = document.getElementById(`page-info-${tableId}`);
-    if (info) info.textContent = `Page ${currentPage} of ${totalPages}`;
 }
 
-// =========================================
-// DASHBOARD KPI TILE CLICK HANDLER
-// =========================================
-
-function formatTickValue(val) {
-    if (val >= 10) return Math.round(val).toLocaleString();
-    return Number(val.toFixed(2));
-}
-
-function formatNumber(num) {
-    if (num === null || num === undefined) return "N/A";
-    return num.toLocaleString('en-US', { maximumFractionDigits: 2 });
-}
-
-// MULTI-TIER DYNAMIC RATIO SCALING FOR COUNT METRICS
-function getDynamicCountScale(mMax) {
-    if (mMax <= 0) return 1;
-    
-    // Give 40% breathing room at the right end relative to actual peak usage
-    const target = mMax * 1.4;
-    
-    if (target <= 1) return 1;
-    if (target <= 2) return 2;
-    if (target <= 5) return 5;
-    if (target <= 10) return 10;
-    if (target <= 25) return 25;
-    if (target <= 50) return 50;
-    if (target <= 100) return 100;
-    if (target <= 250) return 250;
-    if (target <= 500) return 500;
-    if (target <= 1000) return 1000;
-    
-    // Round to next clean multiple of 500 for higher numbers
-    return Math.ceil(target / 500) * 500;
-}
-
-function handleTileClick(instId, metricKey) {
-    const container = document.getElementById(`shared-bar-${instId}`);
-    const allTiles = document.querySelectorAll(`.tile-${instId}`);
-    if (!container) return;
-
-    const safeMetricKey = metricKey.replace(/_/g, '-').replace(/ /g, '-');
-    const selectedTile = document.getElementById(`tile-${instId}-${safeMetricKey}`);
-    const isAlreadyActive = selectedTile && selectedTile.classList.contains('selected') && container.classList.contains('active');
-
-    allTiles.forEach(t => t.classList.remove('selected'));
-
-    if (isAlreadyActive) {
-        container.classList.remove('active');
-        container.innerHTML = '';
-        return;
-    }
-
-    if (selectedTile) selectedTile.classList.add('selected');
-
-    const instData = countMetricsData[instId];
-    if (!instData) return;
-    const m = instData[metricKey];
-    if (!m) return;
-
-    const label = m["header-name"] || metricKey;
-    
-    // Compute scale boundary dynamically relative to peak Max usage
-    const dynamicScaleBound = getDynamicCountScale(m.max);
-    const calcWidth = (val) => Math.min(100, Math.max(0, (val / dynamicScaleBound) * 100));
-    
-    // Generate evenly-spaced tick marks
-    const step = dynamicScaleBound / 4;
-
-    container.innerHTML = `
-        <div class="bullet-row">
-            <div class="bullet-header">
-                <div class="bullet-title">${label}</div>
-                <div class="bullet-badges">
-                    <span class="badge-pill mean">Mean: ${formatNumber(m.mean)}</span>
-                    <span class="badge-pill p95">P95: ${formatNumber(m.p95)}</span>
-                    <span class="badge-pill p99">P99: ${formatNumber(m.p99)}</span>
-                    <span class="badge-pill max">Max: ${formatNumber(m.max)}</span>
-                </div>
-            </div>
-            <div class="track-wrapper">
-                <div class="gridlines">
-                    <div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div><div class="gridline"></div>
-                </div>
-                <div class="bullet-track">
-                    <div class="bullet-bar bar-max" style="width: ${calcWidth(m.max)}%;"></div>
-                    <div class="bullet-bar bar-p99" style="width: ${calcWidth(m.p99)}%;"></div>
-                    <div class="bullet-bar bar-p95" style="width: ${calcWidth(m.p95)}%;"></div>
-                    <div class="bullet-bar bar-mean" style="width: ${calcWidth(m.mean)}%;"></div>
-                </div>
-            </div>
-            <div class="ticks-row">
-                <span>0</span>
-                <span>${formatTickValue(step)}</span>
-                <span>${formatTickValue(step * 2)}</span>
-                <span>${formatTickValue(step * 3)}</span>
-                <span>${formatTickValue(dynamicScaleBound)}</span>
-            </div>
-        </div>
-    `;
-    container.classList.add('active');
-}
-
+// Render all charts dynamically
+Object.values(chartConfigs).forEach(instance => {
+    instance.charts.forEach(c => {
+        createMetricChart(c.id, instance.labels, c.data, c.yConfig, c.unit);
+    });
+});
 </script>
 </body>
 </html>
@@ -805,7 +622,7 @@ function handleTileClick(instId, metricKey) {
 html_content += js_template.replace("__NAV_JSON__", nav_json).replace("__DASH_JSON__", dash_data_json)
 current_time = datetime.now().strftime("%d-%m-%Y_%H-%M-%S")
 filename = f"Database_Health_Report_{current_time}.html"
-output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)),filename)
+output_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), filename)
 
 with open(output_path, "w") as f:
     f.write(html_content)
