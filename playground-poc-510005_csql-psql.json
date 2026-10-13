@@ -1,0 +1,1140 @@
+{
+    "project_id": "playground-poc-510005",
+    "instance_name": "csql-psql",
+    "report_window": {
+        "from": "12 Oct 2026, 10:27 AM UTC",
+        "to": "13 Oct 2026, 10:27 AM UTC"
+    },
+    "provisioned_specs": {
+        "Engine": "POSTGRES 18",
+        "Edition": "ENTERPRISE",
+        "CPU": "1",
+        "Memory": "3.75 GB",
+        "Storage": "10 GB SSD",
+        "Availability": "Zonal",
+        "Replicas": 0,
+        "Last Backup": "11 Oct 2026, 09:00 PM UTC",
+        "Uptime": "46m"
+    },
+    "resource_utilization": {
+        "2026_10_12_10_00_00": {
+            "cpu_utilization_mean": 10.04,
+            "cpu_utilization_max": 10.99,
+            "cpu_utilization_p95": 10.74,
+            "cpu_utilization_p99": 10.99,
+            "memory_utilization_mean": 28.41,
+            "memory_utilization_max": 28.89,
+            "memory_utilization_p95": 28.83,
+            "memory_utilization_p99": 28.89,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.02,
+            "disk_read_ops_max": 0.42,
+            "disk_read_ops_p95": 0.12,
+            "disk_read_ops_p99": 0.42,
+            "disk_write_ops_mean": 3.33,
+            "disk_write_ops_max": 6.88,
+            "disk_write_ops_p95": 6.87,
+            "disk_write_ops_p99": 6.88,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.41,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_12_11_00_00": {
+            "cpu_utilization_mean": 9.97,
+            "cpu_utilization_max": 10.75,
+            "cpu_utilization_p95": 10.49,
+            "cpu_utilization_p99": 10.75,
+            "memory_utilization_mean": 28.26,
+            "memory_utilization_max": 28.57,
+            "memory_utilization_p95": 28.45,
+            "memory_utilization_p99": 28.57,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.0,
+            "disk_read_ops_max": 0.0,
+            "disk_read_ops_p95": 0.0,
+            "disk_read_ops_p99": 0.0,
+            "disk_write_ops_mean": 3.33,
+            "disk_write_ops_max": 6.95,
+            "disk_write_ops_p95": 6.9,
+            "disk_write_ops_p99": 6.95,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.42,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_12_12_00_00": {
+            "cpu_utilization_mean": 9.96,
+            "cpu_utilization_max": 10.52,
+            "cpu_utilization_p95": 10.44,
+            "cpu_utilization_p99": 10.52,
+            "memory_utilization_mean": 28.3,
+            "memory_utilization_max": 28.71,
+            "memory_utilization_p95": 28.54,
+            "memory_utilization_p99": 28.71,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.0,
+            "disk_read_ops_max": 0.0,
+            "disk_read_ops_p95": 0.0,
+            "disk_read_ops_p99": 0.0,
+            "disk_write_ops_mean": 3.33,
+            "disk_write_ops_max": 6.98,
+            "disk_write_ops_p95": 6.87,
+            "disk_write_ops_p99": 6.98,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.41,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_12_13_00_00": {
+            "cpu_utilization_mean": 10.28,
+            "cpu_utilization_max": 10.98,
+            "cpu_utilization_p95": 10.83,
+            "cpu_utilization_p99": 10.98,
+            "memory_utilization_mean": 28.31,
+            "memory_utilization_max": 28.62,
+            "memory_utilization_p95": 28.46,
+            "memory_utilization_p99": 28.62,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.0,
+            "disk_read_ops_max": 0.0,
+            "disk_read_ops_p95": 0.0,
+            "disk_read_ops_p99": 0.0,
+            "disk_write_ops_mean": 3.3,
+            "disk_write_ops_max": 7.0,
+            "disk_write_ops_p95": 6.82,
+            "disk_write_ops_p99": 7.0,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.41,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_12_14_00_00": {
+            "cpu_utilization_mean": 10.13,
+            "cpu_utilization_max": 10.82,
+            "cpu_utilization_p95": 10.67,
+            "cpu_utilization_p99": 10.82,
+            "memory_utilization_mean": 28.31,
+            "memory_utilization_max": 28.71,
+            "memory_utilization_p95": 28.48,
+            "memory_utilization_p99": 28.71,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.0,
+            "disk_read_ops_max": 0.02,
+            "disk_read_ops_p95": 0.0,
+            "disk_read_ops_p99": 0.02,
+            "disk_write_ops_mean": 3.29,
+            "disk_write_ops_max": 6.93,
+            "disk_write_ops_p95": 6.87,
+            "disk_write_ops_p99": 6.93,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.41,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_12_15_00_00": {
+            "cpu_utilization_mean": 10.03,
+            "cpu_utilization_max": 11.36,
+            "cpu_utilization_p95": 10.72,
+            "cpu_utilization_p99": 11.36,
+            "memory_utilization_mean": 28.34,
+            "memory_utilization_max": 28.8,
+            "memory_utilization_p95": 28.7,
+            "memory_utilization_p99": 28.8,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.0,
+            "disk_read_ops_max": 0.0,
+            "disk_read_ops_p95": 0.0,
+            "disk_read_ops_p99": 0.0,
+            "disk_write_ops_mean": 3.37,
+            "disk_write_ops_max": 7.08,
+            "disk_write_ops_p95": 7.0,
+            "disk_write_ops_p99": 7.08,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.42,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_12_16_00_00": {
+            "cpu_utilization_mean": 10.05,
+            "cpu_utilization_max": 11.48,
+            "cpu_utilization_p95": 10.64,
+            "cpu_utilization_p99": 11.48,
+            "memory_utilization_mean": 28.14,
+            "memory_utilization_max": 28.85,
+            "memory_utilization_p95": 28.48,
+            "memory_utilization_p99": 28.85,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.0,
+            "disk_read_ops_max": 0.03,
+            "disk_read_ops_p95": 0.02,
+            "disk_read_ops_p99": 0.03,
+            "disk_write_ops_mean": 3.49,
+            "disk_write_ops_max": 8.15,
+            "disk_write_ops_p95": 7.03,
+            "disk_write_ops_p99": 8.15,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.42,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_13_09_00_00": {
+            "cpu_utilization_mean": 10.16,
+            "cpu_utilization_max": 17.94,
+            "cpu_utilization_p95": 15.05,
+            "cpu_utilization_p99": 17.94,
+            "memory_utilization_mean": 27.3,
+            "memory_utilization_max": 28.23,
+            "memory_utilization_p95": 28.11,
+            "memory_utilization_p99": 28.23,
+            "disk_utilization_mean": 13.32,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 1.35,
+            "disk_read_ops_max": 19.62,
+            "disk_read_ops_p95": 7.94,
+            "disk_read_ops_p99": 19.62,
+            "disk_write_ops_mean": 3.77,
+            "disk_write_ops_max": 12.03,
+            "disk_write_ops_p95": 10.27,
+            "disk_write_ops_p99": 12.03,
+            "disk_bytes_used_mean": 1.3,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.42,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "2026_10_13_10_00_00": {
+            "cpu_utilization_mean": 10.23,
+            "cpu_utilization_max": 11.4,
+            "cpu_utilization_p95": 10.97,
+            "cpu_utilization_p99": 11.4,
+            "memory_utilization_mean": 27.09,
+            "memory_utilization_max": 27.85,
+            "memory_utilization_p95": 27.66,
+            "memory_utilization_p99": 27.85,
+            "disk_utilization_mean": 13.49,
+            "disk_utilization_max": 13.49,
+            "disk_utilization_p95": 13.49,
+            "disk_utilization_p99": 13.49,
+            "disk_read_ops_mean": 0.01,
+            "disk_read_ops_max": 0.18,
+            "disk_read_ops_p95": 0.1,
+            "disk_read_ops_p99": 0.18,
+            "disk_write_ops_mean": 3.35,
+            "disk_write_ops_max": 7.8,
+            "disk_write_ops_p95": 7.55,
+            "disk_write_ops_p99": 7.8,
+            "disk_bytes_used_mean": 1.31,
+            "disk_bytes_used_max": 1.31,
+            "disk_bytes_used_p95": 1.31,
+            "disk_bytes_used_p99": 1.31,
+            "connections_mean": 0.41,
+            "connections_max": 2.0,
+            "connections_p95": 2.0,
+            "connections_p99": 2.0
+        },
+        "cpu_utilization": {
+            "header-name": "CPU Utilization (%)",
+            "max_allocated_limit": 100
+        },
+        "memory_utilization": {
+            "header-name": "Memory Utilization (%)",
+            "max_allocated_limit": 100
+        },
+        "disk_utilization": {
+            "header-name": "Disk Utilization (%)",
+            "max_allocated_limit": 100
+        },
+        "disk_read_ops": {
+            "header-name": "Disk Read (IOPS)",
+            "max_allocated_limit": 6300
+        },
+        "disk_write_ops": {
+            "header-name": "Disk Write (IOPS)",
+            "max_allocated_limit": 6300
+        },
+        "disk_bytes_used": {
+            "header-name": "Disk Bytes Used (GB)",
+            "max_allocated_limit": 10
+        },
+        "connections": {
+            "header-name": "Connections (Count)",
+            "max_allocated_limit": 100
+        }
+    },
+    "health_checks": {
+        "indexes": {
+            "unused_indexes": [
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_unused_idx_",
+                    "Index Name": "idx__never_used",
+                    "Index Size": "16 kB",
+                    "Total Scans": 0
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_duplicate_idx_",
+                    "Index Name": "idx__status_dominant",
+                    "Index Size": "16 kB",
+                    "Total Scans": 0
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_unused_idx_",
+                    "Index Name": "idx__never_used",
+                    "Index Size": "40 kB",
+                    "Total Scans": 0
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_duplicate_idx_",
+                    "Index Name": "idx__status_dominant",
+                    "Index Size": "32 kB",
+                    "Total Scans": 0
+                }
+            ],
+            "duplicate_indexes": [
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_duplicate_idx_",
+                    "Index 1 Name": "idx__status_dominant",
+                    "Idx 1 Usage Count": 0,
+                    "Index 2 Name": "idx__status_redundant",
+                    "Idx 2 Usage Count": 1,
+                    "Idx 1 Usage %": "0.0%",
+                    "Index Type": "btree",
+                    "Indexed Columns": "status"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_duplicate_idx_",
+                    "Index 1 Name": "idx__status_dominant",
+                    "Idx 1 Usage Count": 0,
+                    "Index 2 Name": "idx__status_redundant",
+                    "Idx 2 Usage Count": 1,
+                    "Idx 1 Usage %": "0.0%",
+                    "Index Type": "btree",
+                    "Indexed Columns": "status"
+                }
+            ],
+            "queries_high_full_table_scans": [
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Table Name": "temp_metric_test",
+                    "Total Full Scans": 3,
+                    "Total Rows Read": 1500000,
+                    "Avg Rows Per Scan": "500000",
+                    "Table Size": "838 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_io_bound",
+                    "Total Full Scans": 3,
+                    "Total Rows Read": 200000,
+                    "Avg Rows Per Scan": "66667",
+                    "Table Size": "12 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_spill",
+                    "Total Full Scans": 4,
+                    "Total Rows Read": 100000,
+                    "Avg Rows Per Scan": "25000",
+                    "Table Size": "52 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_bloat",
+                    "Total Full Scans": 3,
+                    "Total Rows Read": 40000,
+                    "Avg Rows Per Scan": "13333",
+                    "Table Size": "10 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_seq_scan",
+                    "Total Full Scans": 2,
+                    "Total Rows Read": 20000,
+                    "Avg Rows Per Scan": "10000",
+                    "Table Size": "4144 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_large_toast",
+                    "Total Full Scans": 1,
+                    "Total Rows Read": 0,
+                    "Avg Rows Per Scan": "0",
+                    "Table Size": "2472 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_io_bound",
+                    "Total Full Scans": 5,
+                    "Total Rows Read": 600000,
+                    "Avg Rows Per Scan": "120000",
+                    "Table Size": "24 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_spill",
+                    "Total Full Scans": 7,
+                    "Total Rows Read": 300000,
+                    "Avg Rows Per Scan": "42857",
+                    "Table Size": "104 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_bloat",
+                    "Total Full Scans": 5,
+                    "Total Rows Read": 100000,
+                    "Avg Rows Per Scan": "20000",
+                    "Table Size": "21 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_seq_scan",
+                    "Total Full Scans": 3,
+                    "Total Rows Read": 60000,
+                    "Avg Rows Per Scan": "20000",
+                    "Table Size": "8248 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_large_toast",
+                    "Total Full Scans": 1,
+                    "Total Rows Read": 0,
+                    "Avg Rows Per Scan": "0",
+                    "Table Size": "4896 kB"
+                }
+            ]
+        },
+        "performance": {
+            "buffer_pool_hit_ratio": [
+                {
+                    "Database Name": "postgres",
+                    "Cache Hits": 20289913,
+                    "Disk Reads": 111484,
+                    "Hit Ratio (%)": "99.45"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Cache Hits": 12860564,
+                    "Disk Reads": 12656,
+                    "Hit Ratio (%)": "99.90"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Cache Hits": 43964694,
+                    "Disk Reads": 8544,
+                    "Hit Ratio (%)": "99.98"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Cache Hits": 11166773,
+                    "Disk Reads": 1432,
+                    "Hit Ratio (%)": "99.99"
+                }
+            ],
+            "dirty_pages": [
+                {
+                    "Database Name": null,
+                    "Buffer Hits (RAM Reads)": 4895029,
+                    "Disk Reads": 682,
+                    "Buffer Hit Ratio (%)": "99.986"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Buffer Hits (RAM Reads)": 43964694,
+                    "Disk Reads": 8544,
+                    "Buffer Hit Ratio (%)": "99.981"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Buffer Hits (RAM Reads)": 20289913,
+                    "Disk Reads": 111484,
+                    "Buffer Hit Ratio (%)": "99.454"
+                },
+                {
+                    "Database Name": "template1",
+                    "Buffer Hits (RAM Reads)": 463783,
+                    "Disk Reads": 1189,
+                    "Buffer Hit Ratio (%)": "99.744"
+                },
+                {
+                    "Database Name": "template0",
+                    "Buffer Hits (RAM Reads)": 468182,
+                    "Disk Reads": 1567,
+                    "Buffer Hit Ratio (%)": "99.666"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Buffer Hits (RAM Reads)": 11166773,
+                    "Disk Reads": 1432,
+                    "Buffer Hit Ratio (%)": "99.987"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Buffer Hits (RAM Reads)": 12860564,
+                    "Disk Reads": 12656,
+                    "Buffer Hit Ratio (%)": "99.902"
+                }
+            ],
+            "temp_table_usage": [
+                {
+                    "Database Name": "health_test_db_2",
+                    "Query Snippet": "SELECT category, count(*), string_agg(substring(payload, $1, $2), $3) FROM test_spill GROUP BY categ...",
+                    "Execution Count": 2,
+                    "Total Disk Temp Written (MB)": "624.55",
+                    "Total Disk Temp Read (MB)": "594.54",
+                    "Avg Temp Data Per Call (MB)": "609.54"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Query Snippet": "SELECT category, count(*), string_agg(substring(payload, $1, $2), $3) FROM test_spill GROUP BY categ...",
+                    "Execution Count": 1,
+                    "Total Disk Temp Written (MB)": "208.26",
+                    "Total Disk Temp Read (MB)": "198.27",
+                    "Avg Temp Data Per Call (MB)": "406.52"
+                }
+            ],
+            "top_queries_by_execution_time": [
+                {
+                    "Database Name": "health_test_db_2",
+                    "Query Snippet": "SELECT pg_sleep($1)",
+                    "Execution Count": 30,
+                    "Total Time (ms)": "900816.32",
+                    "Avg Time (ms)": "30027.21",
+                    "Max Time (ms)": "30031.85"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Query Snippet": "SELECT pg_sleep($1)",
+                    "Execution Count": 15,
+                    "Total Time (ms)": "450417.74",
+                    "Avg Time (ms)": "30027.85",
+                    "Max Time (ms)": "30030.96"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Query Snippet": "SELECT setting, current_timestamp FROM pg_catalog.pg_settings WHERE name = $1",
+                    "Execution Count": 130544,
+                    "Total Time (ms)": "346053.95",
+                    "Avg Time (ms)": "2.65",
+                    "Max Time (ms)": "45.30"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Query Snippet": "SELECT default_version, installed_version FROM pg_catalog.pg_available_extension",
+                    "Execution Count": 12285,
+                    "Total Time (ms)": "311215.64",
+                    "Avg Time (ms)": "25.33",
+                    "Max Time (ms)": "110.84"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Query Snippet": "SELECT pg_sleep($1)",
+                    "Execution Count": 3,
+                    "Total Time (ms)": "180120.93",
+                    "Avg Time (ms)": "60040.31",
+                    "Max Time (ms)": "60060.12"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Query Snippet": "SELECT default_version, installed_version FROM pg_catalog.pg_available_extension",
+                    "Execution Count": 13244,
+                    "Total Time (ms)": "179269.09",
+                    "Avg Time (ms)": "13.54",
+                    "Max Time (ms)": "366.87"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Query Snippet": "SELECT default_version, installed_version FROM pg_catalog.pg_available_extension",
+                    "Execution Count": 5913,
+                    "Total Time (ms)": "104204.09",
+                    "Avg Time (ms)": "17.62",
+                    "Max Time (ms)": "86.54"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Query Snippet": "SELECT default_version, installed_version FROM pg_catalog.pg_available_extension",
+                    "Execution Count": 5861,
+                    "Total Time (ms)": "98098.94",
+                    "Avg Time (ms)": "16.74",
+                    "Max Time (ms)": "76.05"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Query Snippet": "SELECT d.datname, pg_catalog.pg_database_size(d.datname), current_timestamp FROM",
+                    "Execution Count": 12285,
+                    "Total Time (ms)": "76951.15",
+                    "Avg Time (ms)": "6.26",
+                    "Max Time (ms)": "81.67"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Query Snippet": "UPDATE test_lock_contention SET status = $1 WHERE id = $2",
+                    "Execution Count": 8,
+                    "Total Time (ms)": "45752.46",
+                    "Avg Time (ms)": "5719.06",
+                    "Max Time (ms)": "13492.71"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Query Snippet": "SELECT\n\t(SELECT setting=$1 FROM pg_catalog.pg_settings WHERE name=$2) AND\n\t(SELE",
+                    "Execution Count": 12273,
+                    "Total Time (ms)": "43695.86",
+                    "Avg Time (ms)": "3.56",
+                    "Max Time (ms)": "36.72"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Query Snippet": "SELECT setting FROM pg_settings WHERE name = $1",
+                    "Execution Count": 18523,
+                    "Total Time (ms)": "25115.49",
+                    "Avg Time (ms)": "1.36",
+                    "Max Time (ms)": "14.76"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Query Snippet": "ALTER TABLE test_metadata_lock ADD COLUMN IF NOT EXISTS new_col INT",
+                    "Execution Count": 2,
+                    "Total Time (ms)": "25015.04",
+                    "Avg Time (ms)": "12507.52",
+                    "Max Time (ms)": "13011.33"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Query Snippet": "UPDATE test_lock_contention SET status = $1 WHERE id = $2",
+                    "Execution Count": 4,
+                    "Total Time (ms)": "23714.39",
+                    "Avg Time (ms)": "5928.60",
+                    "Max Time (ms)": "15376.89"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Query Snippet": "SELECT\n\t\t\tCOALESCE(sum(psat.n_tup_upd), $1) AS total_update_count,\n\t\t\tCOALESCE(s",
+                    "Execution Count": 12285,
+                    "Total Time (ms)": "21810.31",
+                    "Avg Time (ms)": "1.78",
+                    "Max Time (ms)": "16.06"
+                }
+            ]
+        },
+        "locks": {
+            "lock_waits": [
+                {
+                    "message": "0 records returned"
+                }
+            ],
+            "idle_in_transaction": [
+                {
+                    "message": "0 records returned"
+                }
+            ],
+            "deadlock_occurrences": [
+                {
+                    "Database Name": "health_test_db_2",
+                    "Total Deadlocks": 2,
+                    "Recovery Conflicts (Standby Nodes)": 0,
+                    "Cache Hits": 12860564
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Total Deadlocks": 1,
+                    "Recovery Conflicts (Standby Nodes)": 0,
+                    "Cache Hits": 11166773
+                }
+            ],
+            "metadata_locks": [
+                {
+                    "message": "0 records returned"
+                }
+            ]
+        },
+        "connections": {
+            "active_connections": [
+                {
+                    "message": "0 records returned"
+                }
+            ],
+            "aborted_connections": [
+                {
+                    "Database Name": "postgres",
+                    "Total Sessions Initiated": 24637,
+                    "Abandoned Sessions (Lost Connection)": 1,
+                    "Fatal Sessions (Errors/Terminated)": 0,
+                    "Failure Rate (%)": "0.00"
+                }
+            ],
+            "max_connection_utilization": [
+                {
+                    "Max Allowed Connections": 100,
+                    "Currently Connected": 13,
+                    "Reserved for Superusers": 3,
+                    "Current Utilization (%)": "13.00"
+                }
+            ],
+            "idle_connection_bloat": [
+                {
+                    "message": "0 records returned"
+                }
+            ]
+        },
+        "storage": {
+            "fragmentation": [
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Table Name": "msg_1",
+                    "Dead Tuples": 2,
+                    "Live Rows": 0,
+                    "Bloat Ratio (%)": "100.00",
+                    "Total Allocated Space": "32 kB",
+                    "Estimated Reclaimable Space": "8192 bytes"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Table Name": "conv_1",
+                    "Dead Tuples": 2,
+                    "Live Rows": 0,
+                    "Bloat Ratio (%)": "100.00",
+                    "Total Allocated Space": "24 kB",
+                    "Estimated Reclaimable Space": "8192 bytes"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_lock_contention",
+                    "Dead Tuples": 4,
+                    "Live Rows": 1,
+                    "Bloat Ratio (%)": "80.00",
+                    "Total Allocated Space": "24 kB",
+                    "Estimated Reclaimable Space": "6554 bytes"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_deadlock",
+                    "Dead Tuples": 3,
+                    "Live Rows": 2,
+                    "Bloat Ratio (%)": "60.00",
+                    "Total Allocated Space": "24 kB",
+                    "Estimated Reclaimable Space": "4915 bytes"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_bloat",
+                    "Dead Tuples": 30000,
+                    "Live Rows": 20000,
+                    "Bloat Ratio (%)": "60.00",
+                    "Total Allocated Space": "11 MB",
+                    "Estimated Reclaimable Space": "6379 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_lock_contention",
+                    "Dead Tuples": 8,
+                    "Live Rows": 1,
+                    "Bloat Ratio (%)": "88.89",
+                    "Total Allocated Space": "24 kB",
+                    "Estimated Reclaimable Space": "7282 bytes"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_bloat",
+                    "Dead Tuples": 70000,
+                    "Live Rows": 10000,
+                    "Bloat Ratio (%)": "87.50",
+                    "Total Allocated Space": "23 MB",
+                    "Estimated Reclaimable Space": "18 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_deadlock",
+                    "Dead Tuples": 6,
+                    "Live Rows": 2,
+                    "Bloat Ratio (%)": "75.00",
+                    "Total Allocated Space": "24 kB",
+                    "Estimated Reclaimable Space": "6144 bytes"
+                }
+            ],
+            "largest_tables": [
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Table Name": "temp_metric_test",
+                    "Data Size": "838 MB",
+                    "Index Size": "0 bytes",
+                    "Total Size": "838 MB"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Table Name": "msg_1",
+                    "Data Size": "8192 bytes",
+                    "Index Size": "16 kB",
+                    "Total Size": "32 kB"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Table Name": "conv_1",
+                    "Data Size": "8192 bytes",
+                    "Index Size": "16 kB",
+                    "Total Size": "24 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_spill",
+                    "Data Size": "52 MB",
+                    "Index Size": "2208 kB",
+                    "Total Size": "54 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_io_bound",
+                    "Data Size": "12 MB",
+                    "Index Size": "4408 kB",
+                    "Total Size": "16 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_bloat",
+                    "Data Size": "10 MB",
+                    "Index Size": "896 kB",
+                    "Total Size": "11 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_seq_scan",
+                    "Data Size": "4104 kB",
+                    "Index Size": "456 kB",
+                    "Total Size": "4600 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_large_toast",
+                    "Data Size": "2432 kB",
+                    "Index Size": "240 kB",
+                    "Total Size": "2712 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_duplicate_idx_",
+                    "Data Size": "48 kB",
+                    "Index Size": "72 kB",
+                    "Total Size": "144 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_unused_idx_",
+                    "Data Size": "48 kB",
+                    "Index Size": "56 kB",
+                    "Total Size": "128 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_lock_contention",
+                    "Data Size": "8192 bytes",
+                    "Index Size": "16 kB",
+                    "Total Size": "24 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_deadlock",
+                    "Data Size": "8192 bytes",
+                    "Index Size": "16 kB",
+                    "Total Size": "24 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Table Name": "test_metadata_lock",
+                    "Data Size": "0 bytes",
+                    "Index Size": "8192 bytes",
+                    "Total Size": "16 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_spill",
+                    "Data Size": "104 MB",
+                    "Index Size": "4408 kB",
+                    "Total Size": "109 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_io_bound",
+                    "Data Size": "24 MB",
+                    "Index Size": "8792 kB",
+                    "Total Size": "33 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_bloat",
+                    "Data Size": "21 MB",
+                    "Index Size": "1776 kB",
+                    "Total Size": "23 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_seq_scan",
+                    "Data Size": "8208 kB",
+                    "Index Size": "896 kB",
+                    "Total Size": "9144 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_large_toast",
+                    "Data Size": "4856 kB",
+                    "Index Size": "456 kB",
+                    "Total Size": "5352 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_duplicate_idx_",
+                    "Data Size": "88 kB",
+                    "Index Size": "128 kB",
+                    "Total Size": "248 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_unused_idx_",
+                    "Data Size": "88 kB",
+                    "Index Size": "104 kB",
+                    "Total Size": "224 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_lock_contention",
+                    "Data Size": "8192 bytes",
+                    "Index Size": "16 kB",
+                    "Total Size": "24 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_deadlock",
+                    "Data Size": "8192 bytes",
+                    "Index Size": "16 kB",
+                    "Total Size": "24 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Table Name": "test_metadata_lock",
+                    "Data Size": "0 bytes",
+                    "Index Size": "8192 bytes",
+                    "Total Size": "16 kB"
+                }
+            ],
+            "toast_bloat": [
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Main Table Name": "temp_metric_test",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "838 MB"
+                },
+                {
+                    "Database Name": "postgres",
+                    "Schema Name": "public",
+                    "Main Table Name": "msg_1",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "32 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_seq_scan",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "4600 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_io_bound",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "16 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_spill",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "54 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_metadata_lock",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "16 kB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_bloat",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "11 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_large_toast",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "2712 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_seq_scan",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "9144 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_io_bound",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "33 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_spill",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "109 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_metadata_lock",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "16 kB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_bloat",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "23 MB"
+                },
+                {
+                    "Database Name": "health_test_db_2",
+                    "Schema Name": "public",
+                    "Main Table Name": "test_large_toast",
+                    "TOAST Storage Size": "0 bytes",
+                    "Total Table Size Including TOAST": "5352 kB"
+                }
+            ],
+            "database_size_distribution": [
+                {
+                    "Database Name": "health_test_db_2",
+                    "Database Size": "186 MB"
+                },
+                {
+                    "Database Name": "health_test_db_1",
+                    "Database Size": "97 MB"
+                },
+                {
+                    "Database Name": "cloudsqladmin",
+                    "Database Size": "8014 kB"
+                }
+            ]
+        }
+    }
+}
