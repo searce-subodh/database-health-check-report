@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import json
 import os
 import sys
@@ -79,24 +79,42 @@ for unique_key, data in report_data.items():
 # HELPERS
 # ─────────────────────────────────────────────
 
-def calculate_y_axis_config(local_max, is_percent, allocated_limit):
-    """Calculates step size and boundary for Chart.js"""
-    if is_percent:
-        return {"min": 0, "max": 100, "step": 20}
+def calculate_y_axis_config(local_min, local_max, is_percent, allocated_limit):
+    """Calculates step size and boundary for Chart.js dynamically."""
     
-    limit = local_max if local_max and local_max > 0 else 100
+    # Handle edge case where there is no data
+    if local_min == float('inf') or local_max == 0.0:
+        return {"min": 0, "max": 100 if is_percent else 10, "step": 20 if is_percent else 2}
+    
+    limit = local_max
     if allocated_limit and allocated_limit != "N/A" and isinstance(allocated_limit, (int, float)):
         limit = max(limit, float(allocated_limit))
+        
+    data_range = limit - local_min
+    if data_range <= 0:
+        return {"min": max(0, local_min - 5), "max": limit + 5, "step": 5}
+
+    # Determine a clean step size
+    if data_range <= 10: y_step = 2
+    elif data_range <= 25: y_step = 5
+    elif data_range <= 50: y_step = 10
+    elif data_range <= 100: y_step = 20
+    else:
+        magnitude = 10 ** math.floor(math.log10(max(1, data_range)))
+        normalized = data_range / magnitude
+        if normalized <= 2: y_step = 0.5 * magnitude
+        elif normalized <= 5: y_step = 1 * magnitude
+        else: y_step = 2 * magnitude
+
+    # Calculate min and max bounds with padding
+    y_min = max(0, math.floor(local_min / y_step) * y_step - y_step)
+    y_max = math.ceil(limit / y_step) * y_step + y_step
     
-    target = limit * 1.2
-    magnitude = 10 ** math.floor(math.log10(max(1, target)))
-    normalized = target / magnitude
-    
-    if normalized <= 2: y_step = 0.5 * magnitude
-    elif normalized <= 5: y_step = 1 * magnitude
-    else: y_step = 2 * magnitude
-    
-    return {"min": 0, "max": math.ceil(target / y_step) * y_step, "step": y_step}
+    # Cap percentage metrics at 100
+    if is_percent: 
+        y_max = min(100, y_max)
+        
+    return {"min": y_min, "max": y_max, "step": y_step}
 
 def row_class(row):
     if not isinstance(row, dict):
@@ -401,9 +419,21 @@ for unique_key, data in report_data.items():
 
     # ── Resource Usage Dashboard ──
     if utilization:
-        # Extract time keys
+        # 3. Time Range Padding & Missing Data
         raw_time_keys = sorted([k for k in utilization.keys() if k.startswith("20")])
-        js_labels = [datetime.strptime(ts, '%Y_%m_%d_%H_%M_%S').isoformat() + "Z" for ts in raw_time_keys]
+        if raw_time_keys:
+            start_dt = datetime.strptime(raw_time_keys[0], '%Y_%m_%d_%H_%M_%S')
+            end_dt = datetime.strptime(raw_time_keys[-1], '%Y_%m_%d_%H_%M_%S')
+            
+            continuous_keys = []
+            curr = start_dt
+            while curr <= end_dt:
+                continuous_keys.append(curr.strftime('%Y_%m_%d_%H_%M_%S'))
+                curr += timedelta(hours=1)
+        else:
+            continuous_keys = []
+            
+        js_labels = [datetime.strptime(ts, '%Y_%m_%d_%H_%M_%S').isoformat() + "Z" for ts in continuous_keys]
         
         global_chart_configs[safe_instance] = {"labels": js_labels, "charts": []}
         metric_configs = {k: v for k, v in utilization.items() if not k.startswith("20") and isinstance(v, dict)}
@@ -429,11 +459,11 @@ for unique_key, data in report_data.items():
                 
                 mean_data, p95_data, p99_data, max_data = [], [], [], []
                 local_max = 0.0
+                local_min = float('inf')
                 
-                for t_key in raw_time_keys:
-                    hour_data = utilization[t_key]
+                for t_key in continuous_keys:
+                    hour_data = utilization.get(t_key, {})
                     
-                    # DO NOT FORCE 'or 0', ALLOW NONE to plot blanks
                     v_mean = hour_data.get(f"{m_key}_mean")
                     v_p95  = hour_data.get(f"{m_key}_p95")
                     v_p99  = hour_data.get(f"{m_key}_p99")
@@ -444,7 +474,9 @@ for unique_key, data in report_data.items():
                     p99_data.append(v_p99)
                     max_data.append(v_max)
                     
+                    # Track limits for dynamic Y-Axis
                     if v_max is not None and v_max > local_max: local_max = v_max
+                    if v_mean is not None and v_mean < local_min: local_min = v_mean
 
                 valid_mean = [x for x in mean_data if x is not None]
                 valid_p95 = [x for x in p95_data if x is not None]
@@ -473,7 +505,8 @@ for unique_key, data in report_data.items():
                 </div>
                 '''
 
-                y_config = calculate_y_axis_config(local_max, is_pct, limit_info.get("max_allocated_limit"))
+                # Dynamic Y-Axis Limits Application
+                y_config = calculate_y_axis_config(local_min, local_max, is_pct, limit_info.get("max_allocated_limit"))
                 y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
 
                 global_chart_configs[safe_instance]["charts"].append({
@@ -491,12 +524,15 @@ for unique_key, data in report_data.items():
                 limit_info = metric_configs[m_key]
                 display_name = limit_info.get("header-name", format_clean_title(m_key))
                 chart_id = f"chart_{safe_instance}_{m_key}"
+                is_pct = "utilization" in m_key
+                unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
                 
                 mean_data, p95_data, p99_data, max_data = [], [], [], []
                 local_max = 0.0
+                local_min = float('inf')
                 
-                for t_key in raw_time_keys:
-                    hour_data = utilization[t_key]
+                for t_key in continuous_keys:
+                    hour_data = utilization.get(t_key, {})
                     
                     v_mean = hour_data.get(f"{m_key}_mean")
                     v_p95  = hour_data.get(f"{m_key}_p95")
@@ -509,6 +545,7 @@ for unique_key, data in report_data.items():
                     max_data.append(v_max)
                     
                     if v_max is not None and v_max > local_max: local_max = v_max
+                    if v_mean is not None and v_mean < local_min: local_min = v_mean
 
                 valid_mean = [x for x in mean_data if x is not None]
                 valid_p95 = [x for x in p95_data if x is not None]
@@ -548,6 +585,15 @@ for unique_key, data in report_data.items():
                 </div>
                 '''
 
+                # Populate Chart Config inside the loop to avoid dataset overwriting
+                y_config = calculate_y_axis_config(local_min, local_max, is_pct, limit_info.get("max_allocated_limit"))
+                y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
+
+                global_chart_configs[safe_instance]["charts"].append({
+                    "id": chart_id, "unit": unit, "yConfig": y_config,
+                    "data": {"mean": mean_data, "p95": p95_data, "p99": p99_data, "max": max_data}
+                })
+
             html_content += '</div>'
             
             # Shared container holding all hidden chart canvases
@@ -556,17 +602,6 @@ for unique_key, data in report_data.items():
                 limit_info = metric_configs[m_key]
                 display_name = limit_info.get("header-name", format_clean_title(m_key))
                 chart_id = f"chart_{safe_instance}_{m_key}"
-                is_pct = "utilization" in m_key
-                unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
-                
-                local_max = max([x for x in max_data if x is not None]) if any(x is not None for x in max_data) else 0
-                y_config = calculate_y_axis_config(local_max, is_pct, limit_info.get("max_allocated_limit"))
-                y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
-
-                global_chart_configs[safe_instance]["charts"].append({
-                    "id": chart_id, "unit": unit, "yConfig": y_config,
-                    "data": {"mean": mean_data, "p95": p95_data, "p99": p99_data, "max": max_data}
-                })
 
                 html_content += f'''
                 <div id="wrapper-{chart_id}" class="chart-wrapper-{safe_instance}" style="display: none;">
@@ -743,11 +778,23 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
         },
         options: {
             responsive: true, maintainAspectRatio: false,
+            
+            // Tooltip Sorting and Hover Interaction
+            onHover: function(e, elements, chart) {
+                if (elements && elements.length > 0) {
+                    chart.hoveredDatasetIndex = elements[0].datasetIndex;
+                }
+            },
             interaction: { mode: 'index', intersect: false },
+            hover: { mode: 'nearest', intersect: false },
+            
             plugins: {
                 tooltip: {
                     itemSort: function(a, b) {
-                        return b.parsed.y - a.parsed.y; // Dynamically sort to prioritize the highest hovered value
+                        const hoveredIndex = a.chart.hoveredDatasetIndex;
+                        if (a.datasetIndex === hoveredIndex) return -1;
+                        if (b.datasetIndex === hoveredIndex) return 1;
+                        return b.raw - a.raw; 
                     },
                     callbacks: {
                         title: (ctx) => {
@@ -769,7 +816,8 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
             scales: {
                 y: { min: yConfig.min, max: yConfig.max, title: { display: true, text: yConfig.title }, ticks: { stepSize: yConfig.step } },
                 x: {
-                    grid: { display: false }, // Removes vertical gridlines parallel to the Y-axis
+                    offset: true, // X-Axis Edge Spacing
+                    grid: { display: false }, 
                     ticks: {
                         callback: function(val, i) {
                             let d = new Date(this.getLabelForValue(val));
