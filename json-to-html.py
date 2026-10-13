@@ -80,23 +80,37 @@ for unique_key, data in report_data.items():
 # ─────────────────────────────────────────────
 
 def calculate_y_axis_config(local_max, is_percent, allocated_limit):
-    """Calculates step size and boundary for Chart.js"""
-    if is_percent:
-        return {"min": 0, "max": 100, "step": 20}
+    """Calculates step size and boundary for Chart.js based on custom logic"""
+    overall_max = float(local_max) if local_max is not None else 0.0
     
-    limit = local_max if local_max and local_max > 0 else 100
     if allocated_limit and allocated_limit != "N/A" and isinstance(allocated_limit, (int, float)):
-        limit = max(limit, float(allocated_limit))
+        overall_max = max(overall_max, float(allocated_limit))
     
-    target = limit * 1.2
-    magnitude = 10 ** math.floor(math.log10(max(1, target)))
-    normalized = target / magnitude
+    if overall_max == 0:
+        overall_max = 1.0
+
+    data_range = overall_max
+
+    # 2. Automatic Y-Axis Maximum (max_y) Generation logic
+    if data_range <= 10:
+        y_step = 2.0
+    elif data_range <= 25:
+        y_step = 5.0
+    else:
+        # For large numbers, use logarithmic math
+        y_step = 10 ** math.floor(math.log10(data_range))
     
-    if normalized <= 2: y_step = 0.5 * magnitude
-    elif normalized <= 5: y_step = 1 * magnitude
-    else: y_step = 2 * magnitude
+    # Ceiling calculation
+    y_max = math.ceil(overall_max / y_step) * y_step
     
-    return {"min": 0, "max": math.ceil(target / y_step) * y_step, "step": y_step}
+    # Visual padding
+    y_max += y_step
+    
+    # Percentage Cap
+    if is_percent:
+        y_max = min(100.0, y_max)
+        
+    return {"min": 0, "max": int(y_max) if y_max.is_integer() else float(y_max), "step": int(y_step) if y_step.is_integer() else float(y_step)}
 
 def row_class(row):
     if not isinstance(row, dict):
@@ -198,13 +212,10 @@ css_template = """<!DOCTYPE html>
             --text-primary: #172b4d;      
             --text-secondary: #5e6c84;    
             --track-bg: #ebecf0;          
-            --c-mean: #3b82f6;     
-            --c-p95: #10b981;      
-            --c-p99: #f97316;      
-            --c-max: #8b5cf6;      
-            --color-green: #1e8e3e;
-            --color-yellow: #f9ab00;
-            --color-red: #d93025;
+            --c-mean: #0d6efd;     
+            --c-p95: #fd7e14;      
+            --c-p99: #6c757d;      
+            --c-max: #dc3545;      
         }
         * { box-sizing: border-box; margin: 0; padding: 0; }
         body { 
@@ -260,9 +271,7 @@ css_template = """<!DOCTYPE html>
         .section-card { background: var(--bg-card); border-radius: 0 0 8px 8px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(9, 30, 66, 0.05); }
         .section-title { font-size: 1.15em; color: #0f172a; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border-color); }
 
-        details.metric-details {
-            margin-bottom: 24px;
-        }
+        details.metric-details { margin-bottom: 24px; }
         details.metric-details > summary {
             font-size: 1.05em; font-weight: 600; color: var(--text-primary); 
             font-family: 'Montserrat', sans-serif;
@@ -308,9 +317,9 @@ css_template = """<!DOCTYPE html>
         .bullet-badges { display: flex; gap: 8px; flex-wrap: wrap; }
         .badge-pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.08); }
         .badge-pill.mean { color: var(--c-mean); border-color: var(--c-mean); background: #eff6ff; }
-        .badge-pill.p95  { color: var(--c-p95);  border-color: var(--c-p95); background: #ecfdf5; }
-        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #fff7ed; }
-        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #faf5ff; }
+        .badge-pill.p95  { color: var(--c-p95);  border-color: var(--c-p95); background: #fff3cd; }
+        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #e2e3e5; }
+        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #f8d7da; }
 
         .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
         .kpi-tile { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
@@ -432,8 +441,6 @@ for unique_key, data in report_data.items():
                 
                 for t_key in raw_time_keys:
                     hour_data = utilization[t_key]
-                    
-                    # DO NOT FORCE 'or 0', ALLOW NONE to plot blanks
                     v_mean = hour_data.get(f"{m_key}_mean")
                     v_p95  = hour_data.get(f"{m_key}_p95")
                     v_p99  = hour_data.get(f"{m_key}_p99")
@@ -497,7 +504,6 @@ for unique_key, data in report_data.items():
                 
                 for t_key in raw_time_keys:
                     hour_data = utilization[t_key]
-                    
                     v_mean = hour_data.get(f"{m_key}_mean")
                     v_p95  = hour_data.get(f"{m_key}_p95")
                     v_p99  = hour_data.get(f"{m_key}_p99")
@@ -744,22 +750,35 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
         options: {
             responsive: true, maintainAspectRatio: false,
             interaction: { mode: 'index', intersect: false },
+            hover: { mode: 'nearest', intersect: false },
+            onHover: (event, elements, chart) => {
+                if (elements && elements.length > 0) {
+                    chart.hoveredDatasetIndex = elements[0].datasetIndex;
+                } else {
+                    chart.hoveredDatasetIndex = null;
+                }
+            },
             plugins: {
                 tooltip: {
-                    itemSort: function(a, b) {
-                        return b.parsed.y - a.parsed.y; // Dynamically sort to prioritize the highest hovered value
+                    itemSort: function(a, b, data) {
+                        const hoveredIndex = data.chart.hoveredDatasetIndex;
+                        if (hoveredIndex !== undefined && hoveredIndex !== null) {
+                            if (a.datasetIndex === hoveredIndex) return -1;
+                            if (b.datasetIndex === hoveredIndex) return 1;
+                        }
+                        return b.raw - a.raw; // Sort remaining descending
                     },
                     callbacks: {
                         title: (ctx) => {
                             let d = new Date(ctx[0].label);
-                            let day = d.getDate();
+                            let day = String(d.getDate()).padStart(2, '0');
                             let month = d.toLocaleString('en-US', { month: 'short' });
                             let year = d.getFullYear();
                             let time = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
                             return `${day}, ${month}, ${year}, ${time}`;
                         },
                         label: (ctx) => {
-                            let val = ctx.parsed.y;
+                            let val = ctx.raw;
                             return ctx.dataset.label + ': ' + (val !== null ? val + unit : 'No Data');
                         }
                     }
@@ -769,16 +788,15 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
             scales: {
                 y: { min: yConfig.min, max: yConfig.max, title: { display: true, text: yConfig.title }, ticks: { stepSize: yConfig.step } },
                 x: {
-                    grid: { display: false }, // Removes vertical gridlines parallel to the Y-axis
+                    grid: { display: false }, // Disables the vertical grid lines parallel to Y-axis
                     ticks: {
                         callback: function(val, i) {
+                            if (i % 2 !== 0) return null; // Thin out every alternate tick label
                             let d = new Date(this.getLabelForValue(val));
-                            if (i % 2 !== 0) return null; // Thin out ticks
-                            
-                            // Return Month Day for midnight, otherwise Hour:Minute AM/PM
-                            return d.getHours() === 0 
-                                ? d.toLocaleString('en-US', { month: 'short', day: 'numeric' }) 
-                                : d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
+                            if (d.getHours() === 0 && d.getMinutes() === 0) {
+                                return d.toLocaleString('en-US', { month: 'short', day: 'numeric' });
+                            }
+                            return d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
                         }
                     }
                 }
