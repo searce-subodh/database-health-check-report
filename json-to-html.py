@@ -79,20 +79,17 @@ for unique_key, data in report_data.items():
 # HELPERS
 # ─────────────────────────────────────────────
 
-def calculate_y_axis_config(local_min, local_max, is_percent, allocated_limit):
-    """Calculates step size and boundary for Chart.js dynamically."""
+
+def calculate_y_axis_config(local_min, local_max, is_percent):
+    """Calculates step size and boundary for Chart.js dynamically based ONLY on data."""
     
     # Handle edge case where there is no data
     if local_min == float('inf') or local_max == 0.0:
         return {"min": 0, "max": 100 if is_percent else 10, "step": 20 if is_percent else 2}
-    
-    limit = local_max
-    if allocated_limit and allocated_limit != "N/A" and isinstance(allocated_limit, (int, float)):
-        limit = max(limit, float(allocated_limit))
         
-    data_range = limit - local_min
+    data_range = local_max - local_min
     if data_range <= 0:
-        return {"min": max(0, local_min - 5), "max": limit + 5, "step": 5}
+        return {"min": max(0, local_min - 5), "max": local_max + 5, "step": 5}
 
     # Determine a clean step size
     if data_range <= 10: y_step = 2
@@ -106,11 +103,11 @@ def calculate_y_axis_config(local_min, local_max, is_percent, allocated_limit):
         elif normalized <= 5: y_step = 1 * magnitude
         else: y_step = 2 * magnitude
 
-    # Calculate min and max bounds with padding
+    # Calculate min and max bounds based strictly on the data points + padding
     y_min = max(0, math.floor(local_min / y_step) * y_step - y_step)
-    y_max = math.ceil(limit / y_step) * y_step + y_step
+    y_max = math.ceil(local_max / y_step) * y_step + y_step
     
-    # Cap percentage metrics at 100
+    # Cap percentage metrics at 100 so it doesn't draw a 105% line
     if is_percent: 
         y_max = min(100, y_max)
         
@@ -506,7 +503,7 @@ for unique_key, data in report_data.items():
                 '''
 
                 # Dynamic Y-Axis Limits Application
-                y_config = calculate_y_axis_config(local_min, local_max, is_pct, limit_info.get("max_allocated_limit"))
+                y_config = calculate_y_axis_config(local_min, local_max, is_pct)
                 y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
 
                 global_chart_configs[safe_instance]["charts"].append({
@@ -586,7 +583,7 @@ for unique_key, data in report_data.items():
                 '''
 
                 # Populate Chart Config inside the loop to avoid dataset overwriting
-                y_config = calculate_y_axis_config(local_min, local_max, is_pct, limit_info.get("max_allocated_limit"))
+                y_config = calculate_y_axis_config(local_min, local_max, is_pct)
                 y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
 
                 global_chart_configs[safe_instance]["charts"].append({
