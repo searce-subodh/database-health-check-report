@@ -256,8 +256,24 @@ css_template = """<!DOCTYPE html>
         .section-card { background: var(--bg-card); border-radius: 0 0 8px 8px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(9, 30, 66, 0.05); }
         .section-title { font-size: 1.15em; color: #0f172a; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border-color); }
 
-        .category-title { font-size: 1em; color: #2563eb; margin-top: 16px; padding: 8px 0; border-bottom: 1px solid #e2e8f0; cursor: pointer; display: flex; justify-content: space-between; }
-        .category-title:hover { color: #1d4ed8; }
+        /* Structure matching styles */
+        details.metric-details {
+            margin-bottom: 24px;
+        }
+        details.metric-details > summary {
+            font-size: 1.05em; font-weight: 600; color: var(--text-primary); 
+            font-family: 'Montserrat', sans-serif;
+            padding-bottom: 8px; margin-bottom: 16px; 
+            border-bottom: 1px solid var(--border-color);
+            cursor: pointer; list-style: none; display: flex; align-items: center;
+        }
+        details.metric-details > summary::-webkit-details-marker { display: none; }
+        details.metric-details > summary::before {
+            content: '▶'; display: inline-block; margin-right: 8px; font-size: 0.9em;
+            color: #2563eb; transition: transform 0.2s;
+        }
+        details.metric-details[open] > summary::before { transform: rotate(90deg); }
+
         .metric-title { font-size: 0.9em; font-weight: 600; color: #334155; margin: 14px 0 6px; }
 
         table { width: 100%; border-collapse: collapse; margin-bottom: 8px; font-size: 0.85em; }
@@ -280,16 +296,8 @@ css_template = """<!DOCTYPE html>
         /* =========================================
            DASHBOARD UI STYLES (CHART.JS)
            ========================================= */
-        .dashboard-wrapper { background-color: var(--bg-card); width: 100%; margin: 16px 0 24px 0; display: flex; flex-direction: column; gap: 24px; }
-        .dashboard-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-color); padding-bottom: 16px; }
-        .dash-title-group { display: flex; align-items: center; gap: 8px; cursor: pointer; }
-        .dash-title-group:hover h2, .dash-title-group:hover .dash-arrow { color: #1d4ed8; }
-        .dash-arrow { font-size: 1.1em; color: #2563eb; transition: transform 0.2s; }
-        .dashboard-header h2 { font-size: 1.15em; font-weight: 700; margin: 0; color: #0f172a; text-transform: uppercase; font-family: 'Montserrat', sans-serif; }
-        
-        .dashboard-group { margin-top: 16px; }
-        .dashboard-section-title { font-size: 13px; font-weight: 700; color: var(--text-primary); text-transform: uppercase; margin-bottom: 16px; padding-bottom: 8px; }
-        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px; margin-bottom: 32px; }
+        .dashboard-wrapper { background-color: var(--bg-card); width: 100%; margin-bottom: 24px; margin-top: 16px; display: flex; flex-direction: column; gap: 24px; }
+        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px; margin-bottom: 16px; }
         .chart-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
         .chart-title { font-size: 0.95em; text-align: center; margin-bottom: 12px; color: #334155; font-family: 'Montserrat', sans-serif; font-weight: 700; }
         .canvas-wrapper { position: relative; height: 260px; width: 100%; }
@@ -353,7 +361,7 @@ for unique_key, data in report_data.items():
 
     # ── Provisioned Specs ──
     if specs and "Error" not in specs:
-        html_content += '<div class="section-title" style="margin-bottom:16px;">Provisioned Specifications</div>'
+        html_content += '<div class="section-title">Provisioned Specifications</div>'
         html_content += '<div class="specs-grid">'
         for key, val in specs.items():
             html_content += f'''
@@ -365,15 +373,13 @@ for unique_key, data in report_data.items():
     elif "Error" in specs:
         html_content += f'<div class="error-box"><strong>Configuration Error:</strong><br>{specs["Error"]}</div>'
 
-    # ── Resource Utilization Dashboard ──
+    # ── Resource Usage Dashboard ──
     if utilization:
-        # Extract time keys (keys starting with "20" like "2026_10_11_10_00_00")
+        # Extract time keys
         raw_time_keys = sorted([k for k in utilization.keys() if k.startswith("20")])
         js_labels = [datetime.strptime(ts, '%Y_%m_%d_%H_%M_%S').isoformat() + "Z" for ts in raw_time_keys]
         
         global_chart_configs[safe_instance] = {"labels": js_labels, "charts": []}
-        
-        # Isolate metric config keys
         metric_configs = {k: v for k, v in utilization.items() if not k.startswith("20") and isinstance(v, dict)}
         
         capacity_metrics = [k for k in metric_configs.keys() if "utilization" in k]
@@ -381,18 +387,14 @@ for unique_key, data in report_data.items():
 
         html_content += f'''
         <div class="dashboard-wrapper" id="dash-{safe_instance}">
-            <div class="dashboard-header">
-                <div class="dash-title-group" onclick="toggleDashboard(this)">
-                    <span class="dash-arrow">&#9660;</span>
-                    <h2>Resource Utilization</h2>
-                </div>
-            </div>
+            <div class="section-title">Resource Usage Summary</div>
             <div class="dashboard-content" id="dash-content-{safe_instance}">
         '''
 
         def render_chart_group(group_name, metric_keys):
             if not metric_keys: return ""
-            html_out = f'<div class="dashboard-group"><div class="dashboard-section-title">{group_name}</div><div class="charts-grid">'
+            # Adhere strictly to the target struct with <details> and <summary>
+            html_out = f'<details class="metric-details" open><summary>{group_name}</summary><div class="charts-grid">'
             
             for m_key in metric_keys:
                 limit_info = metric_configs[m_key]
@@ -428,22 +430,20 @@ for unique_key, data in report_data.items():
                     "data": {"mean": mean_data, "p95": p95_data, "p99": p99_data, "max": max_data}
                 })
 
-            html_out += '</div></div>'
+            html_out += '</div></details>'
             return html_out
 
         html_content += render_chart_group("Capacity Allocation", capacity_metrics)
-        html_content += render_chart_group("IO & Traffic statistics", traffic_metrics)
+        html_content += render_chart_group("IO & Traffic Statistics", traffic_metrics)
         html_content += '</div></div>'
 
-    html_content += '</div>'  # close section-card
-
-    # ── Health Checks ──
+    # ── Operational Health ──
+    html_content += '<div class="section-title">Operational Health</div>'
     if "connection_error" in health_checks:
         html_content += f'<div class="error-box"><strong>Connection Error:</strong><br>{health_checks["connection_error"]}</div>'
     elif "error" in health_checks:
         html_content += f'<div class="error-box"><strong>Error:</strong><br>{health_checks["error"]}</div>'
     elif isinstance(health_checks, dict):
-
         for category, queries in health_checks.items():
             if not isinstance(queries, dict):
                 continue
@@ -463,11 +463,11 @@ for unique_key, data in report_data.items():
             if not valid_queries:
                 continue
 
+            # Strict Details/Summary mapping for target structure
             html_content += f'''
-            <div class="category-title" onclick="toggleCategory(this)">
-                <span>{clean_category}</span><span>&#9654;</span>
-            </div>
-            <div class="category-content hidden">'''
+            <details class="metric-details">
+                <summary>{clean_category}</summary>
+                <div class="category-content">'''
 
             for metric_name, rows in valid_queries.items():
                 table_counter[0] += 1
@@ -477,8 +477,9 @@ for unique_key, data in report_data.items():
 
                 html_content += build_paginated_table(rows, tid, metric_name=metric_name)
 
-            html_content += '</div>'
+            html_content += '</div></details>'
 
+    html_content += '</div>'
     html_content += '</div>'
 
 # ─────────────────────────────────────────────
@@ -540,19 +541,6 @@ function applyFilters() {
     });
 }
 updateServerDropdown();
-
-function toggleCategory(el) {
-    const content  = el.nextElementSibling;
-    const arrow    = el.querySelector('span:last-child');
-    arrow.innerHTML = content.classList.toggle('hidden') ? '&#9654;' : '&#9660;';
-}
-
-function toggleDashboard(el) {
-    const wrapper  = el.closest('.dashboard-wrapper');
-    const content  = wrapper.querySelector('.dashboard-content');
-    const arrow    = el.querySelector('.dash-arrow');
-    arrow.innerHTML = content.classList.toggle('hidden') ? '&#9654;' : '&#9660;';
-}
 
 const pageState = {};
 function changePage(tableId, direction) {
