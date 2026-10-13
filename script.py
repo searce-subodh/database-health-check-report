@@ -3,7 +3,9 @@ import json
 import re
 import os
 import yaml
+import time
 import numpy as np
+import pandas as pd
 import sqlalchemy
 from sqlalchemy.engine import URL
 from google.cloud import monitoring_v3
@@ -102,7 +104,6 @@ MYSQL_METRICS = {
 POSTGRES_METRICS = {
     "connections": "cloudsql.googleapis.com/database/postgresql/num_backends",
 }
-
 
 def get_metrics_for_engine(db_type: str, requested_metrics: list) -> dict:
     metrics = {}
@@ -232,7 +233,6 @@ def format_uptime(uptime_raw: list, db_type: str) -> str:
 
     return "N/A"
 
-
 def parse_compute_specs(tier: str) -> tuple:
     if not tier: return ("N/A", "N/A")
     if tier in TIER_MAP: return (str(TIER_MAP[tier][0]), TIER_MAP[tier][1])
@@ -245,7 +245,6 @@ def parse_compute_specs(tier: str) -> tuple:
     suffix_match = re.search(r"-(\d+)$", tier)
     return (suffix_match.group(1), "N/A") if suffix_match else ("N/A", "N/A")
 
-
 def format_timestamp(ts: str) -> str:
     if not ts or ts == "No backups found": return ts
     try:
@@ -253,7 +252,6 @@ def format_timestamp(ts: str) -> str:
         return dt.strftime("%d %b %Y, %I:%M %p UTC")
     except Exception:
         return ts
-
 
 def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
     try:
@@ -313,7 +311,7 @@ def get_instance_details(service, project_id: str, instance_name: str) -> tuple:
 
 
 # ─────────────────────────────────────────────
-# FETCH MONITORING METRICS
+# FETCH MONITORING METRICS (HOURLY)
 # ─────────────────────────────────────────────
 
 def extract_typed_value(typed_value):
@@ -322,48 +320,107 @@ def extract_typed_value(typed_value):
     elif val_type == "int64_value": return float(typed_value.int64_value)
     return 0.0
 
-def fetch_mql_metric(client, project_id, instance_id, metric_key, metric_type):
-    metric_suffix = metric_type.split("/")[-1]
-    value_col = f"value.{metric_suffix}"
+def fetch_hourly_metrics(client, project_id, instance_id, engine_metrics, hw_details, final_read_iops, final_write_iops) -> dict:
+    now = int(time.time())
+    interval = monitoring_v3.TimeInterval({
+        "end_time": {"seconds": now}, 
+        "start_time": {"seconds": now - 86400}
+    })
 
-    mql_query = f"""
-    fetch cloudsql_database
-    | metric '{metric_type}'
-    | filter (resource.database_id == '{project_id}:{instance_id}')
-    | within 24h
-    | group_by [], [val: sum({value_col})]
-    | every 1m
-    """
-    
-    result = {"mean": None, "p95": None, "p99": None, "max": None}
-    data_points = []
+    aggregation = monitoring_v3.Aggregation({
+        "alignment_period": {"seconds": 60}, 
+        "per_series_aligner": monitoring_v3.Aggregation.Aligner.ALIGN_MEAN,
+    })
 
-    def scale_value(val):
-        if val is None: return None
-        if "utilization" in metric_key: return val * 100
-        elif "bytes_used" in metric_key: return val / (1024 ** 3)
-        elif "ops" in metric_key: return val / 60
-        return val
+    dataframes = []
+    project_name = f"projects/{project_id}"
 
-    try:
-        request = monitoring_v3.QueryTimeSeriesRequest(name=f"projects/{project_id}", query=mql_query)
-        response = client.query_time_series(request=request)
-        
-        for series_data in response:
-            for point in series_data.point_data:
-                raw_val = extract_typed_value(point.values[0])
-                data_points.append(scale_value(raw_val))
-                
-        if data_points:
-            result["mean"] = round(np.mean(data_points), 2)
-            result["p95"] = round(np.percentile(data_points, 95), 2)
-            result["p99"] = round(np.percentile(data_points, 99), 2)
-            result["max"] = round(np.max(data_points), 2)
+    for metric_alias, metric_type in engine_metrics.items():
+        try:
+            results = client.list_time_series(
+                request={
+                    "name": project_name,
+                    "filter": f'metric.type="{metric_type}" AND resource.labels.database_id="{project_id}:{instance_id}"',
+                    "interval": interval,
+                    "aggregation": aggregation,
+                }
+            )
+            data = []
+            for result in results:
+                for point in result.points:
+                    raw_val = extract_typed_value(point.value)
+                    
+                    # Original Scaling Logic
+                    if "utilization" in metric_alias:
+                        raw_val *= 100
+                    elif "bytes_used" in metric_alias:
+                        raw_val /= (1024 ** 3)
+                    elif "ops" in metric_alias:
+                        raw_val /= 60
+
+                    data.append({
+                        "time": pd.to_datetime(point.interval.start_time.timestamp(), unit='s', utc=True),
+                        metric_alias: raw_val
+                    })
+
+            df = pd.DataFrame(data) if data else pd.DataFrame(columns=["time", metric_alias])
+            if "time" in df.columns:
+                df.set_index("time", inplace=True)
+            dataframes.append(df)
             
-    except Exception as e:
-        print(f"      [!] Metric query failed for '{metric_key}': {e}")
+        except Exception as e:
+            print(f"      [!] Metric query failed for '{metric_alias}': {e}")
+            df = pd.DataFrame(columns=["time", metric_alias])
+            df.set_index("time", inplace=True)
+            dataframes.append(df)
 
-    return result
+    if not dataframes:
+        return {}
+
+    merged_df = dataframes[0]
+    for i in range(1, len(dataframes)):
+        merged_df = merged_df.join(dataframes[i], how='outer')
+
+    if merged_df.empty:
+        return {}
+
+    agg_dict = {}
+    for col in merged_df.columns:
+        agg_dict[f'{col}_mean'] = pd.NamedAgg(column=col, aggfunc='mean')
+        agg_dict[f'{col}_max'] = pd.NamedAgg(column=col, aggfunc='max')
+        agg_dict[f'{col}_p95'] = pd.NamedAgg(column=col, aggfunc=lambda x: x.quantile(0.95))
+        agg_dict[f'{col}_p99'] = pd.NamedAgg(column=col, aggfunc=lambda x: x.quantile(0.99))
+
+    hourly_stats = merged_df.resample('1h').agg(**agg_dict)
+    hourly_stats.dropna(how='all', inplace=True)
+
+    # Round outputs 
+    hourly_stats = hourly_stats.round(2)
+
+    # Convert timestamps to uniform requested format
+    hourly_stats.index = hourly_stats.index.strftime('%Y_%m_%d_%H_%M_%S')
+    hourly_stats = hourly_stats.replace({np.nan: None, pd.NA: None})
+
+    stats_dict = hourly_stats.to_dict(orient='index')
+
+    # Append Hardware Limits mapping to the root dictionary
+    for m_key in engine_metrics.keys():
+        limit = "N/A"
+        if m_key in ["cpu_utilization", "memory_utilization", "disk_utilization"]:
+            limit = 100
+        elif m_key == "disk_bytes_used":
+            limit = hw_details.get("storage_gb")
+        elif m_key == "disk_read_ops":
+            limit = final_read_iops
+        elif m_key == "disk_write_ops":
+            limit = final_write_iops
+        
+        stats_dict[m_key] = {
+            "header-name": METRIC_LABELS.get(m_key, m_key),
+            "max_allocated_limit": limit
+        }
+
+    return stats_dict
 
 # ─────────────────────────────────────────────
 # DB AUTH ENGINES
@@ -379,7 +436,6 @@ def get_iam_engine(target, connector):
 
     return sqlalchemy.create_engine(dialect, creator=_getconn, pool_pre_ping=True)
 
-
 def get_native_engine(target):
     db_type = target.get("db_type", "").lower()
     drivername = "postgresql+pg8000" if db_type == "postgres" else "mysql+pymysql"
@@ -390,13 +446,11 @@ def get_native_engine(target):
     )
     return sqlalchemy.create_engine(url, pool_pre_ping=True)
 
-
 # ─────────────────────────────────────────────
 # QUERY RUNNER FUNCTIONS
 # ─────────────────────────────────────────────
 
 def execute_query(conn, primary_sql, fallback_sql, category, key):
-    """Helper function to execute a single query with fallback logic."""
     try:
         with conn.begin_nested():
             result = conn.execute(sqlalchemy.text(primary_sql))
@@ -423,16 +477,13 @@ def execute_query(conn, primary_sql, fallback_sql, category, key):
         else:
             return [{"status": "ERROR", "message": "Result unavailable due to execution error"}]
 
-
 def run_mysql_flow(engine, user_queries, internal_queries) -> tuple:
-    # """Executes MySQL logic: runs everything once on the initial connection."""
     health_checks = {}
     internal_results = {}
     db_user_queries = user_queries.get("mysql", {})
     db_internal_queries = internal_queries.get("mysql", {})
 
     with engine.connect() as conn:
-        # Run standard MySQL queries
         for category, category_queries in db_user_queries.items():
             health_checks[category] = {}
             for key, query_payload in category_queries.items():
@@ -444,7 +495,6 @@ def run_mysql_flow(engine, user_queries, internal_queries) -> tuple:
                 res = execute_query(conn, primary_sql, fallback_sql, category, key)
                 health_checks[category][key] = res if res else [{"message": "0 records returned"}]
 
-        # Run internal MySQL queries
         for key, sql in db_internal_queries.items():
             try:
                 with conn.begin_nested():
@@ -458,58 +508,39 @@ def run_mysql_flow(engine, user_queries, internal_queries) -> tuple:
     return health_checks, internal_results
 
 def get_local_postgres_queries(postgres_queries_dict: dict) -> set:
-    """
-    Traverses the parsed Postgres queries dictionary and dynamically extracts 
-    a set of all query keys explicitly marked with "scope": "local".
-    """
     local_queries = set()
-    
     for category, queries in postgres_queries_dict.items():
-        if not isinstance(queries, dict):
-            continue
-            
+        if not isinstance(queries, dict): continue
         for query_key, query_payload in queries.items():
-            if query_key.startswith("_"):
-                continue
-                
+            if query_key.startswith("_"): continue
             if isinstance(query_payload, dict) and query_payload.get("scope") == "local":
                 local_queries.add(query_key)
-                
     return local_queries
 
 def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) -> tuple:
-    """Executes PostgreSQL logic: runs global queries first, then iterates accessible databases for local queries."""
     health_checks = {}
     internal_results = {}
     db_user_queries = user_queries.get("postgres", {})
     db_internal_queries = internal_queries.get("postgres", {})
 
-    # DYNAMIC OVERRIDE: Extract all explicitly marked local queries from the JSON structure
     local_postgres_queries = get_local_postgres_queries(db_user_queries)
 
-    # PHASE 1: Connect to default DB and execute 'global' scoped & internal queries
     with engine.connect() as conn:
         for category, category_queries in db_user_queries.items():
             health_checks[category] = {}
             for key, query_payload in category_queries.items():
                 if key.startswith("_"): continue
-                
-                # Determine scope dynamically based on the extracted set
                 scope = "local" if key in local_postgres_queries else "global"
-                
-                # Initialize local queries with empty lists for Phase 2 appending
                 if scope == "local":
                     health_checks[category][key] = []
                     continue
 
-                # Execute global queries
                 primary_sql = query_payload.get("preferred_query") if isinstance(query_payload, dict) else query_payload
                 fallback_sql = query_payload.get("fallback_query") if isinstance(query_payload, dict) else None
                 
                 res = execute_query(conn, primary_sql, fallback_sql, category, key)
                 health_checks[category][key] = res if res else [{"message": "0 records returned"}]
 
-        # Run internal queries (including get_databases)
         for key, sql in db_internal_queries.items():
             try:
                 with conn.begin_nested():
@@ -520,7 +551,6 @@ def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) ->
             except Exception as e:
                 print(f"    [!] Internal Query failed [{key}]: {e}")
 
-    # PHASE 2: Fetch database list and execute 'local' queries per database
     db_list = [row["datname"] for row in internal_results.get("get_databases", []) if "datname" in row]
 
     for db_name in db_list:
@@ -530,21 +560,14 @@ def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) ->
                 for category, category_queries in db_user_queries.items():
                     for key, query_payload in category_queries.items():
                         if key.startswith("_"): continue
-                        
-                        # Only execute queries dynamically identified as local
-                        if key not in local_postgres_queries:
-                            continue
+                        if key not in local_postgres_queries: continue
 
                         primary_sql = query_payload.get("preferred_query") if isinstance(query_payload, dict) else query_payload
                         fallback_sql = query_payload.get("fallback_query") if isinstance(query_payload, dict) else None
 
                         res = execute_query(local_conn, primary_sql, fallback_sql, category, key)
-                        
-                        # Dynamically inject the database name into each returned row
                         for row in res:
-                            if "message" in row or "status" in row:
-                                continue # Skip appending raw empty/error messages for individual databases
-                            
+                            if "message" in row or "status" in row: continue
                             new_row = {"Database Name": db_name}
                             new_row.update(row)
                             health_checks[category][key].append(new_row)
@@ -555,7 +578,6 @@ def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) ->
             if 'local_engine' in locals():
                 local_engine.dispose()
 
-    # PHASE 3: Clean up empty local queries
     for category in health_checks:
         for key in health_checks[category]:
             if not health_checks[category][key]:
@@ -563,16 +585,13 @@ def run_postgres_flow(engine, user_queries, internal_queries, engine_factory) ->
 
     return health_checks, internal_results
 
-
 def run_queries(engine, db_type: str, user_queries: dict, internal_queries: dict, engine_factory=None) -> tuple:
-    # """Master router function directing traffic based on engine type."""
     if db_type == "mysql":
         return run_mysql_flow(engine, user_queries, internal_queries)
     elif db_type == "postgres":
         return run_postgres_flow(engine, user_queries, internal_queries, engine_factory)
     else:
         return {}, {}
-
 
 # ─────────────────────────────────────────────
 # MAIN
@@ -612,7 +631,7 @@ def main():
 
     print(" -> Building Google Cloud APIs (SQL Admin & Monitoring)...")
     sqladmin = discovery.build("sqladmin", "v1", cache_discovery=False)
-    mon_client = monitoring_v3.QueryServiceClient()
+    mon_client = monitoring_v3.MetricServiceClient()
 
     report_end = datetime.now(timezone.utc)
     report_start = report_end - timedelta(hours=24)
@@ -665,29 +684,16 @@ def main():
             )
 
             print(f"   -> Engine identified as: {db_type.upper()}")
-            print("   -> Fetching requested Cloud Monitoring metrics (24h window)...")
+            print("   -> Fetching requested Cloud Monitoring metrics (24h hourly window)...")
             
             engine_metrics = get_metrics_for_engine(db_type, requested_metrics)
             
             if not engine_metrics:
                 print("   [!] No valid monitoring metrics were found in 'config.yaml' for this engine.")
             else:
-                for m_key, m_type in engine_metrics.items():
-                    metric_data = fetch_mql_metric(mon_client, project_id, instance_name, m_key, m_type)
-                    metric_data["header-name"] = METRIC_LABELS.get(m_key, m_key)
-                    
-                    if m_key in ["cpu_utilization", "memory_utilization", "disk_utilization"]:
-                        metric_data["max_allocated_limit"] = 100
-                    elif m_key == "disk_bytes_used":
-                        metric_data["max_allocated_limit"] = hw_details.get("storage_gb")
-                    elif m_key == "disk_read_ops":
-                        metric_data["max_allocated_limit"] = final_read_iops
-                    elif m_key == "disk_write_ops":
-                        metric_data["max_allocated_limit"] = final_write_iops
-                    elif m_key == "connections":
-                        metric_data["max_allocated_limit"] = "N/A" 
-                        
-                    instance_report["resource_utilization"][m_key] = metric_data
+                instance_report["resource_utilization"] = fetch_hourly_metrics(
+                    mon_client, project_id, instance_name, engine_metrics, hw_details, final_read_iops, final_write_iops
+                )
 
             print(f"   -> Connecting to database via '{auth_type}' auth to run queries...")
             

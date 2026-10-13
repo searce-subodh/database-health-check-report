@@ -1,0 +1,178 @@
+
+
+export PROJECT_ID="playground-poc-510005"
+export INSTANCE_ID="csql-mysql"
+
+export START_TIME=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+export END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+
+
+# FOR ABOVE TIME INTERVAL 
+
+
+export PROJECT_ID_2="playground-poc-2"
+export INSTANCE_ID_2="csql-mysql-instance"
+
+
+export START_TIME="2026-10-09T02:16:37.038Z"
+export END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+export PROJECT_ID_2="playground-poc-2"
+export INSTANCE_ID_2="csql-mysql-instance"
+
+# Set the 24-hour window
+export START_TIME=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+export END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+# Fetch the data with 1-hour aggregation (ALIGN_MEAN)
+curl -sS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fcpu%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=3600s\
+&aggregation.perSeriesAligner=ALIGN_MEAN" | jq
+
+
+curl -sS -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fcpu%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=3600s\
+&aggregation.perSeriesAligner=ALIGN_MEAN" | jq
+
+
+
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fcpu%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MEAN"\
+| jq '.timeSeries[0].points[] | {
+    Timestamp: .interval.endTime,
+    CPU_Percentage: ((.value.doubleValue * 10000 | round) / 100)
+  }'
+
+
+
+
+
+# MAX CPU UTILIZATION
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fcpu%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[] | {
+    "Peak_CPU_Percentage": ((.value.doubleValue * 10000 | round) / 100),
+    "Window_Start": .interval.startTime,
+    "Window_End": .interval.endTime
+  }'
+
+# MAX MEMORY UTILIZATION
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fmemory%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[] | {
+    "Peak_Memory_Percentage": ((.value.doubleValue * 10000 | round) / 100),
+    "Window_Start": .interval.startTime,
+    "Window_End": .interval.endTime
+  }'
+
+
+# MAX DISK UTILIZATION
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fdisk%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[] | {
+    "Peak_Disk_Percentage": ((.value.doubleValue * 10000 | round) / 100),
+    "Window_Start": .interval.startTime,
+    "Window_End": .interval.endTime
+  }'
+
+
+# ACTIVE CONNECTIONS 
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fnetwork%2Fconnections%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[] | {
+    "Peak_Active_Connections": .value.int64Value,
+    "Window_Start": .interval.startTime,
+    "Window_End": .interval.endTime
+  }'
+
+
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fnetwork%2Fconnections%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${PG_INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[] | {
+    "Peak_Active_Connections": .value.int64Value,
+    "Window_Start": .interval.startTime,
+    "Window_End": .interval.endTime
+  }'
+
+
+curl -s -G -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries" \
+  --data-urlencode "filter=metric.type=\"cloudsql.googleapis.com/database/postgresql/num_backends\" AND resource.labels.database_id=\"${PROJECT_ID}:${PG_INSTANCE_ID}\"" \
+  --data-urlencode "interval.startTime=${START_TIME}" \
+  --data-urlencode "interval.endTime=${END_TIME}" \
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MAX" \
+| jq '.timeSeries[0].points[]? | {
+    "Connections": .value.int64Value,
+    "Time": .interval.startTime
+  }'
+
+
+  
+
+
+
+export PROJECT_ID="chtp-g3-prod-au-6-ba2ae047"
+export INSTANCE_ID="chtp-g3-prod-au-6-db-1"
+
+export START_TIME=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
+export END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
+
+
+curl -s -H "Authorization: Bearer $(gcloud auth print-access-token)" \
+  "https://monitoring.googleapis.com/v3/projects/${PROJECT_ID}/timeSeries?\
+filter=metric.type%3D%22cloudsql.googleapis.com%2Fdatabase%2Fcpu%2Futilization%22%20AND%20resource.labels.database_id%3D%22${PROJECT_ID}%3A${INSTANCE_ID}%22\
+&interval.startTime=${START_TIME}\
+&interval.endTime=${END_TIME}\
+&aggregation.alignmentPeriod=86400s\
+&aggregation.perSeriesAligner=ALIGN_MEAN"\
+| jq '.timeSeries[0].points[] | {
+    Timestamp: .interval.endTime,
+    CPU_Percentage: ((.value.doubleValue * 10000 | round) / 100)
+  }'
+
+
+

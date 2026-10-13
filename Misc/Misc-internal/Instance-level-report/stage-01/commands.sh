@@ -1,6 +1,6 @@
 
-export PROJECT_ID="chtp-g3-staging-1-7fa98a9d"
-export INSTANCE_ID="target-restore"
+export PROJECT_ID="playground-poc-510005"
+export INSTANCE_ID="csql-mysql"
 
 export START_TIME=$(date -u -d '24 hours ago' +%Y-%m-%dT%H:%M:%SZ)
 export END_TIME=$(date -u +%Y-%m-%dT%H:%M:%SZ)
