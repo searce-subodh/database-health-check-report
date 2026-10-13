@@ -116,6 +116,10 @@ def format_clean_title(key):
         .replace("Sql", "SQL")
         .replace("Db",  "DB"))
 
+def format_number(val):
+    if val is None: return "0.00"
+    return f"{val:,.2f}"
+
 def build_paginated_table(rows, table_id, metric_name=""):
     if not rows or not isinstance(rows, list):
         return '<p class="no-issues">No issues or records flagged.</p>'
@@ -256,7 +260,6 @@ css_template = """<!DOCTYPE html>
         .section-card { background: var(--bg-card); border-radius: 0 0 8px 8px; padding: 24px; margin-bottom: 16px; box-shadow: 0 1px 3px rgba(9, 30, 66, 0.05); }
         .section-title { font-size: 1.15em; color: #0f172a; margin-bottom: 24px; padding-bottom: 12px; border-bottom: 2px solid var(--border-color); }
 
-        /* Structure matching styles */
         details.metric-details {
             margin-bottom: 24px;
         }
@@ -294,13 +297,36 @@ css_template = """<!DOCTYPE html>
         .hidden      { display: none !important; }
 
         /* =========================================
-           DASHBOARD UI STYLES (CHART.JS)
+           DASHBOARD UI STYLES 
            ========================================= */
         .dashboard-wrapper { background-color: var(--bg-card); width: 100%; margin-bottom: 24px; margin-top: 16px; display: flex; flex-direction: column; gap: 24px; }
-        .charts-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(500px, 1fr)); gap: 24px; margin-bottom: 16px; }
-        .chart-card { background: white; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
-        .chart-title { font-size: 0.95em; text-align: center; margin-bottom: 12px; color: #334155; font-family: 'Montserrat', sans-serif; font-weight: 700; }
-        .canvas-wrapper { position: relative; height: 260px; width: 100%; }
+        
+        .bullet-group { display: flex; flex-direction: column; gap: 20px; }
+        .bullet-row { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 16px 20px; display: flex; flex-direction: column; gap: 12px; }
+        .bullet-header { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .bullet-title { font-size: 14px; font-weight: 600; color: var(--text-primary); }
+        .bullet-badges { display: flex; gap: 8px; flex-wrap: wrap; }
+        .badge-pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.08); }
+        .badge-pill.mean { color: var(--c-mean); border-color: var(--c-mean); background: #eff6ff; }
+        .badge-pill.p95  { color: var(--c-p95);  border-color: var(--c-p95); background: #ecfdf5; }
+        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #fff7ed; }
+        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #faf5ff; }
+
+        .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
+        .kpi-tile { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
+        .kpi-tile:hover, .kpi-tile.selected { transform: translateY(-2px); border-color: var(--c-mean); background: #eff6ff; }
+        .kpi-tile-header { font-size: 13px; font-weight: 600; color: var(--text-primary); display: flex; justify-content: space-between; align-items: center; }
+        .kpi-tile-header-group { display: flex; flex-direction: column; gap: 4px; }
+        .kpi-mean-label { font-size: 11px; font-weight: 600; color: var(--c-mean); }
+        .main-val-container { display: flex; flex-direction: column; gap: 6px; }
+        .kpi-tile-main-val { font-size: 28px; font-weight: 700; color: var(--c-mean); line-height: 1; white-space: nowrap; }
+        .max-allowed-badge { font-size: 11px; font-weight: 600; color: var(--text-secondary); align-self: flex-start; }
+        
+        .kpi-tile-footer { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px 10px; border-top: 1px solid var(--border-color); padding-top: 10px; margin-top: 4px; }
+        .kpi-footer-item { display: flex; flex-direction: column; min-width: 0; }
+        .kpi-footer-label { font-size: 10px; font-weight: 700; color: var(--text-secondary); text-transform: uppercase; }
+        .kpi-footer-val { font-size: 12px; font-weight: 600; color: var(--text-primary); margin-top: 2px; }
+        .shared-bar-container { margin-top: 18px; width: 100%; }
     </style>
 </head>
 <body>
@@ -391,29 +417,25 @@ for unique_key, data in report_data.items():
             <div class="dashboard-content" id="dash-content-{safe_instance}">
         '''
 
-        def render_chart_group(group_name, metric_keys):
-            if not metric_keys: return ""
-            # Adhere strictly to the target struct with <details> and <summary>
-            html_out = f'<details class="metric-details" open><summary>{group_name}</summary><div class="charts-grid">'
-            
-            for m_key in metric_keys:
+        # 1. Capacity Allocation (Stacked vertically)
+        if capacity_metrics:
+            html_content += '<details class="metric-details" open><summary>Capacity Allocation</summary><div class="bullet-group">'
+            for m_key in capacity_metrics:
                 limit_info = metric_configs[m_key]
                 is_pct = "utilization" in m_key
                 unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
                 display_name = limit_info.get("header-name", format_clean_title(m_key))
                 chart_id = f"chart_{safe_instance}_{m_key}"
                 
-                html_out += f'<div class="chart-card"><div class="chart-title">{display_name}</div><div class="canvas-wrapper"><canvas id="{chart_id}"></canvas></div></div>'
-
                 mean_data, p95_data, p99_data, max_data = [], [], [], []
                 local_max = 0.0
                 
                 for t_key in raw_time_keys:
                     hour_data = utilization[t_key]
-                    v_mean = hour_data.get(f"{m_key}_mean")
-                    v_p95  = hour_data.get(f"{m_key}_p95")
-                    v_p99  = hour_data.get(f"{m_key}_p99")
-                    v_max  = hour_data.get(f"{m_key}_max")
+                    v_mean = hour_data.get(f"{m_key}_mean") or 0
+                    v_p95  = hour_data.get(f"{m_key}_p95") or 0
+                    v_p99  = hour_data.get(f"{m_key}_p99") or 0
+                    v_max  = hour_data.get(f"{m_key}_max") or 0
                     
                     mean_data.append(v_mean)
                     p95_data.append(v_p95)
@@ -422,6 +444,111 @@ for unique_key, data in report_data.items():
                     
                     if v_max and v_max > local_max: local_max = v_max
 
+                avg_mean = sum(mean_data) / len(mean_data) if mean_data else 0
+                avg_p95 = sum(p95_data) / len(p95_data) if p95_data else 0
+                avg_p99 = sum(p99_data) / len(p99_data) if p99_data else 0
+                max_max = max(max_data) if max_data else 0
+
+                html_content += f'''
+                <div class="bullet-row">
+                    <div class="bullet-header">
+                        <div class="bullet-title">{display_name}</div>
+                        <div class="bullet-badges">
+                            <span class="badge-pill mean">Mean: {format_number(avg_mean)}{unit}</span>
+                            <span class="badge-pill p95">P95: {format_number(avg_p95)}{unit}</span>
+                            <span class="badge-pill p99">P99: {format_number(avg_p99)}{unit}</span>
+                            <span class="badge-pill max">Max: {format_number(max_max)}{unit}</span>
+                        </div>
+                    </div>
+                    <div class="canvas-wrapper" style="position: relative; height: 220px; width: 100%; margin-top: 16px;">
+                        <canvas id="{chart_id}"></canvas>
+                    </div>
+                </div>
+                '''
+
+                y_config = calculate_y_axis_config(local_max, is_pct, limit_info.get("max_allocated_limit"))
+                y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
+
+                global_chart_configs[safe_instance]["charts"].append({
+                    "id": chart_id, "unit": unit, "yConfig": y_config,
+                    "data": {"mean": mean_data, "p95": p95_data, "p99": p99_data, "max": max_data}
+                })
+            html_content += '</div></details>'
+
+        # 2. IO & Traffic Statistics (Clickable KPI Tiles)
+        if traffic_metrics:
+            html_content += '<details class="metric-details" open><summary>IO & Traffic Statistics</summary><div class="kpi-tile-grid">'
+            
+            # Generate the Tiles
+            for m_key in traffic_metrics:
+                limit_info = metric_configs[m_key]
+                display_name = limit_info.get("header-name", format_clean_title(m_key))
+                chart_id = f"chart_{safe_instance}_{m_key}"
+                
+                mean_data, p95_data, p99_data, max_data = [], [], [], []
+                local_max = 0.0
+                
+                for t_key in raw_time_keys:
+                    hour_data = utilization[t_key]
+                    v_mean = hour_data.get(f"{m_key}_mean") or 0
+                    v_p95  = hour_data.get(f"{m_key}_p95") or 0
+                    v_p99  = hour_data.get(f"{m_key}_p99") or 0
+                    v_max  = hour_data.get(f"{m_key}_max") or 0
+                    
+                    mean_data.append(v_mean)
+                    p95_data.append(v_p95)
+                    p99_data.append(v_p99)
+                    max_data.append(v_max)
+                    
+                    if v_max and v_max > local_max: local_max = v_max
+
+                avg_mean = sum(mean_data) / len(mean_data) if mean_data else 0
+                avg_p95 = sum(p95_data) / len(p95_data) if p95_data else 0
+                avg_p99 = sum(p99_data) / len(p99_data) if p99_data else 0
+                max_max = max(max_data) if max_data else 0
+                max_allowed = limit_info.get("max_allocated_limit", "N/A")
+
+                html_content += f'''
+                <div class="kpi-tile tile-{safe_instance}" id="tile-{chart_id}" onclick="handleTileClick('{safe_instance}', '{chart_id}')">
+                    <div class="kpi-tile-header-group">
+                        <div class="kpi-tile-header">{display_name}</div>
+                        <div class="kpi-mean-label">Mean</div>
+                    </div>
+                    <div class="main-val-container">
+                        <div class="kpi-tile-main-val">{format_number(avg_mean)}</div>
+                        <div class="max-allowed-badge">Max Allowed: {format_number(max_allowed) if isinstance(max_allowed, (int, float)) else max_allowed}</div>
+                    </div>
+                    <div class="kpi-tile-footer">
+                        <div class="kpi-footer-item">
+                            <span class="kpi-footer-label" style="color: var(--c-p95);">P95</span>
+                            <span class="kpi-footer-val">{format_number(avg_p95)}</span>
+                        </div>
+                        <div class="kpi-footer-item">
+                            <span class="kpi-footer-label" style="color: var(--c-p99);">P99</span>
+                            <span class="kpi-footer-val">{format_number(avg_p99)}</span>
+                        </div>
+                        <div class="kpi-footer-item">
+                            <span class="kpi-footer-label" style="color: var(--c-max);">Max</span>
+                            <span class="kpi-footer-val">{format_number(max_max)}</span>
+                        </div>
+                    </div>
+                </div>
+                '''
+
+            html_content += '</div>'
+            
+            # Shared container holding all hidden chart canvases
+            html_content += f'<div id="shared-chart-container-{safe_instance}" class="shared-bar-container active">'
+            for m_key in traffic_metrics:
+                limit_info = metric_configs[m_key]
+                display_name = limit_info.get("header-name", format_clean_title(m_key))
+                chart_id = f"chart_{safe_instance}_{m_key}"
+                is_pct = "utilization" in m_key
+                unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
+                
+                # We calculate limits again specifically for appending to global config 
+                # (since we did it inside the tile loop earlier)
+                local_max = max(max_data) if max_data else 0
                 y_config = calculate_y_axis_config(local_max, is_pct, limit_info.get("max_allocated_limit"))
                 y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
 
@@ -430,11 +557,20 @@ for unique_key, data in report_data.items():
                     "data": {"mean": mean_data, "p95": p95_data, "p99": p99_data, "max": max_data}
                 })
 
-            html_out += '</div></details>'
-            return html_out
+                html_content += f'''
+                <div id="wrapper-{chart_id}" class="chart-wrapper-{safe_instance}" style="display: none;">
+                    <div class="bullet-row" style="margin-top: 16px;">
+                        <div class="bullet-header">
+                            <div class="bullet-title">{display_name} Chart</div>
+                        </div>
+                        <div class="canvas-wrapper" style="position: relative; height: 260px; width: 100%;">
+                            <canvas id="{chart_id}"></canvas>
+                        </div>
+                    </div>
+                </div>
+                '''
+            html_content += '</div></details>'
 
-        html_content += render_chart_group("Capacity Allocation", capacity_metrics)
-        html_content += render_chart_group("IO & Traffic Statistics", traffic_metrics)
         html_content += '</div></div>'
 
     # ── Operational Health ──
@@ -463,7 +599,6 @@ for unique_key, data in report_data.items():
             if not valid_queries:
                 continue
 
-            # Strict Details/Summary mapping for target structure
             html_content += f'''
             <details class="metric-details">
                 <summary>{clean_category}</summary>
@@ -474,7 +609,6 @@ for unique_key, data in report_data.items():
                 tid          = f"{safe_instance}_{category}_{metric_name}_{table_counter[0]}"
                 clean_metric = format_clean_title(metric_name)
                 html_content += f'<div class="metric-title">{clean_metric}</div>'
-
                 html_content += build_paginated_table(rows, tid, metric_name=metric_name)
 
             html_content += '</div></details>'
@@ -552,6 +686,39 @@ function changePage(tableId, direction) {
     rows.forEach((row, i) => { row.style.display = (i >= start && i < start + 10) ? '' : 'none'; });
     document.getElementById(`page-info-${tableId}`).textContent = `Page ${pageState[tableId]} of ${totalPages}`;
 }
+
+// KPI Tile Click Logic
+function handleTileClick(instanceId, chartId) {
+    // Toggle active tile styling
+    document.querySelectorAll(`.tile-${instanceId}`).forEach(t => t.classList.remove('selected'));
+    const clickedTile = document.getElementById(`tile-${chartId}`);
+    
+    const wrapper = document.getElementById(`wrapper-${chartId}`);
+    const isAlreadyOpen = wrapper.style.display === 'block';
+    
+    // Hide all chart wrappers for this specific instance
+    document.querySelectorAll(`.chart-wrapper-${instanceId}`).forEach(w => {
+        w.style.display = 'none';
+    });
+
+    if (isAlreadyOpen) {
+        // Just closed it, leave it closed and unselected
+        return; 
+    }
+
+    // Open target
+    if (clickedTile) clickedTile.classList.add('selected');
+    if (wrapper) {
+        wrapper.style.display = 'block';
+        
+        // Resize chart to fix rendering issues from display: none
+        const chart = Chart.getChart(chartId);
+        if (chart) {
+            chart.resize();
+        }
+    }
+}
+
 
 // =========================================
 // CHART.JS INITIALIZATION

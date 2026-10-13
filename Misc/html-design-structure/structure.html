@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- {{HEAD_RESOURCES_AND_STYLES}} -->
+</head>
+<body>
+
+<!-- STATIC: GLOBAL NAVIGATION & METADATA -->
+<div id="topbar">
+    <h1>{{REPORT_TITLE}}</h1>
+    <select id="filter-dbtype">{{DB_TYPE_OPTIONS}}</select>
+    <select id="filter-project">{{PROJECT_OPTIONS}}</select>
+    <select id="filter-server">{{SERVER_OPTIONS}}</select>
+    <div class="topbar-timestamp">
+        {{REPORT_PERIOD_TIMESTAMP}}
+    </div>
+</div>
+
+<div id="content">
+    <!-- DYNAMIC: ITERABLE INSTANCE BLOCKS -->
+    {{#each INSTANCE_BLOCK}}
+    <div class="instance-block" data-server="{{SERVER_ID}}" data-dbtype="{{DB_TYPE}}" data-project="{{PROJECT_ID}}" id="{{INSTANCE_DOM_ID}}">
+        
+        <!-- BREADCRUMBS -->
+        <div class="instance-title">
+            <span class="breadcrumb-project">{{PROJECT_NAME}}</span>
+            <span class="breadcrumb-separator">/</span>
+            <span class="breadcrumb-instance">{{INSTANCE_NAME}}</span>
+        </div>
+
+        <div class="section-card">
+            
+            <!-- SUB-STRUCTURE: SPECIFICATIONS -->
+            <div class="section-title">Provisioned Specifications</div>
+            <div class="specs-grid">
+                {{#each SPECIFICATIONS}}
+                <div class="spec-item">
+                    <div class="spec-label">{{SPEC_LABEL}}</div>
+                    <div class="spec-value">{{SPEC_VALUE}}</div>
+                </div>
+                {{/each}}
+            </div>
+
+            <!-- SUB-STRUCTURE: RESOURCE USAGE DASHBOARD -->
+            <div class="dashboard-wrapper" id="{{DASHBOARD_ID}}">
+                <div class="section-title">Resource Usage Summary</div>
+                <div class="dashboard-content">
+                    
+                    <!-- BULLET CHARTS / LINE GRAPHS (CPU, MEMORY, DISK %) -->
+                    <details class="metric-details" open>
+                        <summary>Capacity Allocation</summary>
+                        <!-- Stacked vertically, one after the other -->
+                        <div class="bullet-group">
+                            {{#each CAPACITY_METRICS}}
+                            <div class="bullet-row">
+                                <div class="bullet-header">
+                                    <div class="bullet-title">{{METRIC_NAME}}</div>
+                                    <div class="bullet-badges">{{METRIC_BADGES_MEAN_P95_P99_MAX}}</div>
+                                </div>
+                                <!-- LINE GRAPH CANVAS INJECTED HERE -->
+                                <div class="canvas-wrapper" style="position: relative; height: 260px; width: 100%; margin-top: 16px;">
+                                    <canvas id="{{CHART_ID}}"></canvas>
+                                </div>
+                            </div>
+                            {{/each}}
+                        </div>
+                    </details>
+                
+                    <!-- KPI TILES (IOPS, CONNECTIONS) -->
+                    <details class="metric-details" open>
+                        <summary>IO & Traffic Statistics</summary>
+                        <div class="kpi-tile-grid">
+                            {{#each KPI_METRICS}}
+                            <!-- CLICKABLE TILES -->
+                            <div class="kpi-tile tile-{{INSTANCE_ID}}" id="tile-{{CHART_ID}}" onclick="handleTileClick('{{INSTANCE_ID}}', '{{CHART_ID}}')">
+                                <div class="kpi-tile-header-group">
+                                    <div class="kpi-tile-header">{{KPI_NAME}}</div>
+                                </div>
+                                <div class="main-val-container">
+                                    <div class="kpi-tile-main-val">{{KPI_MEAN_VALUE}}</div>
+                                    <div class="max-allowed-badge">{{KPI_MAX_ALLOWED}}</div>
+                                </div>
+                                <div class="kpi-tile-footer">
+                                    {{#each KPI_PERCENTILES}}
+                                    <div class="kpi-footer-item">
+                                        <span class="kpi-footer-label">{{PERCENTILE_LABEL}}</span>
+                                        <span class="kpi-footer-val">{{PERCENTILE_VALUE}}</span>
+                                    </div>
+                                    {{/each}}
+                                </div>
+                            </div>
+                            <!-- HIDDEN CANVAS RENDERED HERE, REVEALED ON CLICK -->
+                            <div id="wrapper-{{CHART_ID}}" class="hidden-chart-wrapper" style="display: none;">
+                                <div class="bullet-row" style="margin-top: 16px;">
+                                    <div class="bullet-header">
+                                        <div class="bullet-title">{{KPI_NAME}} Chart</div>
+                                    </div>
+                                    <div class="canvas-wrapper" style="position: relative; height: 260px; width: 100%;">
+                                        <canvas id="{{CHART_ID}}"></canvas>
+                                    </div>
+                                </div>
+                            </div>
+                            {{/each}}
+                        </div>
+                        <!-- SHARED CONTAINER FOR DISPLAYING THE CLICKED CHART -->
+                        <div id="shared-chart-container-{{INSTANCE_ID}}" class="shared-bar-container active"></div>
+                    </details>
+                    
+                </div>
+            </div>
+
+            <!-- SUB-STRUCTURE: OPERATIONAL HEALTH (DYNAMIC TABLES) -->
+            <div class="section-title">Operational Health</div>
+            {{#each HEALTH_CATEGORIES}}
+            <details class="metric-details">
+                <summary>{{CATEGORY_NAME}}</summary>
+                <div class="category-content">
+                    {{#each CATEGORY_METRICS}}
+                    <div class="metric-title">{{METRIC_TABLE_TITLE}}</div>
+                    
+                    <!-- CONDITIONAL RENDER: TABLE OR 'NO ISSUES' -->
+                    {{#if HAS_ISSUES}}
+                    <div class="table-wrapper">
+                        <table>
+                            <thead>
+                                <tr>{{#each HEADERS}}<th>{{HEADER_NAME}}</th>{{/each}}</tr>
+                            </thead>
+                            <tbody>
+                                {{#each ROWS}}<tr class="page-row">{{#each CELLS}}<td>{{CELL_VALUE}}</td>{{/each}}</tr>{{/each}}
+                            </tbody>
+                        </table>
+                        <div class="pagination">{{PAGINATION_CONTROLS}}</div>
+                    </div>
+                    {{else}}
+                    <p class="no-issues">No issues or records flagged.</p>
+                    {{/if}}
+                    {{/each}}
+                </div>
+            </details>
+            {{/each}}
+
+        </div>
+    </div>
+    {{/each}}
+</div>
+
+<script>
+    // {{DYNAMIC_DATA_JSON_OBJECTS}}
+</script>
+</body>
+</html>
