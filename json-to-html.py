@@ -432,22 +432,29 @@ for unique_key, data in report_data.items():
                 
                 for t_key in raw_time_keys:
                     hour_data = utilization[t_key]
-                    v_mean = hour_data.get(f"{m_key}_mean") or 0
-                    v_p95  = hour_data.get(f"{m_key}_p95") or 0
-                    v_p99  = hour_data.get(f"{m_key}_p99") or 0
-                    v_max  = hour_data.get(f"{m_key}_max") or 0
+                    
+                    # DO NOT FORCE 'or 0', ALLOW NONE to plot blanks
+                    v_mean = hour_data.get(f"{m_key}_mean")
+                    v_p95  = hour_data.get(f"{m_key}_p95")
+                    v_p99  = hour_data.get(f"{m_key}_p99")
+                    v_max  = hour_data.get(f"{m_key}_max")
                     
                     mean_data.append(v_mean)
                     p95_data.append(v_p95)
                     p99_data.append(v_p99)
                     max_data.append(v_max)
                     
-                    if v_max and v_max > local_max: local_max = v_max
+                    if v_max is not None and v_max > local_max: local_max = v_max
 
-                avg_mean = sum(mean_data) / len(mean_data) if mean_data else 0
-                avg_p95 = sum(p95_data) / len(p95_data) if p95_data else 0
-                avg_p99 = sum(p99_data) / len(p99_data) if p99_data else 0
-                max_max = max(max_data) if max_data else 0
+                valid_mean = [x for x in mean_data if x is not None]
+                valid_p95 = [x for x in p95_data if x is not None]
+                valid_p99 = [x for x in p99_data if x is not None]
+                valid_max = [x for x in max_data if x is not None]
+
+                avg_mean = sum(valid_mean) / len(valid_mean) if valid_mean else 0
+                avg_p95 = sum(valid_p95) / len(valid_p95) if valid_p95 else 0
+                avg_p99 = sum(valid_p99) / len(valid_p99) if valid_p99 else 0
+                max_max = max(valid_max) if valid_max else 0
 
                 html_content += f'''
                 <div class="bullet-row">
@@ -490,22 +497,28 @@ for unique_key, data in report_data.items():
                 
                 for t_key in raw_time_keys:
                     hour_data = utilization[t_key]
-                    v_mean = hour_data.get(f"{m_key}_mean") or 0
-                    v_p95  = hour_data.get(f"{m_key}_p95") or 0
-                    v_p99  = hour_data.get(f"{m_key}_p99") or 0
-                    v_max  = hour_data.get(f"{m_key}_max") or 0
+                    
+                    v_mean = hour_data.get(f"{m_key}_mean")
+                    v_p95  = hour_data.get(f"{m_key}_p95")
+                    v_p99  = hour_data.get(f"{m_key}_p99")
+                    v_max  = hour_data.get(f"{m_key}_max")
                     
                     mean_data.append(v_mean)
                     p95_data.append(v_p95)
                     p99_data.append(v_p99)
                     max_data.append(v_max)
                     
-                    if v_max and v_max > local_max: local_max = v_max
+                    if v_max is not None and v_max > local_max: local_max = v_max
 
-                avg_mean = sum(mean_data) / len(mean_data) if mean_data else 0
-                avg_p95 = sum(p95_data) / len(p95_data) if p95_data else 0
-                avg_p99 = sum(p99_data) / len(p99_data) if p99_data else 0
-                max_max = max(max_data) if max_data else 0
+                valid_mean = [x for x in mean_data if x is not None]
+                valid_p95 = [x for x in p95_data if x is not None]
+                valid_p99 = [x for x in p99_data if x is not None]
+                valid_max = [x for x in max_data if x is not None]
+
+                avg_mean = sum(valid_mean) / len(valid_mean) if valid_mean else 0
+                avg_p95 = sum(valid_p95) / len(valid_p95) if valid_p95 else 0
+                avg_p99 = sum(valid_p99) / len(valid_p99) if valid_p99 else 0
+                max_max = max(valid_max) if valid_max else 0
                 max_allowed = limit_info.get("max_allocated_limit", "N/A")
 
                 html_content += f'''
@@ -546,9 +559,7 @@ for unique_key, data in report_data.items():
                 is_pct = "utilization" in m_key
                 unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
                 
-                # We calculate limits again specifically for appending to global config 
-                # (since we did it inside the tile loop earlier)
-                local_max = max(max_data) if max_data else 0
+                local_max = max([x for x in max_data if x is not None]) if any(x is not None for x in max_data) else 0
                 y_config = calculate_y_axis_config(local_max, is_pct, limit_info.get("max_allocated_limit"))
                 y_config["title"] = f"Unit: {unit.strip()}" if unit else "Count"
 
@@ -689,29 +700,23 @@ function changePage(tableId, direction) {
 
 // KPI Tile Click Logic
 function handleTileClick(instanceId, chartId) {
-    // Toggle active tile styling
     document.querySelectorAll(`.tile-${instanceId}`).forEach(t => t.classList.remove('selected'));
     const clickedTile = document.getElementById(`tile-${chartId}`);
     
     const wrapper = document.getElementById(`wrapper-${chartId}`);
     const isAlreadyOpen = wrapper.style.display === 'block';
     
-    // Hide all chart wrappers for this specific instance
     document.querySelectorAll(`.chart-wrapper-${instanceId}`).forEach(w => {
         w.style.display = 'none';
     });
 
     if (isAlreadyOpen) {
-        // Just closed it, leave it closed and unselected
         return; 
     }
 
-    // Open target
     if (clickedTile) clickedTile.classList.add('selected');
     if (wrapper) {
         wrapper.style.display = 'block';
-        
-        // Resize chart to fix rendering issues from display: none
         const chart = Chart.getChart(chartId);
         if (chart) {
             chart.resize();
@@ -730,10 +735,10 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
         data: {
             labels: labels, 
             datasets: [
-                { label: 'Mean', data: metricData.mean, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.15)', borderWidth: 1.5, tension: 0.3, fill: 'origin', pointRadius: 0, pointHoverRadius: 6 },
-                { label: 'P95', data: metricData.p95, borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6 },
-                { label: 'P99', data: metricData.p99, borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6 },
-                { label: 'Max', data: metricData.max, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6 }
+                { label: 'Mean', data: metricData.mean, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.15)', borderWidth: 1.5, tension: 0.3, fill: 'origin', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
+                { label: 'P95', data: metricData.p95, borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
+                { label: 'P99', data: metricData.p99, borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
+                { label: 'Max', data: metricData.max, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6, spanGaps: false }
             ]
         },
         options: {
@@ -741,9 +746,22 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
             interaction: { mode: 'index', intersect: false },
             plugins: {
                 tooltip: {
+                    itemSort: function(a, b) {
+                        return b.parsed.y - a.parsed.y; // Dynamically sort to prioritize the highest hovered value
+                    },
                     callbacks: {
-                        title: (ctx) => new Date(ctx[0].label).toLocaleString('en-US', {month:'short', day:'numeric', hour:'2-digit', minute:'2-digit'}),
-                        label: (ctx) => ctx.dataset.label + ': ' + (ctx.parsed.y !== null ? ctx.parsed.y + unit : 'No Data')
+                        title: (ctx) => {
+                            let d = new Date(ctx[0].label);
+                            let day = d.getDate();
+                            let month = d.toLocaleString('en-US', { month: 'short' });
+                            let year = d.getFullYear();
+                            let time = d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', second: '2-digit', hour12: true });
+                            return `${day}, ${month}, ${year}, ${time}`;
+                        },
+                        label: (ctx) => {
+                            let val = ctx.parsed.y;
+                            return ctx.dataset.label + ': ' + (val !== null ? val + unit : 'No Data');
+                        }
                     }
                 },
                 legend: { labels: { color: '#333' } }
@@ -751,10 +769,16 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
             scales: {
                 y: { min: yConfig.min, max: yConfig.max, title: { display: true, text: yConfig.title }, ticks: { stepSize: yConfig.step } },
                 x: {
+                    grid: { display: false }, // Removes vertical gridlines parallel to the Y-axis
                     ticks: {
                         callback: function(val, i) {
                             let d = new Date(this.getLabelForValue(val));
-                            return (i % 2 !== 0) ? null : (d.getHours() === 0 ? d.toLocaleString('en-US', {month:'short', day:'numeric'}) : d.toLocaleString('en-US', {hour:'numeric', hour12:true}));
+                            if (i % 2 !== 0) return null; // Thin out ticks
+                            
+                            // Return Month Day for midnight, otherwise Hour:Minute AM/PM
+                            return d.getHours() === 0 
+                                ? d.toLocaleString('en-US', { month: 'short', day: 'numeric' }) 
+                                : d.toLocaleString('en-US', { hour: 'numeric', minute: '2-digit', hour12: true });
                         }
                     }
                 }
