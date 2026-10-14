@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 import json
 import os
 import sys
@@ -50,6 +50,19 @@ if not report_data:
 print(f"Loaded {len(report_data)} instance(s) into report generator.")
 
 generated_at = datetime.now().strftime("%d %b %Y, %I:%M %p")
+
+_IST = timezone(timedelta(hours=5, minutes=30))
+
+def utc_str_to_ist(s: str) -> str:
+    if not s or s in ("N/A", "No backups found"):
+        return s
+    try:
+        clean = s.replace(" UTC", "").strip()
+        dt = datetime.strptime(clean, "%d %b %Y, %I:%M %p")
+        dt = dt.replace(tzinfo=timezone.utc)
+        return dt.astimezone(_IST).strftime("%d %b %Y, %I:%M %p IST")
+    except Exception:
+        return s
 
 # ─────────────────────────────────────────────
 # BUILD NAVIGATION DATA
@@ -215,8 +228,8 @@ except Exception as e:
 
 first_instance_data = list(report_data.values())[0] if report_data else {}
 report_window = first_instance_data.get("report_window", {})
-period_from   = report_window.get("from", generated_at)
-period_to     = report_window.get("to",   generated_at)
+period_from   = utc_str_to_ist(report_window.get("from", generated_at))
+period_to     = utc_str_to_ist(report_window.get("to",   generated_at))
 
 css_template = """<!DOCTYPE html>
 <html lang="en">
@@ -236,10 +249,10 @@ css_template = """<!DOCTYPE html>
             --text-primary: #172b4d;      
             --text-secondary: #5e6c84;    
             --track-bg: #ebecf0;          
-            --c-mean: #3b82f6;     
-            --c-p95: #10b981;      
-            --c-p99: #f97316;      
-            --c-max: #8b5cf6;      
+            --c-mean: #3b82f6;
+            --c-p95: #10b981;
+            --c-p99: #6c757d;
+            --c-max: #dc3545;      
             --color-green: #1e8e3e;
             --color-yellow: #f9ab00;
             --color-red: #d93025;
@@ -347,8 +360,9 @@ css_template = """<!DOCTYPE html>
         .badge-pill { font-size: 11px; font-weight: 600; padding: 3px 8px; border-radius: 6px; background: rgba(255, 255, 255, 0.8); border: 1px solid rgba(0, 0, 0, 0.08); }
         .badge-pill.mean { color: var(--c-mean); border-color: var(--c-mean); background: #eff6ff; }
         .badge-pill.p95  { color: var(--c-p95);  border-color: var(--c-p95); background: #ecfdf5; }
-        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #fff7ed; }
-        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #faf5ff; }
+        .badge-pill.p99  { color: var(--c-p99);  border-color: var(--c-p99); background: #f0f1f2; }
+        .badge-pill.max  { color: var(--c-max);  border-color: var(--c-max); background: #fff1f2; }
+        .badge-pill.inactive { opacity: 0.35; text-decoration: line-through; }
 
         .kpi-tile-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 18px; }
         .kpi-tile { background: #f8fafc; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 12px; cursor: pointer; transition: transform 0.2s ease, border-color 0.2s ease, background-color 0.2s ease; }
@@ -434,7 +448,7 @@ for unique_key, data in report_data.items():
             html_content += f'''
             <div class="spec-item">
                 <div class="spec-label">{key}</div>
-                <div class="spec-value">{val if val is not None else "N/A"}</div>
+                <div class="spec-value">{utc_str_to_ist(str(val)) if val is not None else "N/A"}</div>
             </div>'''
         html_content += '</div>'
     elif "Error" in specs:
@@ -472,7 +486,7 @@ for unique_key, data in report_data.items():
 
         # 1. Capacity Allocation (Stacked vertically)
         if capacity_metrics:
-            html_content += '<details class="metric-details"><summary>Capacity Utilization</summary><div class="bullet-group">'
+            html_content += '<details class="metric-details"><summary>Capacity Allocation</summary><div class="bullet-group">'
             for m_key in capacity_metrics:
                 limit_info = metric_configs[m_key]
                 is_pct = "utilization" in m_key
@@ -516,10 +530,10 @@ for unique_key, data in report_data.items():
                     <div class="bullet-header">
                         <div class="bullet-title">{display_name}</div>
                         <div class="bullet-badges">
-                            <span class="badge-pill mean">Mean: {format_number(avg_mean)}{unit}</span>
-                            <span class="badge-pill p95">P95: {format_number(avg_p95)}{unit}</span>
-                            <span class="badge-pill p99">P99: {format_number(avg_p99)}{unit}</span>
-                            <span class="badge-pill max">Max: {format_number(max_max)}{unit}</span>
+                            <span class="badge-pill mean" onclick="toggleChartLine('{chart_id}', 0, this)" style="cursor:pointer;" title="Click to toggle Mean line">Mean: {format_number(avg_mean)}{unit}</span>
+                            <span class="badge-pill p95"  onclick="toggleChartLine('{chart_id}', 1, this)" style="cursor:pointer;" title="Click to toggle P95 line">P95: {format_number(avg_p95)}{unit}</span>
+                            <span class="badge-pill p99"  onclick="toggleChartLine('{chart_id}', 2, this)" style="cursor:pointer;" title="Click to toggle P99 line">P99: {format_number(avg_p99)}{unit}</span>
+                            <span class="badge-pill max"  onclick="toggleChartLine('{chart_id}', 3, this)" style="cursor:pointer;" title="Click to toggle Max line">Max: {format_number(max_max)}{unit}</span>
                         </div>
                     </div>
                     <div class="canvas-wrapper" style="position: relative; height: 220px; width: 100%; margin-top: 16px;">
@@ -785,17 +799,29 @@ function handleTileClick(instanceId, chartId) {
 // =========================================
 // CHART.JS INITIALIZATION
 // =========================================
+// Registry to look up chart instances by canvas ID
+const chartRegistry = {};
+
+function toggleChartLine(canvasId, datasetIndex, badgeEl) {
+    const chart = chartRegistry[canvasId];
+    if (!chart) return;
+    const meta = chart.getDatasetMeta(datasetIndex);
+    meta.hidden = !meta.hidden;
+    chart.update();
+    if (badgeEl) badgeEl.classList.toggle('inactive', meta.hidden);
+}
+
 function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
     const ctx = document.getElementById(canvasId).getContext('2d');
-    new Chart(ctx, {
+    const chart = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: labels, 
+            labels: labels,
             datasets: [
-                { label: 'Mean', data: metricData.mean, borderColor: '#0d6efd', backgroundColor: 'rgba(13,110,253,0.15)', borderWidth: 1.5, tension: 0.3, fill: 'origin', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
-                { label: 'P95', data: metricData.p95, borderColor: '#fd7e14', backgroundColor: 'rgba(253,126,20,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
-                { label: 'P99', data: metricData.p99, borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
-                { label: 'Max', data: metricData.max, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.15)', borderWidth: 1.5, tension: 0.3, fill: '-1', pointRadius: 0, pointHoverRadius: 6, spanGaps: false }
+                { label: 'Mean', data: metricData.mean, borderColor: '#3b82f6', backgroundColor: 'rgba(59,130,246,0.12)', borderWidth: 1.5, tension: 0.3, fill: 'origin', pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
+                { label: 'P95',  data: metricData.p95,  borderColor: '#10b981', backgroundColor: 'rgba(16,185,129,0.10)', borderWidth: 1.5, tension: 0.3, fill: '-1',     pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
+                { label: 'P99',  data: metricData.p99,  borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,0.10)', borderWidth: 1.5, tension: 0.3, fill: '-1',    pointRadius: 0, pointHoverRadius: 6, spanGaps: false },
+                { label: 'Max',  data: metricData.max,  borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,0.10)',  borderWidth: 1.5, tension: 0.3, fill: '-1',     pointRadius: 0, pointHoverRadius: 6, spanGaps: false }
             ]
         },
         options: {
@@ -833,7 +859,7 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
                         }
                     }
                 },
-                legend: { labels: { color: '#333' } }
+                legend: { display: false }
             },
             scales: {
                 y: { min: yConfig.min, max: yConfig.max, title: { display: true, text: yConfig.title }, ticks: { stepSize: yConfig.step } },
@@ -855,6 +881,7 @@ function createMetricChart(canvasId, labels, metricData, yConfig, unit) {
             }
         }
     });
+    chartRegistry[canvasId] = chart;
 }
 
 // Render all charts dynamically
