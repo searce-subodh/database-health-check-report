@@ -472,7 +472,7 @@ for unique_key, data in report_data.items():
 
         # 1. Capacity Allocation (Stacked vertically)
         if capacity_metrics:
-            html_content += '<details class="metric-details"><summary>Capacity Allocation</summary><div class="bullet-group">'
+            html_content += '<details class="metric-details"><summary>Capacity Utilization</summary><div class="bullet-group">'
             for m_key in capacity_metrics:
                 limit_info = metric_configs[m_key]
                 is_pct = "utilization" in m_key
