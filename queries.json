@@ -33,20 +33,7 @@
         "dependency": "performance_schema"
       }
     },
-    "connections": {
-      "active_connections": "SELECT user AS \"Username\", SUBSTRING_INDEX(host, ':', 1) AS \"Client IP\", command AS \"Connection State\", COUNT(*) AS \"Total Connections\" FROM information_schema.processlist WHERE user NOT IN ('system user', 'event_scheduler', 'rdsadmin', 'cloudsqladmin') GROUP BY user, SUBSTRING_INDEX(host, ':', 1), command ORDER BY \"Total Connections\" DESC LIMIT 15;",
-      "aborted_connections": {
-        "preferred_query": "SELECT user AS \"User\", host AS \"Host\", error_number AS \"Error Code\", error_name AS \"Error Name\", sum_error_raised AS \"Total Occurrences\", first_seen AS \"First Seen\", last_seen AS \"Last Seen\" FROM performance_schema.events_errors_summary_by_account_by_error WHERE error_name IN ('ER_ACCESS_DENIED_ERROR', 'ER_ABORTING_CONNECTION', 'ER_NEW_ABORTING_CONNECTION') AND sum_error_raised > 0 ORDER BY last_seen DESC;",
-        "fallback_query": null,
-        "dependency": "performance_schema"
-      },
-      "max_connection_utilization": {
-        "preferred_query": "SELECT (SELECT CAST(variable_value AS UNSIGNED) FROM performance_schema.global_variables WHERE variable_name = 'max_connections') AS \"Max Allowed Connections\", (SELECT CAST(variable_value AS UNSIGNED) FROM performance_schema.global_status WHERE variable_name = 'Threads_connected') AS \"Currently Connected\", (SELECT CAST(variable_value AS UNSIGNED) FROM performance_schema.global_status WHERE variable_name = 'Max_used_connections') AS \"Peak Used\", ROUND((SELECT CAST(variable_value AS FLOAT) FROM performance_schema.global_status WHERE variable_name = 'Max_used_connections') / (SELECT CAST(variable_value AS FLOAT) FROM performance_schema.global_variables WHERE variable_name = 'max_connections') * 100, 2) AS \"Peak Utilization (%)\";",
-        "fallback_query": null,
-        "dependency": "performance_schema"
-      },
-      "idle_connection_bloat": "SELECT user AS \"Username\", SUBSTRING_INDEX(host, ':', 1) AS \"Client IP\", db AS \"Database Name\", time AS \"Idle Time (Seconds)\", CONCAT(ROUND(time / 60, 2), ' Minutes') AS \"Idle Duration\" FROM information_schema.processlist WHERE command = 'Sleep' AND user NOT IN ('system user', 'event_scheduler', 'rdsadmin', 'cloudsqladmin') AND time > 300 ORDER BY time DESC LIMIT 15;"
-    },
+    
     "storage": {
       "fragmentation": "SELECT table_schema AS \"Database Name\", table_name AS \"Table Name\", CONCAT(ROUND(data_length / 1024 / 1024, 2), ' MB') AS \"Data Size\", CONCAT(ROUND(index_length / 1024 / 1024, 2), ' MB') AS \"Index Size\", CONCAT(ROUND(data_free / 1024 / 1024, 2), ' MB') AS \"Reclaimable Free Space\", ROUND((data_free / NULLIF(data_length + index_length + data_free, 0)) * 100, 2) AS \"Fragmentation (%)\" FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys') AND table_type = 'BASE TABLE' AND data_free > 0 ORDER BY data_free DESC LIMIT 15;",
       "largest_tables": "SELECT table_schema AS \"Database Name\", table_name AS \"Table Name\", table_rows AS \"Estimated Rows\", CONCAT(ROUND(data_length / 1024 / 1024, 2), ' MB') AS \"Data Size\", CONCAT(ROUND(index_length / 1024 / 1024, 2), ' MB') AS \"Index Size\", CONCAT(ROUND((data_length + index_length) / 1024 / 1024, 2), ' MB') AS \"Total Size\" FROM information_schema.tables WHERE table_schema NOT IN ('information_schema', 'mysql', 'performance_schema', 'sys') AND table_type = 'BASE TABLE' ORDER BY (data_length + index_length) DESC LIMIT 15;",
@@ -109,25 +96,7 @@
         "scope": "local"
       }
     },
-    "connections": {
-      "active_connections": {
-        "preferred_query": "SELECT usename AS \"Username\", client_addr AS \"Client IP\", state AS \"Connection State\", COUNT(*) AS \"Total Connections\" FROM pg_stat_activity WHERE pid != pg_backend_pid() AND usename NOT IN ('cloudsqladmin', 'cloudsqlagent') GROUP BY usename, client_addr, state ORDER BY COUNT(*) DESC LIMIT 15;",
-        "scope": "global"
-      },
-      "aborted_connections": {
-        "preferred_query": "SELECT datname AS \"Database Name\", sessions AS \"Total Sessions Initiated\", sessions_abandoned AS \"Abandoned Sessions (Lost Connection)\", sessions_fatal AS \"Fatal Sessions (Errors/Terminated)\", ROUND(((sessions_abandoned + sessions_fatal)::numeric / NULLIF(sessions, 0)) * 100, 2) AS \"Failure Rate (%)\" FROM pg_stat_database WHERE datname NOT LIKE 'template%' AND (sessions_abandoned > 0 OR sessions_fatal > 0) ORDER BY \"Failure Rate (%)\" DESC NULLS LAST LIMIT 15;",
-        "scope": "global"
-      },
-      "max_connection_utilization": {
-        "preferred_query": "SELECT current_setting('max_connections')::integer AS \"Max Allowed Connections\", (SELECT COUNT(*) FROM pg_stat_activity) AS \"Currently Connected\", current_setting('superuser_reserved_connections')::integer AS \"Reserved for Superusers\", ROUND(((SELECT COUNT(*) FROM pg_stat_activity)::numeric / current_setting('max_connections')::numeric) * 100, 2) AS \"Current Utilization (%)\";",
-        "scope": "global"
-      },
-      "idle_connection_bloat": {
-        "preferred_query": "SELECT usename AS \"Username\", client_addr AS \"Client IP\", datname AS \"Database Name\", ROUND(EXTRACT(EPOCH FROM (NOW() - state_change))::numeric, 2) AS \"Idle Time (Seconds)\", TO_CHAR((NOW() - state_change), 'HH24:MI:SS') AS \"Idle Duration\" FROM pg_stat_activity WHERE state = 'idle' AND usename NOT IN ('cloudsqladmin', 'cloudsqlagent') AND EXTRACT(EPOCH FROM (NOW() - state_change)) > 300 ORDER BY \"Idle Time (Seconds)\" DESC LIMIT 15;",
-        "scope": "global"
-      }
-    },
-    "storage": {
+      "storage": {
       "fragmentation": {
         "preferred_query": "SELECT schemaname AS \"Schema Name\", relname AS \"Table Name\", n_dead_tup AS \"Dead Tuples\", n_live_tup AS \"Live Rows\", ROUND((n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) * 100, 2) AS \"Bloat Ratio (%)\", pg_size_pretty(pg_total_relation_size(relid)) AS \"Total Allocated Space\", pg_size_pretty(ROUND((n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) * pg_relation_size(relid))::bigint) AS \"Estimated Reclaimable Space\" FROM pg_stat_user_tables WHERE schemaname NOT IN ('pg_catalog', 'information_schema') AND n_dead_tup > 0 ORDER BY (n_dead_tup::numeric / NULLIF(n_live_tup + n_dead_tup, 0)) DESC NULLS LAST LIMIT 15;",
         "scope": "local"
