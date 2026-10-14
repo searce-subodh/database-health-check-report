@@ -68,7 +68,7 @@ for unique_key, data in report_data.items():
     instance_name = data.get("instance_name", unique_key)
     project_id    = data.get("project_id", "")
     
-    display_label = f"{instance_name} ({project_id})" if project_id else instance_name
+    display_label = instance_name
     
     nav_data[unique_key] = {
         "type": db_type,
@@ -165,7 +165,7 @@ def build_paginated_table(rows, table_id, metric_name=""):
 
     for i, row in enumerate(rows):
         rc    = row_class(row)
-        style = "" if i < 10 else ' style="display:none"'
+        style = "" if i < 5 else ' style="display:none"'
         html_table += f'<tr class="page-row {rc}"{style}>'
         for h in headers:
             val = str(row.get(h)) if row.get(h) is not None else "N/A"
@@ -178,7 +178,7 @@ def build_paginated_table(rows, table_id, metric_name=""):
 
     html_table += "</tbody></table>"
 
-    total_pages = (len(rows) + 9) // 10
+    total_pages = (len(rows) + 4) // 5
     if total_pages > 1:
         html_table += f"""
         <div class="pagination">
@@ -472,7 +472,7 @@ for unique_key, data in report_data.items():
 
         # 1. Capacity Allocation (Stacked vertically)
         if capacity_metrics:
-            html_content += '<details class="metric-details" open><summary>Capacity Allocation</summary><div class="bullet-group">'
+            html_content += '<details class="metric-details"><summary>Capacity Allocation</summary><div class="bullet-group">'
             for m_key in capacity_metrics:
                 limit_info = metric_configs[m_key]
                 is_pct = "utilization" in m_key
@@ -540,8 +540,7 @@ for unique_key, data in report_data.items():
 
         # 2. IO & Traffic Statistics (Clickable KPI Tiles)
         if traffic_metrics:
-            html_content += '<details class="metric-details" open><summary>IO & Traffic Statistics</summary><div class="kpi-tile-grid">'
-            
+            html_content += '<details class="metric-details"><summary>IO & Traffic Statistics</summary><div class="kpi-tile-grid">'
             # Generate the Tiles
             for m_key in traffic_metrics:
                 limit_info = metric_configs[m_key]
@@ -748,11 +747,11 @@ updateServerDropdown();
 const pageState = {};
 function changePage(tableId, direction) {
     const rows = document.querySelectorAll(`#tbl-${tableId} tbody .page-row`);
-    const totalPages = Math.ceil(rows.length / 10);
+    const totalPages = Math.ceil(rows.length / 5);
     if (!pageState[tableId]) pageState[tableId] = 1;
     pageState[tableId] = Math.max(1, Math.min(totalPages, pageState[tableId] + direction));
-    const start = (pageState[tableId] - 1) * 10;
-    rows.forEach((row, i) => { row.style.display = (i >= start && i < start + 10) ? '' : 'none'; });
+    const start = (pageState[tableId] - 1) * 5;
+    rows.forEach((row, i) => { row.style.display = (i >= start && i < start + 5) ? '' : 'none'; });
     document.getElementById(`page-info-${tableId}`).textContent = `Page ${pageState[tableId]} of ${totalPages}`;
 }
 
