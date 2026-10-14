@@ -4,6 +4,7 @@ import os
 import sys
 import html
 import math
+import urllib.request
 
 # ─────────────────────────────────────────────
 # LOAD INPUT JSON FILES (VIA COMMAND LINE)
@@ -189,6 +190,25 @@ def build_paginated_table(rows, table_id, metric_name=""):
     html_table += "</div>"
     return html_table
 
+
+# ─────────────────────────────────────────────
+# FETCH CHART.JS FOR OFFLINE EMBEDDING
+# ─────────────────────────────────────────────
+print("Fetching Chart.js library for offline support...")
+try:
+    # Use a standard user-agent to prevent CDN blocking
+    req = urllib.request.Request(
+        'https://cdn.jsdelivr.net/npm/chart.js', 
+        headers={'User-Agent': 'Mozilla/5.0'}
+    )
+    with urllib.request.urlopen(req) as response:
+        chartjs_source = response.read().decode('utf-8')
+    chartjs_tag = f"<script>\n{chartjs_source}\n</script>"
+    print("Successfully embedded Chart.js for offline use.")
+except Exception as e:
+    print(f"Warning: Failed to fetch Chart.js ({e}). Falling back to CDN link.")
+    chartjs_tag = '<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>'
+
 # ─────────────────────────────────────────────
 # HTML HEAD + STYLES
 # ─────────────────────────────────────────────
@@ -202,6 +222,9 @@ css_template = """<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <title>Database Health Check Report</title>
+    __CHARTJS_SCRIPT__
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
     <title>Database Health Check Report</title>
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&family=Montserrat:wght@500;600;700&display=swap" rel="stylesheet">
@@ -367,8 +390,11 @@ css_template = """<!DOCTYPE html>
 
 <div id="content">
 """
-html_content = css_template.replace("__PERIOD_FROM__", period_from).replace("__PERIOD_TO__", period_to)
-
+html_content = (css_template
+    .replace("__PERIOD_FROM__", period_from)
+    .replace("__PERIOD_TO__", period_to)
+    .replace("__CHARTJS_SCRIPT__", chartjs_tag)
+)
 # ─────────────────────────────────────────────
 # MAIN REPORT — PER INSTANCE
 # ─────────────────────────────────────────────
