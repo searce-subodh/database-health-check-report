@@ -11,7 +11,7 @@
         "fallback_query": "SELECT table_schema AS \"Database Name\", table_name AS \"Table Name\", redundant_index_name AS \"Index 1 (Redundant)\", dominant_index_name AS \"Index 2 (Dominant)\", dominant_index_columns AS \"Index Columns\" FROM sys.schema_redundant_indexes WHERE table_schema NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') AND redundant_index_columns = dominant_index_columns LIMIT 15;",
         "dependency": "performance_schema"
       },
-      "queries_high_full_table_scans": "SELECT db AS \"Database Name\", IFNULL(query, 'Unknown') AS \"Query Snippet\", exec_count AS \"Execution Count\", sys.format_time(total_latency) AS \"Total Latency\", rows_examined_avg AS \"Avg Rows Examined\" FROM sys.statements_with_full_table_scans WHERE db NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') ORDER BY total_latency DESC LIMIT 15;"
+      "full_table_scans": "SELECT db AS \"Database Name\", IFNULL(query, 'Unknown') AS \"Query Snippet\", exec_count AS \"Execution Count\", sys.format_time(total_latency) AS \"Total Latency\", rows_examined_avg AS \"Avg Rows Examined\" FROM sys.statements_with_full_table_scans WHERE db NOT IN ('mysql', 'performance_schema', 'information_schema', 'sys') ORDER BY total_latency DESC LIMIT 15;"
     },
     "performance": {
       "buffer_pool_hit_ratio": {
@@ -51,7 +51,7 @@
         "preferred_query": "SELECT p1.schemaname AS \"Schema Name\", p1.tablename AS \"Table Name\", p1.indexname AS \"Index 1 Name\", COALESCE(s1.idx_scan, 0) AS \"Idx 1 Usage Count\", p2.indexname AS \"Index 2 Name\", COALESCE(s2.idx_scan, 0) AS \"Idx 2 Usage Count\", CASE WHEN COALESCE(s1.idx_scan, 0) + COALESCE(s2.idx_scan, 0) = 0 THEN 'No Usage Yet' ELSE ROUND((COALESCE(s1.idx_scan, 0)::numeric / (COALESCE(s1.idx_scan, 0) + COALESCE(s2.idx_scan, 0))) * 100, 1)::text || '%' END AS \"Idx 1 Usage %\", substring(p1.indexdef from ' USING ([a-zA-Z0-9_]+) ') AS \"Index Type\", substring(p1.indexdef from '\\((.*)\\)') AS \"Indexed Columns\" FROM pg_indexes p1 JOIN pg_indexes p2 ON p1.schemaname = p2.schemaname AND p1.tablename = p2.tablename AND p1.indexname < p2.indexname AND substring(p1.indexdef from '\\((.*)\\)') = substring(p2.indexdef from '\\((.*)\\)') AND substring(p1.indexdef from ' USING ([a-zA-Z0-9_]+) ') = substring(p2.indexdef from ' USING ([a-zA-Z0-9_]+) ') LEFT JOIN pg_stat_user_indexes s1 ON p1.schemaname = s1.schemaname AND p1.tablename = s1.relname AND p1.indexname = s1.indexrelname LEFT JOIN pg_stat_user_indexes s2 ON p2.schemaname = s2.schemaname AND p2.tablename = s2.relname AND p2.indexname = s2.indexrelname WHERE p1.schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY (COALESCE(s1.idx_scan, 0) + COALESCE(s2.idx_scan, 0)) DESC, p1.tablename;",
         "scope": "local"
       },
-      "queries_high_full_table_scans": {
+      "full_table_scans": {
         "preferred_query": "SELECT schemaname AS \"Schema Name\", relname AS \"Table Name\", seq_scan AS \"Total Full Scans\", seq_tup_read AS \"Total Rows Read\", ROUND(seq_tup_read::numeric / NULLIF(seq_scan, 0), 0) AS \"Avg Rows Per Scan\", pg_size_pretty(pg_table_size(relid)) AS \"Table Size\" FROM pg_stat_user_tables WHERE seq_scan > 0 AND pg_table_size(relid) > 1048576 AND schemaname NOT IN ('pg_catalog', 'information_schema') ORDER BY seq_tup_read DESC LIMIT 15;",
         "scope": "local"
       }

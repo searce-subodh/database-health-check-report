@@ -385,7 +385,7 @@ css_template = """<!DOCTYPE html>
 
 <div id="topbar">
     <h1>Database Health Report</h1>
-    <select id="filter-dbtype" onchange="updateServerDropdown()">
+    <select id="filter-dbtype" onchange="updateProjectDropdown()">
         <option value="ALL">All Database Engines</option>
         <option value="PostgreSQL">PostgreSQL</option>
         <option value="MySQL">MySQL</option>
@@ -716,34 +716,60 @@ const typeSel = document.getElementById('filter-dbtype');
 const projSel = document.getElementById('filter-project');
 const serverSel = document.getElementById('filter-server');
 
-const projects = new Set();
-Object.values(navData).forEach(info => {
-    if (info.project_id && info.project_id !== "No Project") {
-        projects.add(info.project_id);
-    }
-});
-Array.from(projects).sort().forEach(proj => {
-    const o = document.createElement('option');
-    o.value = proj; 
-    o.textContent = proj;
-    projSel.appendChild(o);
-});
+// 1. DB_TYPE -> Updates Projects
+function updateProjectDropdown() {
+    const selectedType = typeSel.value;
+    
+    // Reset Projects dropdown
+    projSel.innerHTML = '<option value="ALL">All Projects</option>';
+    
+    const validProjects = new Set();
+    Object.values(navData).forEach(info => {
+        if (selectedType === 'ALL' || info.type === selectedType) {
+            if (info.project_id && info.project_id !== "No Project") {
+                validProjects.add(info.project_id);
+            }
+        }
+    });
+    
+    Array.from(validProjects).sort().forEach(proj => {
+        const o = document.createElement('option');
+        o.value = proj; 
+        o.textContent = proj;
+        projSel.appendChild(o);
+    });
 
+    // Reset project selection to ALL and cascade down to Instances
+    projSel.value = 'ALL';
+    updateServerDropdown();
+}
+
+// 2. PROJECTS -> Updates Instances
 function updateServerDropdown() {
-    const type = typeSel.value;
-    const proj = projSel.value;
+    const selectedType = typeSel.value;
+    const selectedProj = projSel.value;
+    
+    // Reset Instances dropdown
     serverSel.innerHTML = '<option value="ALL">All Instances</option>';
     
     Object.entries(navData).forEach(([key, info]) => {
-        if ((type === 'ALL' || info.type === type) && (proj === 'ALL' || info.project_id === proj)) {
+        const typeMatch = (selectedType === 'ALL' || info.type === selectedType);
+        const projMatch = (selectedProj === 'ALL' || info.project_id === selectedProj);
+        
+        if (typeMatch && projMatch) {
             const o = document.createElement('option');
-            o.value = key; o.textContent = info.label;
+            o.value = key; 
+            o.textContent = info.label;
             serverSel.appendChild(o);
         }
     });
+    
+    // Reset instance selection to ALL and apply UI filters
+    serverSel.value = 'ALL';
     applyFilters();
 }
 
+// 3. INSTANCES -> Applies UI Visibility
 function applyFilters() {
     const type = typeSel.value;
     const proj = projSel.value;
@@ -756,7 +782,9 @@ function applyFilters() {
         block.classList.toggle('hidden', !(typeMatch && projMatch && srvMatch));
     });
 }
-updateServerDropdown();
+
+// Initialize dropdowns on first load
+updateProjectDropdown();
 
 const pageState = {};
 function changePage(tableId, direction) {
