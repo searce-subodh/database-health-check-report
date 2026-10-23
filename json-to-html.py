@@ -677,6 +677,9 @@ for unique_key, data in report_data.items():
                 '''
             html_content += '</div></details>'
 
+        # Close dashboard-content and dashboard-wrapper
+        html_content += '</div></div>'
+
     # ── Operational Health ──
     html_content += '<div class="section-title">Operational Health</div>'
     if "connection_error" in health_checks:
