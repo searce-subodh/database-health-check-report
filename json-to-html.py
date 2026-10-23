@@ -631,19 +631,43 @@ for unique_key, data in report_data.items():
                 })
 
             html_content += '</div>'
-            
+
             # Shared container holding all hidden chart canvases
             html_content += f'<div id="shared-chart-container-{safe_instance}" class="shared-bar-container active">'
             for m_key in traffic_metrics:
                 limit_info = metric_configs[m_key]
                 display_name = limit_info.get("header-name", format_clean_title(m_key))
                 chart_id = f"chart_{safe_instance}_{m_key}"
+                is_pct = "utilization" in m_key
+                unit = "%" if is_pct else (" GB" if "bytes" in m_key else "")
+
+                # Recalculate averages for the badges
+                mean_data = [utilization.get(t_key, {}).get(f"{m_key}_mean") for t_key in continuous_keys]
+                p95_data  = [utilization.get(t_key, {}).get(f"{m_key}_p95") for t_key in continuous_keys]
+                p99_data  = [utilization.get(t_key, {}).get(f"{m_key}_p99") for t_key in continuous_keys]
+                max_data  = [utilization.get(t_key, {}).get(f"{m_key}_max") for t_key in continuous_keys]
+
+                valid_mean = [x for x in mean_data if x is not None]
+                valid_p95  = [x for x in p95_data if x is not None]
+                valid_p99  = [x for x in p99_data if x is not None]
+                valid_max  = [x for x in max_data if x is not None]
+
+                avg_mean = sum(valid_mean) / len(valid_mean) if valid_mean else 0
+                avg_p95  = sum(valid_p95) / len(valid_p95) if valid_p95 else 0
+                avg_p99  = sum(valid_p99) / len(valid_p99) if valid_p99 else 0
+                max_max  = max(valid_max) if valid_max else 0
 
                 html_content += f'''
                 <div id="wrapper-{chart_id}" class="chart-wrapper-{safe_instance}" style="display: none;">
                     <div class="bullet-row" style="margin-top: 16px;">
                         <div class="bullet-header">
                             <div class="bullet-title">{display_name} Chart</div>
+                            <div class="bullet-badges">
+                                <span class="badge-pill mean" onclick="toggleChartLine('{chart_id}', 0, this)" style="cursor:pointer;" title="Click to toggle Mean line">Mean: {format_number(avg_mean)}{unit}</span>
+                                <span class="badge-pill p95"  onclick="toggleChartLine('{chart_id}', 1, this)" style="cursor:pointer;" title="Click to toggle P95 line">P95: {format_number(avg_p95)}{unit}</span>
+                                <span class="badge-pill p99"  onclick="toggleChartLine('{chart_id}', 2, this)" style="cursor:pointer;" title="Click to toggle P99 line">P99: {format_number(avg_p99)}{unit}</span>
+                                <span class="badge-pill max"  onclick="toggleChartLine('{chart_id}', 3, this)" style="cursor:pointer;" title="Click to toggle Max line">Max: {format_number(max_max)}{unit}</span>
+                            </div>
                         </div>
                         <div class="canvas-wrapper" style="position: relative; height: 260px; width: 100%;">
                             <canvas id="{chart_id}"></canvas>
@@ -652,8 +676,6 @@ for unique_key, data in report_data.items():
                 </div>
                 '''
             html_content += '</div></details>'
-
-        html_content += '</div></div>'
 
     # ── Operational Health ──
     html_content += '<div class="section-title">Operational Health</div>'
